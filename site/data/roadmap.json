@@ -16,11 +16,11 @@
         "Lie groups, numerical optimization"
       ],
       "status": "validated",
-      "here": "modules/m00_math: rotations, quaternions, ZYX Euler extraction, SE(2)/SE(3), SO(3) exp/log, derived and matched to scipy and Pinocchio to ≤ 8e-15 over 100k samples (Pinocchio's log3 loses digits near π; the atan2 form here does not). Tilt-compensated yaw rate and the camera optical frame derived with numbers. 13 tests.",
+      "here": "modules/m00_math: rotations, quaternions, ZYX Euler extraction, SE(2)/SE(3), SO(3) exp/log, derived and matched to scipy and Pinocchio to ≤ 8e-15 over 100k samples (Pinocchio's log3 loses digits near π; the atan2 form here does not). Tilt-compensated yaw rate and the camera optical frame derived with numbers. Advanced level: SO(3) right/left Jacobians match central differences to 5e-10; Gauss-Newton and Levenberg-Marquardt written from scratch reach the closed-form SE(2) registration to 9e-15 / 6e-12 from every start on a 5° heading grid, and Cauchy IRLS with 20% wrong correspondences leaves 0.046° and 1.1 mm; FL leg calibration (3 encoder offsets, 2 link lengths) equals scipy to 4e-12 with mean NEES 4.64 for 5 parameters. 29 of 32 advanced checks pass. Missed: Jr vs Pinocchio Jexp3 5.2e-14 (> 1e-14) and Jr^-1 vs Pinocchio Jlog3 3.8e-10 (> 1e-10), both from Pinocchio losing digits below 0.01 rad; Gauss-Newton needs 17 iterations (> 10) from -145°, the start opposite the truth. 31 tests.",
       "chapters": [
         "09-state-estimation"
       ],
-      "next": "Numerical optimisation: Gauss-Newton and Levenberg-Marquardt on SE(2) registration, checked against scipy.optimize.",
+      "next": "Close the three advanced misses or show they cannot be closed: compare Jexp3/Jlog3 below 0.01 rad against an extended-precision reference to decide which side loses the digits, and test whether a relative gradient tolerance removes the 9 rejected LM trials from 170°. Then extend the Jacobians to SE(3) for IMU preintegration in module 11 (state estimation).",
       "refs": [
         "Lynch & Park, Modern Robotics (2017), ch. 3",
         "Solà, Deray, Atchuthan, A micro Lie theory for state estimation in robotics (2018)"

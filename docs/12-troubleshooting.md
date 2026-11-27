@@ -2,6 +2,9 @@
 
 Each entry is a failure that happened while building this.
 
+![Decision tree from the symptom you see to the fix, grouped by kind of failure](img/c09-ch12-decision-tree.png)
+*The table below as a decision tree: start from what you see, follow the group, read the fix.*
+
 | Symptom | Cause | Fix |
 |---|---|---|
 | Gazebo shows sensors, but no `/scan`, `/imu/data` or camera topics, and there is no error | `libgazebo_ros_*` plugins not installed | install `ros-humble-gazebo-plugins`, or let `setup.sh` unpack it into `overlay/` |
@@ -22,3 +25,13 @@ Each entry is a failure that happened while building this.
 | `pkill -f` kills your own terminal (exit code 144) | the pattern appears in your shell's command line, and `pkill -f` matches it too | `scripts/stop.sh` now skips its own ancestors; with plain `pkill -f`, never type the pattern in the same command |
 | Stopping one stack kills another one on the same machine | `pkill` by name ignores ROS domains | `scripts/stop.sh` only stops processes whose environment has the caller's `ROS_DOMAIN_ID`; give each stack its own domain and `GAZEBO_MASTER_URI` port |
 | Gazebo cameras about 5 fps | rendering on an integrated GPU | `env.sh` enables NVIDIA PRIME offload when `nvidia-smi` exists |
+
+What "stands limp" looks like, reproduced in MuJoCo by setting every joint torque to zero. In Gazebo the cause was different (no
+controller was spawned), but the robot ends up the same way.
+
+![Two side views of the MuJoCo Go2: standing under a PD controller, and collapsed with zero joint torques](img/c09-ch12-limp.png)
+*MuJoCo Go2 after 1.5 s: with a PD controller holding the home pose the trunk is at 0.256 m; with zero torques it settles at 0.094 m.*
+
+<video controls muted playsinline src="../media/c09-ch12-limp.mp4"></video>
+
+*MuJoCo, 5 s: the PD controller holds the Go2 up for 2 s, then all twelve torques drop to zero.*

@@ -24,6 +24,10 @@ Every new terminal needs `source env.sh`. It sources ROS 2 and this workspace, s
 `ROS_DOMAIN_ID=42`. Two ROS 2 programs see each other only when they share a domain ID, which is how two stacks can run on one
 machine without crosstalk.
 
+![Three layers, one per launch file: simulator and CHAMP, estimation, navigation, with the topics that cross between them](img/c04-stack-launch.png)
+
+*What each launch file starts, read from `src/go2_nav_sim/launch/*.py` and the files they include. Sensor data flows up through the layers; `/cmd_vel` is the only command that flows back down.*
+
 ## The graph
 
 A running ROS 2 system is a graph. Nodes are processes (or parts of processes) that talk through four mechanisms:
@@ -34,6 +38,10 @@ A running ROS 2 system is a graph. Nodes are processes (or parts of processes) t
 | Service | request and reply | `/lidar_odom/get_parameters` |
 | Action | long-running goal with feedback and a result, can be cancelled | `/navigate_to_pose`, `/spin` |
 | Parameter | named, typed setting stored inside a node | `voxel` on `/lidar_odom` |
+
+![Four panels: a topic with one publisher and two subscribers, a parameter service call, the /spin action as a sequence diagram, and the parameter table of /lidar_odom](img/c04-mechanisms.png)
+
+*The four mechanisms with the examples from this section; every number is from the outputs below (`/spin`: 41 feedback messages, 3.38 s, 1.62 rad reached).*
 
 ### Nodes
 
@@ -175,6 +183,10 @@ Goal finished with status: SUCCEEDED
 
 41 feedback messages arrived during the 3.38 s of simulated time. The robot overshot to 1.62 rad.
 
+<video controls muted playsinline src="../media/c04-nav-goal-start.mp4"></video>
+
+*0:04 to 0:18 of `media/go2_a2b_dashboard.mp4`, map and metrics panels: `go_to_goal.py` sends its `/navigate_to_pose` goal, the plan (amber) appears, and the robot starts to walk from A towards B.*
+
 ### Parameters
 
 ```bash
@@ -231,7 +243,11 @@ float32 angular_distance_traveled
 ```
 
 For a picture of the graph, `ros2 run rqt_graph rqt_graph` opens a window that draws nodes and topics. With 44 nodes it is
-crowded; filter on one node name.
+crowded; filter on one node name. The figure below is the part of the graph that carries data, drawn by hand.
+
+![ROS 2 graph of the data path: Gazebo, sensor topics, lidar odometry, EKF, AMCL, slam_toolbox, Nav2, /cmd_vel and CHAMP](img/c04-ros-graph.png)
+
+*Nodes (rounded, coloured by launch file) and topics (square), from the launch files, `config/*.yaml` and the subscriptions in the node code. The amber path is the command loop: Nav2 to `/cmd_vel` to CHAMP to the joint controllers in Gazebo.*
 
 ## Quality of service
 
@@ -324,6 +340,10 @@ nav.create_subscription(PoseWithCovarianceStamped, '/amcl_pose', ...,
                         QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL, reliability=ReliabilityPolicy.RELIABLE))
 ```
 
+![Two 2-by-2 grids, reliability and durability, publisher offer against subscription request, each cell marked works or no messages with an example from this stack](img/c04-qos-matrix.png)
+
+*Request against offer for the two policies, with the cases measured in this section in the cells. Red cells print the incompatible-QoS warning; the amber cell connects but has no history to give.*
+
 ## Simulated time
 
 Gazebo publishes the simulated time on `/clock`. A node with the parameter `use_sim_time` set to true takes its time from
@@ -342,6 +362,10 @@ stack. First the IMU rate, without and with `-s` (`--use-sim-time`):
 ros2 topic hz /imu/data                        # average rate: 81.158
 ros2 topic hz -s /imu/data                     # average rate: 99.751
 ```
+
+![Two rows of tick marks: 100 IMU stamps per simulated second, about 81 arrivals per wall-clock second](img/c04-sim-time.png)
+
+*The same IMU messages counted on the two clocks. The real-time factor 0.81 is the ratio of the two `hz` readings above, not a separate measurement.*
 
 The IMU publishes 100 times per simulated second. Without `-s` the rate is per wall-clock second, and the simulator was running
 slower than real time. Second, the delay between a message's stamp and its arrival:
@@ -385,6 +409,10 @@ echo $AMENT_PREFIX_PATH | tr : '\n'
 ros2 pkg prefix go2_tutorials                  # ./install/go2_tutorials
 ros2 pkg prefix nav2_amcl                      # /opt/ros/humble
 ```
+
+![Left: src, build and install with the symlink back to src. Right: the overlay ./install above the underlay /opt/ros/humble, with the two lookups](img/c04-overlay.png)
+
+*`colcon build` turns `src/` into `install/`; the overlay is searched before the underlay, so `go2_tutorials` resolves to this workspace and `nav2_amcl` to `/opt/ros/humble`.*
 
 A package is a directory with a `package.xml`: name, version, dependencies, and the build type. `colcon list` shows the 13
 packages here; 12 are `ament_cmake`, and `go2_tutorials`, which you write below, is `ament_python`.
@@ -530,6 +558,10 @@ listed order, so AMCL activates after the map server has published `/map`. Once 
 Each transition is a service call. On a loaded machine these calls can time out, the manager logs `Aborting bringup`, and the
 nodes stay inactive; `scripts/up.sh` watches for that line and retries.
 
+![Lifecycle state machine: unconfigured, inactive, active, finalized with transition IDs, and the two lifecycle managers with their node order](img/c04-lifecycle.png)
+
+*States and transitions with the IDs `ros2 lifecycle` prints, and the order in which the two managers of this stack bring their nodes up.*
+
 ## Executors and callback groups
 
 A node does nothing until an executor spins it. The executor waits for events (a message, a timer, a service request) and runs
@@ -553,6 +585,10 @@ group, and callbacks in a mutually exclusive group never run at the same time, h
 subscriptions in separate groups lets the IMU callback run while a registration is in progress. A reentrant group would allow
 two calls of the same callback to overlap, which these callbacks are not written for. The third part is in the data: the gyro
 is integrated into a history and looked up by timestamp, so the result no longer depends on callback order.
+
+![Two callback timelines: with one thread the IMU callbacks stop during a registration; with separate groups they keep running in their own thread](img/c04-executor.png)
+
+*Schematic of `lidar_odom.py` before and after the fix; the durations are not to scale. With one thread, IMU messages queue behind the registration and some miss the next scan's integration window.*
 
 ## Bags
 
@@ -616,6 +652,10 @@ ros2 bag play bags/v3 --topics /clock /odom_gt /tf /tf_static --start-offset 30
 ```
 
 Then `use_sim_time` nodes and the message stamps agree. `--start-offset 30` skips the first 30 s of the bag.
+
+![The bags/v3 topic list and two ways to play it: with --clock the clock reads 1795810128 s while stamps are near 52 s; with the recorded /clock it reads 50 s](img/c04-bag-clock.png)
+
+*The two replays above. For these bags the recorded `/clock` is the one that matches the message stamps.*
 
 ## Debugging tools
 
@@ -807,6 +847,10 @@ t  90.0 s  gt turned  2444.99 deg  imu_yaw turned  2450.15 deg  error   5.16 deg
 
 On the first 60 s of the recorded mission in `bags/v3` (played with `--clock --topics /imu/data /odom_gt` on domain 78, with the
 launch file and `yaw_check` on the same domain), the error was -4.02 degrees.
+
+![Yaw error against time for the standing, turning and bag runs, all a few degrees after one minute](img/c04-yaw-drift.png)
+
+*The three `yaw_check` results above on one plot. The grey band is the drift the configured gyro noise alone would give, about 0.01 degrees after 60 s.*
 
 So the integrated gyro drifts by 4 to 6.4 degrees per minute here, whether the robot stands, spins or walks. The cause is not
 the configured sensor noise. `gazebo.xacro` gives the gyro white noise of σ = 2e-4 rad/s and no bias; integrated at 100 Hz for

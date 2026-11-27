@@ -6,6 +6,10 @@ The Go2 model and its gait controller are not part of this repository. `scripts/
 chapter covers what that tree contains, how this repository uses it (the patch touches only two CHAMP launch files), and what
 you would provide for your own quadruped.
 
+![The Go2 from the front left with the joint origins of all four legs marked and the three revolute joints of the left front leg labelled with their axes and limits](img/c06-go2-joints.png)
+
+*MuJoCo Menagerie Go2 (`modules/assets/unitree_go2`, home pose) labelled with this stack's URDF names; its leg offsets are the ones in `const.xacro`. Red dots: hip joints (axis x), blue: upper leg (axis y), green: lower leg (axis y), black squares: foot points. Limits from the expanded URDF.*
+
 ## What upstream provides
 
 | Path under `src/third_party/unitree-go2-ros2` | Contents |
@@ -22,6 +26,10 @@ you would provide for your own quadruped.
 `go2_config` also has its own `launch/gazebo.launch.py` and `bringup.launch.py` for upstream's demo. This repository does not
 use them. It includes the two CHAMP launch files directly and passes the Go2 paths in.
 
+![Files on the left (go2_nav.xacro and its includes, ros_control.yaml, the three CHAMP YAML maps) with arrows to the processes that read them](img/c06-description-flow.png)
+
+*Which process reads which file. Every node that needs the URDF runs `xacro` on `go2_nav.xacro` itself; the controller YAML is found through the path in `gazebo.xacro`, and the three maps through `sim.launch.py`.*
+
 ## How the xacro is assembled
 
 `robot.xacro` includes `const.xacro`, `materials.xacro`, `leg.xacro` and `gazebo.xacro`. It defines `base_link`, a fixed joint
@@ -37,6 +45,10 @@ trunk origin. It then calls the leg macro four times:
 flags choose the mesh and its orientation. `leg.xacro` creates `<name>_hip_joint` (axis x, at ±0.1934, ±0.0465 m from the trunk
 centre), `<name>_upper_leg_joint` (axis y, 0.0955 m outward), `<name>_lower_leg_joint` (axis y, 0.213 m below) and a fixed
 `<name>_foot_joint` another 0.213 m below. All dimensions, joint limits, masses and inertias live in `const.xacro`.
+
+![Left side and front views of the Go2 with every joint angle at zero, dimension lines for 0.1934, 0.0465, 0.0955 and the two 0.213 m segments, and 0.426 m from base_link to the foot point](img/c06-go2-dimensions.png)
+
+*The offsets above drawn between joint origins, all joint angles zero (outside the knee limit, posed only to show the lengths). With straight legs the foot point is 0.213 + 0.213 = 0.426 m below `base_link`.*
 
 The macro also emits one `<ros2_control>` block per leg:
 
@@ -70,6 +82,10 @@ xacro src/go2_nav_sim/urdf/go2_nav.xacro | grep -c 'type="revolute"'            
 xacro src/go2_nav_sim/urdf/go2_nav.xacro | grep -o '<ros2_control name="[a-z]*"'      # rf, lf, rh, lh
 ```
 
+![Link tree from base_link: trunk with imu_link and four legs of hip, upper leg, lower leg and foot links, and the sensor links lidar_link, camera_link with camera_optical, and chase_cam](img/c06-urdf-tree.png)
+
+*The expanded URDF as a tree, parsed from the `xacro` output by `docs/img/c06-figures.py`. Solid blue edges are the 12 revolute joints; dashed edges are fixed. Sensor links (blue boxes) come from `sensors.xacro`.*
+
 ## ros2_control configuration
 
 `ros_control.yaml` sets `update_rate: 250` and declares two controllers:
@@ -79,6 +95,10 @@ xacro src/go2_nav_sim/urdf/go2_nav.xacro | grep -o '<ros2_control name="[a-z]*"'
 - `joint_group_effort_controller` (`joint_trajectory_controller/JointTrajectoryController`) claims the 12 effort command
   interfaces. Every joint has the gains `p: 100.0, i: 0.2, d: 1.0, i_clamp: 2.5`. CHAMP sends it position targets and the
   controller turns the position error into torque.
+
+![CHAMP sends joint position targets to joint_group_effort_controller, which sends efforts to four GazeboSystem blocks; their position and velocity state goes back to that controller and to the joint state broadcaster, which publishes /joint_states](img/c06-ros2-control.png)
+
+*One controller manager, two controllers, four hardware blocks (one per `<ros2_control>` leg). The PID gains are the per-joint values from `ros_control.yaml`; the 249.6 Hz is the `/joint_states` rate measured in [chapter 7](07-make-it-walk.md).*
 
 An identical copy of the file sits in `go2_config/config/ros_control/`. Only the one named in `gazebo.xacro` is read; the
 `ros_control_file` launch argument of `champ_gazebo` is declared but never used.
@@ -137,6 +157,10 @@ start, shortened:
 
 The `hold_joints` error appears three times, once for each `<ros2_control>` block after the first, and the controllers start
 normally after it. [Chapter 7](07-make-it-walk.md) checks the result.
+
+![Sequence diagram with lanes ros2 launch, robot_state_publisher, gzserver, spawn_entity.py, gazebo_ros2_control and the spawners, showing steps 1 to 5 in order](img/c06-startup-sequence.png)
+
+*The five start-up steps above in time order. The URDF reaches the plugin from `robot_state_publisher`; the spawners are this repository's patch.*
 
 ## Adapting this to your own quadruped
 

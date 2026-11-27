@@ -10,3 +10,4 @@ site/dev/
 src/third_party/
 .venv-modules/
 videos/
+modules/assets/demo/

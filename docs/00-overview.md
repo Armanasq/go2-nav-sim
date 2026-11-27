@@ -4,12 +4,28 @@ A simulated Unitree Go2 that walks across a room to a goal, using a 3D lidar, an
 uses is computed from the robot's own sensors. The simulator's ground truth is used once, to initialise AMCL, and after that
 only recorded to score the run, so every run ends with numbers as well as a video.
 
+![The Unitree Go2 rendered in MuJoCo, three-quarter and side view](img/c00-00-go2-render.png)
+
+*The Go2 as modelled in MuJoCo Menagerie (`modules/assets/unitree_go2`, used by the modules); the ROS stack simulates the URDF from `unitree-go2-ros2` in Gazebo.*
+
+<video controls muted playsinline src="../media/c00-00-a2b-start.mp4"></video>
+
+*From 0:03 to 0:15 of the dashboard video `media/go2_a2b_dashboard.mp4`: the robot stands at A, Nav2 publishes a plan (amber) and the robot starts to walk.*
+
+![Top view of the arena with obstacles, start A, goal B and the ground-truth path](img/c00-00-arena.png)
+
+*The room, from `site/data/runs/w2/run.json`: start A at (-4.5, -3.5), goal B at (4.0, 3.0), six obstacles, and the path the robot walked in run w2.*
+
 ## The stack in one paragraph
 
 Gazebo Classic simulates the robot, its CHAMP gait controller and the sensors. A lidar odometry node registers each lidar scan
 against a local map, with yaw taken from the gyro. An EKF fuses that with the IMU and publishes the `odom` frame. AMCL localises
 on a known map and Nav2 plans and drives. A second mapper, `slam_toolbox`, builds its own map in the background so you can
 compare it with the real layout. Every run is recorded to a rosbag, scored against ground truth and rendered to a video.
+
+![ROS 2 graph of the stack: Gazebo, CHAMP, lidar odometry, EKF, AMCL, slam_toolbox, Nav2 and the topics between them](img/c00-00-ros-graph.png)
+
+*The nodes and topics of the running stack, read from `src/go2_nav_sim/launch/*.py`; the fill says where each node comes from. `scripts/record_bag.sh` records the sensor, odometry, map, plan and command topics.*
 
 ## Route
 

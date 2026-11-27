@@ -29,6 +29,10 @@ so a positive yaw turns the robot left. Camera optical frames are the exception:
 down, the convention of image coordinates. This stack's `/cmd_vel` follows the same axes: the `{angular: {z: 0.5}}` command in
 chapter 4 turned the robot anticlockwise.
 
+![The Go2 drawn see-through with coordinate axes at base_link, lidar_link, camera_link, the four hips and the left front leg chain](img/c04-go2-frames.png)
+
+*The MuJoCo Menagerie Go2 posed with the trunk 0.217 m above the floor, with this stack's URDF frame names: `lidar_link` 0.1 m above `base_link`, `camera_link` 0.28 m ahead and 0.03 m up, the four hips and the `lf_` leg chain. Axes x red, y green, z blue: REP-103 body axes, x forward, y left, z up. The sensor frames are placed at their URDF offsets on the Menagerie base, which has no sensors of its own.*
+
 ## The standard frames: REP-105
 
 [REP-105](https://www.ros.org/reps/rep-0105.html) names the frames of a mobile robot and the rules they follow.
@@ -50,6 +54,10 @@ step. A controller that received those steps would turn them into jerks. So the 
 directly. It publishes `map` to `odom`, the correction that makes `map` to `odom` to `base_footprint` equal its estimate. The
 controller works in `odom`; the planner and the goal live in `map`.
 
+![Left: ground truth, odometry and AMCL paths of run w2 over the arena. Right: odometry and AMCL position error against time](img/c04-amcl-vs-odom.png)
+
+*Run w2 from `site/data/runs/w2/run.json` (odometry aligned to ground truth on its first sample by `export_run.py`). The AMCL pose is held between its 170 updates, so its error saw-tooths while the robot walks; the odometry is continuous. Over one minute the odometry error stays small here; chapter 4 shows how it grows when the robot is left standing.*
+
 ## Static and dynamic transforms
 
 A fixed joint in the URDF never changes, so `robot_state_publisher` sends it once on `/tf_static` with transient-local
@@ -60,6 +68,10 @@ other transform is streamed on `/tf` with a timestamp, and listeners keep a shor
 ros2 topic info -v /tf_static            # publisher robot_state_publisher, Durability: TRANSIENT_LOCAL
 ros2 topic info -v /tf                   # publishers include odom_ekf, base_to_footprint_ekf, robot_state_publisher, amcl
 ```
+
+<video controls muted playsinline src="../media/c04-go2-frames.mp4"></video>
+
+*Leg frames move with the joints, which in the ROS stack means `/tf` from `robot_state_publisher` and `/joint_states`; `lidar_link` and `camera_link` (orange spheres) stay fixed to `base_link`, which means `/tf_static`. MuJoCo Go2 with the legs moved kinematically in a trot pattern, not a recording of the Gazebo stack.*
 
 ## One parent per frame
 
@@ -74,6 +86,10 @@ happen, and each is configured away:
   `transform_publish_period: 0.0`, so it publishes no transform and AMCL stays the only parent of `odom`.
 - CHAMP's own `footprint_to_odom` EKF is not started, through the `gt_odom` argument that the patch adds
   ([chapter 3](03-install-and-first-run.md#what-the-patch-changes)).
+
+![Left: map to odom to base_footprint, one publisher per edge. Right: amcl and slam_toolbox both publishing a parent of odom](img/c04-one-parent.png)
+
+*The second case from the list above, had `slam_toolbox` been left to publish its transform.*
 
 ## Read the tree
 
@@ -101,6 +117,10 @@ The edges, from the `.gv` file:
 
 Static transforms show a rate of 10000 and a most recent time of 0.0: they have no time. Every edge says
 `Broadcaster: default_authority`, so `view_frames` does not tell you who publishes what; `ros2 topic info -v /tf` does.
+
+![The TF tree drawn from map down to the four feet and the sensor frames, edges coloured by publisher, static edges dashed](img/c04-tf-tree.png)
+
+*The table above as a tree. Edge colour is the publisher, from the "Kind" column and `ros2 topic info -v /tf`; dashed edges are static. Leg prefixes `lf`, `rf`, `lh`, `rh` are the URDF names.*
 
 ## tf2_echo
 
@@ -162,6 +182,10 @@ it). 0.426 m is the height for all joint angles at zero, legs straight down: 0.2
 ([chapter 1](01-legged-robot-foundations.md#frames) has the details). The simulator's ground truth puts `base_link` 0.217 m above
 the floor. So `base_footprint` lies 0.426 − 0.217 = 0.209 m below the floor, and everything expressed in `base_footprint` or
 `odom` is 0.209 m too high. Trunk roll and pitch never reach TF either.
+
+![Side view of the Go2 to scale: base_link 0.217 m above the floor, base_footprint 0.426 m below base_link and 0.209 m below the floor, and the lowest lidar beam reaching the floor](img/c04-footprint-error.png)
+
+*Side view to scale, MuJoCo Go2 posed at the ground-truth height of 0.217 m. The dashed line is where TF puts `base_footprint`; the lowest beam, drawn from the 0.1 m lidar offset, reaches the floor 1.18 m ahead, close to the 1.2 m ring measured below.*
 
 Check it with the floor itself. The lidar's lowest beam points 15 degrees down and hits the floor in a ring about 1.2 m around
 the robot. Transformed into `base_footprint`, those points should sit at z = 0 if the frame were right:
@@ -231,6 +255,10 @@ At time 0.0
 The depth image is stamped in `camera_optical`. A pixel on the optical axis at depth $d$ is the point $(0, 0, d)$ there, and
 $R\,(0,0,d)^\top = (d, 0, 0)^\top$ in `camera_link`: straight ahead, as it should be.
 
+![Three 3-D axis triads: camera_link, camera_optical, and both at the same origin](img/c04-optical-frame.png)
+
+*The columns of $R$ drawn: optical z lies on link x, optical x on link −y, optical y on link −z.*
+
 ## How much a missing tilt costs
 
 Because roll and pitch are not in TF, a point is placed as if the trunk were level. A point at distance $d$ along a ray that is
@@ -242,6 +270,10 @@ For $d = 3$ m and $\theta = 3.6°$ (the largest roll in the walk of [chapter 7](
 $\Delta z = 3 \times 0.0628 = 0.188$ m, about 0.19 m. The horizontal error is $d(1 - \cos\theta) = 0.006$ m, negligible. In one of the
 author's recorded missions (`bags/v3`), `/odom_gt` pitch ranged from −2.95 to +1.63 degrees (3477 samples), which gives up to 0.15 m at
 3 m. A 15 cm height error at 3 m is enough to move a wall point out of a height band, or to put a floor point into one.
+
+![Left: sketch of a tilted ray and the height error d sin theta. Right: height error against distance for 3.6, 2.95 and 1.63 degrees](img/c04-tilt-error.png)
+
+*$\Delta z = d \sin\theta$ for the three tilts quoted in this section, with the 0.188 m and 0.154 m values at 3 m marked.*
 
 ## Lookups in time
 
@@ -291,6 +323,10 @@ This asked for `now − 30 s`, older than anything in the buffer. A static trans
 the lidar lookup in the first message failed because the chain from `lidar_link` to `base_footprint` includes the dynamic
 `base_footprint` to `base_link`.
 
+![Three time axes, one per exception, each showing the span of the buffer and the requested time outside it](img/c04-lookup-time.png)
+
+*The three messages above on their own time axes (note the different scales): 4 ms before the earliest data, 0.511 s after the latest, 29.4 s before the earliest.*
+
 `lidar_odom.py` uses both forms: a stamped lookup with a 0.3 s timeout, and the latest transform as a fallback when the
 stamped one fails on a loaded machine ([chapter 9](09-state-estimation.md#lidar-odometry)).
 
@@ -329,6 +365,10 @@ The hand result differs in the fourth decimal only because the matrices above ar
 `base_footprint` error again: TF puts the point 0.548 m above the ground, while the simulator has `base_link` at 0.2158 m, so the
 point is really 0.2158 + 0.1 + 0.0219 = 0.338 m up. The difference is 0.210 m.
 
+![The lidar point carried down a chain of four frames with its coordinates in each, and a top view of the odom and base_footprint frames with the point](img/c04-compose-chain.png)
+
+*The worked example as a chain: each arrow is one transform, the coordinates beside each frame are the point in that frame. Right: the same step in top view, `base_footprint` turned 7.83 degrees in `odom`.*
+
 ## Watch map jump and odom not
 
 With AMCL running, publish an initial pose 0.5 m away from the true one, then the true one again, and read both transforms after
@@ -342,6 +382,10 @@ restored map->odom ( -6.826,  -2.040, yaw  164.09 deg) at 1125.70   odom->base_f
 
 `map` to `odom` moved by 0.43 m, then by 0.57 m, each in a single step. `odom` to `base_footprint` moved by 9 cm over the same
 8 s, its slow drift, and did not react to the relocalisation. That is the REP-105 split at work.
+
+![Left: the map origin, the three odom origins and the three composed robot poses in the arena. Right: bar chart of how far map to odom and odom to base_footprint moved in each step](img/c04-map-odom-jump.png)
+
+*The three lines above drawn in `map`. Large arrows: the `odom` origin given by `map` to `odom`; small arrows: the robot, `map` to `odom` composed with `odom` to `base_footprint`; grey: ground truth. Right: the 0.43 m and 0.57 m steps of `map` to `odom` against 0.07 m and 0.03 m of `odom` to `base_footprint` over the same intervals.*
 
 The same output shows two more things. The odometry had drifted by 2.6 m and 22 degrees while the robot stood still for several
 minutes, and `map` to `odom` had absorbed it: composing the "before" pair gives the robot at (−4.53, −3.86) and −169.8 degrees

@@ -11,6 +11,10 @@ installs and works on Humble, which is why this tutorial uses it, but it receive
 with Gazebo Harmonic; porting to it is on the roadmap (module 03). The algorithms, configurations
 and evaluation in this repository do not depend on the simulator.
 
+![Software layers: Ubuntu 22.04, ROS 2 Humble with Cyclone DDS, Gazebo Classic 11, the apt packages by role, and this repository on top](img/c00-02-software-stack.png)
+
+*What this chapter installs, bottom to top, with the apt packages grouped by the part of the stack that uses them. Dashed: the current pairing, not used here.*
+
 ## System packages
 
 ```bash
@@ -43,5 +47,9 @@ python3 -c "import rosbag2_py, scipy, cv2, PIL; print('python ok')"
   `.venv` entry from `PATH`; if you build by hand, deactivate first.
 - Fast DDS drops service replies on a busy machine. Nav2 starts its nodes with lifecycle service calls, and a lost reply aborts
   the bring-up. `env.sh` selects Cyclone DDS on the loopback interface. Do not skip this step.
+
+![Two panels: a virtualenv python shadowing the system python during the build, and a lifecycle service reply lost under Fast DDS](img/c00-02-env-traps.png)
+
+*How each trap fails and the `env.sh` line that prevents it. The error messages are the ones listed in [chapter 12](12-troubleshooting.md).*
 
 Next: [3. Install and first run](03-install-and-first-run.md)

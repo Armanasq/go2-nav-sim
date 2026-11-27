@@ -18,6 +18,9 @@ replaces it.
 `src/go2_nav_sim/scripts/lidar_odom.py` registers each scan against a local map. For a ground robot a planar (SE(2)) registration
 is enough and costs a few milliseconds per scan.
 
+![Data flow of the estimator: lidar and IMU into lidar_odom.py, its six steps, the EKF and the consumers](img/c09-ch09-dataflow.png)
+*Data flow from the sensors to the `odom` to `base_footprint` transform; ground truth only reaches the scoring scripts. EKF inputs as in `config/ekf.yaml`.*
+
 1. The cloud is transformed into `base_footprint` through TF. That transform is not what it should be: CHAMP's
    `base_to_footprint` estimator receives no foot contacts here, so it publishes a constant 0.426 m height and no rotation,
    while the real trunk sits at 0.217 m and rocks by −2 to +3.6 degrees while walking. Points therefore come out 0.209 m too
@@ -40,6 +43,37 @@ is enough and costs a few milliseconds per scan.
    prediction is kept, so a bad match cannot throw the pose across the room. After eight rejections in a row the local map is
    cleared and rebuilt from the next scan at the predicted pose.
 6. New points are added to the map only when the robot has moved 15 cm or turned 0.1 rad, and only points within 12 m are kept.
+
+![Side view of the Go2 with base_link, the lidar mount, the constant base_footprint 0.209 m below the floor, and the crop band](img/c09-ch09-heights.png)
+*Step 1 and 2 in metres: the Menagerie Go2 posed by the closed-form IK of module 04 at the 0.217 m trunk height measured in Gazebo; the lidar mount is from `urdf/go2_nav.xacro`.*
+
+Step 4 in equations, as `registration.py` computes it. Scan point $\mathbf s_i$ is matched to map point $\mathbf p_j$ with PCA normal
+$\mathbf n_j$ and line weight $c_j$; with yaw $\psi$ held at the gyro prediction, each Gauss-Newton iteration solves for the
+translation $\mathbf t$ only:
+
+$$
+r_i = \mathbf n_j^\top\left(R(\psi)\,\mathbf s_i + \mathbf t - \mathbf p_j\right), \qquad
+w_i = c_j\left(\frac{\sigma^2}{\sigma^2 + r_i^2}\right)^2, \quad \sigma = 0.12\ \text{m}
+$$
+
+$$
+H = \sum_i w_i\,\mathbf n_j\mathbf n_j^\top + P, \qquad
+\mathbf g = \sum_i w_i\,r_i\,\mathbf n_j + P\,(\mathbf t - \hat{\mathbf t}), \qquad
+\Delta\mathbf t = -H^{-1}\mathbf g
+$$
+
+$$
+P = \sum_{k\,:\,\lambda_k / N < 0.02} 10\;\mathbf v_k\mathbf v_k^\top
+$$
+
+where $\hat{\mathbf t}$ is the predicted translation, $N$ the number of matched points and $\lambda_k, \mathbf v_k$ the eigenvalues and
+eigenvectors of $\sum_i w_i\,\mathbf n_j\mathbf n_j^\top$. The reported covariance is $\mathrm{rms}(r)^2 H^{-1}$.
+
+![Left: a corner seen from A with map points, scan points at the prediction, residuals along the normals and the registered scan. Right: the Geman-McClure weight and the shrinking association gate](img/c09-ch09-point-to-line.png)
+*Point-to-line residuals on the synthetic arena scan of `test_registration.py` from A with the unit test's 25 cm prediction error; registration ends 0.1 cm from the truth.*
+
+![Arena and corridor scans with the eigen-directions of the translation information, and a bar chart of eigenvalue per matched point against the 0.02 threshold](img/c09-ch09-degeneracy.png)
+*Degeneracy test on the unit-test geometry: in the arena (robot at the origin, 553 matched points) both directions carry 0.131 and 0.145 per point; in the corridor (318 points) the along-wall direction carries 0, so only there the prior acts.*
 
 The EKF (`robot_localization`, `config/ekf.yaml`) fuses the lidar odometry pose and velocity with the gyro yaw rate at 50 Hz and
 publishes the transform. Two details matter on a busy machine:
@@ -91,6 +125,13 @@ estimator behaves partly like localisation against a fixed map. Expect more drif
 has no loop closure, and its degeneracy test is a single threshold on the per-point information, chosen from two synthetic cases
 (arena and corridor) rather than calibrated on real data.
 
+![Run w2 trajectories of ground truth, odometry and AMCL in the arena, and position error over time](img/c09-ch09-run-w2.png)
+*Run w2 from `site/data/runs/w2/run.json` (10 Hz, odometry anchored on the first pose): odometry 2.6 cm RMSE and 7.7 cm maximum, AMCL 12.0 cm RMSE at its 171 updates. `bag_metrics.py`, which interpolates ground truth at each estimate's stamp, reports 2.5 cm and 10.8 cm.*
+
+<video controls muted playsinline src="../media/c09-ch09-lidar-odometry.mp4"></video>
+
+*Run w2, lidar sweep and map panels of the dashboard (14 s): the robot turns in place toward the first plan, then starts walking while the SLAM map fills in.*
+
 ## Failures worth knowing about
 
 - Gyro bias is not estimated. Yaw comes from the integrated gyro and the scan matching does not correct it, so any bias turns into
@@ -127,5 +168,15 @@ has no loop closure, and its degeneracy test is a single threshold on the per-po
   geometry passed or failed depending on how many points the scan had; an expert review pointed this out and the threshold is now
   per matched point (0.02). The threshold is still a hand-picked number; a real deployment would add a second source such as leg
   odometry.
+
+The late-IMU failure and its fix as a timeline:
+
+![Timeline of scan registrations and IMU samples, before with one thread and after with two callback groups](img/c09-ch09-callbacks.png)
+*Before, IMU callbacks waited behind registration in one thread; after, each sample goes into the yaw history at once. Schematic, durations not to scale.*
+
+The flipped rotation comes from the symmetry of the room:
+
+![Arena scan at the true yaw and turned 180 degrees, and the robust cost over yaw offsets with a second minimum at 180 degrees](img/c09-ch09-yaw-flip.png)
+*Mean robust cost of the synthetic scan at (0, 0) over yaw offsets: 0.007 at the truth, 0.24 at 180°, and 0.004 at 180° for the outer walls alone, so a full SE(2) solve can settle in the flipped minimum.*
 
 Next: [10. Mapping and navigation](10-mapping-and-navigation.md)

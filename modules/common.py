@@ -4,13 +4,17 @@ import numpy as np
 
 HERE = pathlib.Path(__file__).resolve().parent
 GO2_XML = HERE / 'assets/unitree_go2/go2.xml'
+SCENE_XML = HERE / 'assets/unitree_go2/scene.xml'      # go2.xml + floor plane, light, skybox
 LEGS = ('FL', 'FR', 'RL', 'RR')
+JOINTS = ('hip', 'thigh', 'calf')                      # per leg, in qpos/actuator order
+G = 9.81                                               # m/s^2, MuJoCo's default |opt.gravity|
 
 
-def require_model():
-    if not GO2_XML.exists():
+def require_model(scene=False):
+    path = SCENE_XML if scene else GO2_XML
+    if not path.exists():
         raise SystemExit('Go2 model missing: run modules/fetch_go2.sh first')
-    return str(GO2_XML)
+    return str(path)
 
 
 def quat_to_R(q):

@@ -5,7 +5,8 @@ _ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source /opt/ros/humble/setup.bash
 [ -f "$_ROOT/install/setup.bash" ] && source "$_ROOT/install/setup.bash"
 
-export ROS_DOMAIN_ID=42                       # keeps this stack off any other ROS graph on the machine
+export ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-42}       # keeps this stack off any other ROS graph; set it before sourcing to run a second stack
+export GAZEBO_MASTER_URI=${GAZEBO_MASTER_URI:-http://localhost:11345}   # second stack: a different port, e.g. http://localhost:11346
 export GAZEBO_MODEL_DATABASE_URI=""           # never fetch models online (hangs when the network is slow)
 
 # Sensor plugins (camera, ray, imu, p3d) ship in ros-humble-gazebo-plugins. scripts/setup.sh unpacks them into overlay/ when they
