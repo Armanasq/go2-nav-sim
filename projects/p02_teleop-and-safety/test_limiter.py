@@ -73,3 +73,10 @@ def test_reverse_command_passes_through_zero_at_a_max():
     vx = [o[0] for o in out]
     assert vx[-1] == pytest.approx(-0.3)
     assert (vx.index(-0.3) + 1) * DT == pytest.approx(1.2, abs=DT)   # 0.6 m/s change at 0.5 m/s^2
+
+
+def test_clock_jump_back_is_stale():
+    lim = Limiter()
+    lim.command(100.0, (0.0, 0.0, 0.0)); run(lim, 100.0, 103.0)      # last command a zero, limiter quiet
+    out = run(lim, 1.0, 3.0)                                          # simulator restarted: the clock is back near 0
+    assert all(o is None for o in out)                                # stays quiet, does not resend the old zero

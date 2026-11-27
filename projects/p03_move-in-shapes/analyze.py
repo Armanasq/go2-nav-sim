@@ -55,8 +55,25 @@ def score(name, shape):
     # how far /odom's displacement since the start is from the true one (the robot lands a few cm off, so compare changes)
     odom_err = math.hypot((r['x'][e] - r['x'][0]) - (r['gt_x'][e] - x0), (r['y'][e] - r['y'][0]) - (r['gt_y'][e] - y0))
     # the odom frame and the world frame can start rotated by the drift accumulated before the run: compare changes
+    turn_odom = math.degrees(shapes.wrap(r['yaw'][e] - r['yaw'][0]))     # the end heading as the controller saw it
     dyaw_odom = math.degrees(shapes.wrap((r['yaw'][e] - r['yaw'][0]) - (r['gt_yaw'][e] - r['gt_yaw'][0])))
-    return r, ideal, idx, err, err_odom, final, head, odom_err, dyaw_odom
+    if shape != 'square':                      # the end point is already the final position error
+        err, err_odom = err[:1], err_odom[:1]
+    return r, ideal, idx, err, err_odom, final, head, turn_odom, odom_err, dyaw_odom
+
+
+HEADER = ('| Run | Corner (square) or crossing (figure-eight) errors, m | The same on /odom, m | Final position error, m | '
+          'Final heading error, deg | /odom end heading, deg | /odom displacement error at end, m | /odom yaw drift in run, deg | '
+          'Time, s |\n|---|---|---|---|---|---|---|---|---|')
+
+
+def print_row(name, shape):
+    """One table row; returns the score as well for the plots."""
+    sc = score(name, shape)
+    r, ideal, idx, err, err_odom, final, head, turn_odom, odom_err, dyaw = sc
+    print(f'| {name} | {" ".join(f"{e:.2f}" for e in err)} | {" ".join(f"{e:.2f}" for e in err_odom)} | {final:.2f} | '
+          f'{head:.1f} | {turn_odom:.1f} | {odom_err:.2f} | {dyaw:.1f} | {r["t"][-1]:.1f} |')
+    return sc
 
 
 def achieved(r):
@@ -93,13 +110,11 @@ def draw_arena(ax):
 def main():
     (HERE / 'figures').mkdir(exist_ok=True)
     fig, axes = plt.subplots(2, 2, figsize=(10, 9.4))
-    print('| Run | Corner errors (ground truth), m | Corner errors (on /odom), m | Final position error, m | Final heading error, deg | /odom displacement error at end, m | /odom yaw drift in run, deg | Time, s |')
-    print('|---|---|---|---|---|---|---|---|')
+    print(HEADER)
     for row, shape in enumerate(('square', 'figure8')):
         for col, mode in enumerate(('open', 'closed')):
             name = f'{shape}_{mode}'
-            r, ideal, idx, err, err_odom, final, head, odom_err, dyaw = score(name, shape)
-            print(f'| {name} | {" ".join(f"{e:.2f}" for e in err)} | {" ".join(f"{e:.2f}" for e in err_odom)} | {final:.2f} | {head:.1f} | {odom_err:.2f} | {dyaw:.1f} | {r["t"][-1]:.1f} |')
+            r, ideal, idx, err, err_odom, final, *_ = print_row(name, shape)
             ax = axes[row][col]
             draw_arena(ax)
             x0, y0, a0 = r['gt_x'][0], r['gt_y'][0], r['gt_yaw'][0]
@@ -115,9 +130,13 @@ def main():
     fig.tight_layout(); fig.savefig(HERE / 'figures/shapes.png', dpi=110)
     for name in ('square_open_calibrated', 'square_closed_on_odom_gt'):       # the "Try this" runs, if you made them
         if (HERE / 'results' / f'{name}.csv').exists():
-            r, ideal, idx, err, err_odom, final, head, odom_err, dyaw = score(name, 'square')
-            print(f'| {name} | {" ".join(f"{e:.2f}" for e in err)} | {" ".join(f"{e:.2f}" for e in err_odom)} | {final:.2f} | '
-                  f'{head:.1f} | {odom_err:.2f} | {dyaw:.1f} | {r["t"][-1]:.1f} |')
+            print_row(name, 'square')
+    repeats = sorted((HERE / 'results').glob('repeats/*.csv'))
+    if repeats:                                # more runs of the same shapes, to see how much single runs vary
+        print('\nRepeat runs (results/repeats/)')
+        print(HEADER)
+        for f in repeats:
+            print_row(f'repeats/{f.stem}', f.stem.split('_')[0])
 
     print('\nOpen loop, commanded vs achieved (ground truth)')
     print('| Run | Segment | Duration, s | v cmd, m/s | v mean, m/s | v steady, m/s | distance, m | w cmd, rad/s | w mean, rad/s | w steady, rad/s | turned, deg |')

@@ -4,7 +4,7 @@ usage: python3 projects/p02_teleop-and-safety/measure_stop.py --topic /cmd_vel  
        python3 projects/p02_teleop-and-safety/measure_stop.py --topic /teleop/cmd_vel     # through safety_node.py
        add --zero to end with one zero twist (the 'k' key) instead of silence
 Times are simulated seconds. The script always sends a zero on /cmd_vel at the end, so the robot is left standing."""
-import argparse, csv, math
+import argparse, csv, math, pathlib
 import rclpy
 from rclpy.node import Node
 from rclpy.parameter import Parameter
@@ -99,6 +99,7 @@ def main():
         print(f'{a.topic} zero={a.zero}: standstill {t_stop - n.t_last:.2f} s after the last command, '
               f'{drift:.2f} m walked in that time')
     if a.csv:
+        pathlib.Path(a.csv).parent.mkdir(parents=True, exist_ok=True)
         with open(a.csv, 'w', newline='') as f:
             w = csv.writer(f); w.writerow(['kind', 't', 'a', 'b'])
             w.writerow(['t_last', n.t_last, '', '']); w.writerow(['t_stop', t_stop if t_stop else '', '', ''])

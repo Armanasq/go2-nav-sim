@@ -23,7 +23,8 @@ class Limiter:
         self.t_cmd = t
 
     def stale(self, t):
-        return self.t_cmd is None or t - self.t_cmd > self.timeout
+        # t < t_cmd: the clock went back (the simulator was restarted), so the last command belongs to another run
+        return self.t_cmd is None or t < self.t_cmd or t - self.t_cmd > self.timeout
 
     def step(self, t):
         """Output for time t, or None when there is nothing to send (idle and already stopped)."""

@@ -1,0 +1,893 @@
+{
+  "fundamental": {
+    "counts": {
+      "nq": {
+        "parsed": 19,
+        "mujoco": 19,
+        "pinocchio": 19
+      },
+      "nv": {
+        "parsed": 18,
+        "mujoco": 18,
+        "pinocchio": 18
+      },
+      "nu": {
+        "parsed": 12,
+        "mujoco": 12,
+        "pinocchio": 12
+      },
+      "bodies": {
+        "parsed": 13,
+        "mujoco": 13,
+        "pinocchio": 13
+      },
+      "joints": {
+        "parsed": 13,
+        "mujoco": 13,
+        "pinocchio": 13
+      }
+    },
+    "count_mismatches_vs_mujoco_pinocchio": 0,
+    "dof": {
+      "nq": 19,
+      "nv": 18,
+      "nu": 12,
+      "rank_B": 12,
+      "unactuated": 6,
+      "free_joints": 1,
+      "hinges": 12,
+      "bodies": 13
+    },
+    "parse_bodies_vs_mujoco": 0.0,
+    "parse_joints_vs_mujoco": 0.0,
+    "parse_actuators_vs_mujoco": 0.0,
+    "total_mass_kg": 15.206408000000003,
+    "total_mass_vs_mujoco_kg": 0.0,
+    "joint_limits_vs_pinocchio": 0.0,
+    "armature_damping_vs_pinocchio": 0.0,
+    "pinocchio_effort_limits_finite": 0,
+    "tables": {
+      "bodies": [
+        {
+          "name": "base",
+          "parent": "world",
+          "mass_kg": 6.921,
+          "pos_m": [
+            0.0,
+            0.0,
+            0.445
+          ],
+          "visual_geoms": 5,
+          "collision_geoms": 3
+        },
+        {
+          "name": "FL_hip",
+          "parent": "base",
+          "mass_kg": 0.678,
+          "pos_m": [
+            0.1934,
+            0.0465,
+            0.0
+          ],
+          "visual_geoms": 2,
+          "collision_geoms": 1
+        },
+        {
+          "name": "FL_thigh",
+          "parent": "FL_hip",
+          "mass_kg": 1.152,
+          "pos_m": [
+            0.0,
+            0.0955,
+            0.0
+          ],
+          "visual_geoms": 2,
+          "collision_geoms": 1
+        },
+        {
+          "name": "FL_calf",
+          "parent": "FL_thigh",
+          "mass_kg": 0.241352,
+          "pos_m": [
+            0.0,
+            0.0,
+            -0.213
+          ],
+          "visual_geoms": 3,
+          "collision_geoms": 3
+        },
+        {
+          "name": "FR_hip",
+          "parent": "base",
+          "mass_kg": 0.678,
+          "pos_m": [
+            0.1934,
+            -0.0465,
+            0.0
+          ],
+          "visual_geoms": 2,
+          "collision_geoms": 1
+        },
+        {
+          "name": "FR_thigh",
+          "parent": "FR_hip",
+          "mass_kg": 1.152,
+          "pos_m": [
+            0.0,
+            -0.0955,
+            0.0
+          ],
+          "visual_geoms": 2,
+          "collision_geoms": 1
+        },
+        {
+          "name": "FR_calf",
+          "parent": "FR_thigh",
+          "mass_kg": 0.241352,
+          "pos_m": [
+            0.0,
+            0.0,
+            -0.213
+          ],
+          "visual_geoms": 3,
+          "collision_geoms": 3
+        },
+        {
+          "name": "RL_hip",
+          "parent": "base",
+          "mass_kg": 0.678,
+          "pos_m": [
+            -0.1934,
+            0.0465,
+            0.0
+          ],
+          "visual_geoms": 2,
+          "collision_geoms": 1
+        },
+        {
+          "name": "RL_thigh",
+          "parent": "RL_hip",
+          "mass_kg": 1.152,
+          "pos_m": [
+            0.0,
+            0.0955,
+            0.0
+          ],
+          "visual_geoms": 2,
+          "collision_geoms": 1
+        },
+        {
+          "name": "RL_calf",
+          "parent": "RL_thigh",
+          "mass_kg": 0.241352,
+          "pos_m": [
+            0.0,
+            0.0,
+            -0.213
+          ],
+          "visual_geoms": 3,
+          "collision_geoms": 3
+        },
+        {
+          "name": "RR_hip",
+          "parent": "base",
+          "mass_kg": 0.678,
+          "pos_m": [
+            -0.1934,
+            -0.0465,
+            0.0
+          ],
+          "visual_geoms": 2,
+          "collision_geoms": 1
+        },
+        {
+          "name": "RR_thigh",
+          "parent": "RR_hip",
+          "mass_kg": 1.152,
+          "pos_m": [
+            0.0,
+            -0.0955,
+            0.0
+          ],
+          "visual_geoms": 2,
+          "collision_geoms": 1
+        },
+        {
+          "name": "RR_calf",
+          "parent": "RR_thigh",
+          "mass_kg": 0.241352,
+          "pos_m": [
+            0.0,
+            0.0,
+            -0.213
+          ],
+          "visual_geoms": 3,
+          "collision_geoms": 3
+        }
+      ],
+      "joints": [
+        {
+          "name": "base_free",
+          "type": "free",
+          "axis": null,
+          "range_rad": null,
+          "damping": 0.0,
+          "armature": 0.0,
+          "frictionloss": 0.0,
+          "qadr": 0,
+          "vadr": 0
+        },
+        {
+          "name": "FL_hip_joint",
+          "type": "hinge",
+          "axis": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "range_rad": [
+            -1.0472,
+            1.0472
+          ],
+          "damping": 2.0,
+          "armature": 0.01,
+          "frictionloss": 0.2,
+          "qadr": 7,
+          "vadr": 6
+        },
+        {
+          "name": "FL_thigh_joint",
+          "type": "hinge",
+          "axis": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "range_rad": [
+            -1.5708,
+            3.4907
+          ],
+          "damping": 2.0,
+          "armature": 0.01,
+          "frictionloss": 0.2,
+          "qadr": 8,
+          "vadr": 7
+        },
+        {
+          "name": "FL_calf_joint",
+          "type": "hinge",
+          "axis": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "range_rad": [
+            -2.7227,
+            -0.83776
+          ],
+          "damping": 2.0,
+          "armature": 0.01,
+          "frictionloss": 0.2,
+          "qadr": 9,
+          "vadr": 8
+        },
+        {
+          "name": "FR_hip_joint",
+          "type": "hinge",
+          "axis": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "range_rad": [
+            -1.0472,
+            1.0472
+          ],
+          "damping": 2.0,
+          "armature": 0.01,
+          "frictionloss": 0.2,
+          "qadr": 10,
+          "vadr": 9
+        },
+        {
+          "name": "FR_thigh_joint",
+          "type": "hinge",
+          "axis": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "range_rad": [
+            -1.5708,
+            3.4907
+          ],
+          "damping": 2.0,
+          "armature": 0.01,
+          "frictionloss": 0.2,
+          "qadr": 11,
+          "vadr": 10
+        },
+        {
+          "name": "FR_calf_joint",
+          "type": "hinge",
+          "axis": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "range_rad": [
+            -2.7227,
+            -0.83776
+          ],
+          "damping": 2.0,
+          "armature": 0.01,
+          "frictionloss": 0.2,
+          "qadr": 12,
+          "vadr": 11
+        },
+        {
+          "name": "RL_hip_joint",
+          "type": "hinge",
+          "axis": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "range_rad": [
+            -1.0472,
+            1.0472
+          ],
+          "damping": 2.0,
+          "armature": 0.01,
+          "frictionloss": 0.2,
+          "qadr": 13,
+          "vadr": 12
+        },
+        {
+          "name": "RL_thigh_joint",
+          "type": "hinge",
+          "axis": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "range_rad": [
+            -0.5236,
+            4.5379
+          ],
+          "damping": 2.0,
+          "armature": 0.01,
+          "frictionloss": 0.2,
+          "qadr": 14,
+          "vadr": 13
+        },
+        {
+          "name": "RL_calf_joint",
+          "type": "hinge",
+          "axis": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "range_rad": [
+            -2.7227,
+            -0.83776
+          ],
+          "damping": 2.0,
+          "armature": 0.01,
+          "frictionloss": 0.2,
+          "qadr": 15,
+          "vadr": 14
+        },
+        {
+          "name": "RR_hip_joint",
+          "type": "hinge",
+          "axis": [
+            1.0,
+            0.0,
+            0.0
+          ],
+          "range_rad": [
+            -1.0472,
+            1.0472
+          ],
+          "damping": 2.0,
+          "armature": 0.01,
+          "frictionloss": 0.2,
+          "qadr": 16,
+          "vadr": 15
+        },
+        {
+          "name": "RR_thigh_joint",
+          "type": "hinge",
+          "axis": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "range_rad": [
+            -0.5236,
+            4.5379
+          ],
+          "damping": 2.0,
+          "armature": 0.01,
+          "frictionloss": 0.2,
+          "qadr": 17,
+          "vadr": 16
+        },
+        {
+          "name": "RR_calf_joint",
+          "type": "hinge",
+          "axis": [
+            0.0,
+            1.0,
+            0.0
+          ],
+          "range_rad": [
+            -2.7227,
+            -0.83776
+          ],
+          "damping": 2.0,
+          "armature": 0.01,
+          "frictionloss": 0.2,
+          "qadr": 18,
+          "vadr": 17
+        }
+      ],
+      "actuators": [
+        {
+          "name": "FL_hip",
+          "kind": "motor",
+          "joint": "FL_hip_joint",
+          "gear": 1.0,
+          "ctrlrange": [
+            -23.7,
+            23.7
+          ]
+        },
+        {
+          "name": "FL_thigh",
+          "kind": "motor",
+          "joint": "FL_thigh_joint",
+          "gear": 1.0,
+          "ctrlrange": [
+            -23.7,
+            23.7
+          ]
+        },
+        {
+          "name": "FL_calf",
+          "kind": "motor",
+          "joint": "FL_calf_joint",
+          "gear": 1.0,
+          "ctrlrange": [
+            -45.43,
+            45.43
+          ]
+        },
+        {
+          "name": "FR_hip",
+          "kind": "motor",
+          "joint": "FR_hip_joint",
+          "gear": 1.0,
+          "ctrlrange": [
+            -23.7,
+            23.7
+          ]
+        },
+        {
+          "name": "FR_thigh",
+          "kind": "motor",
+          "joint": "FR_thigh_joint",
+          "gear": 1.0,
+          "ctrlrange": [
+            -23.7,
+            23.7
+          ]
+        },
+        {
+          "name": "FR_calf",
+          "kind": "motor",
+          "joint": "FR_calf_joint",
+          "gear": 1.0,
+          "ctrlrange": [
+            -45.43,
+            45.43
+          ]
+        },
+        {
+          "name": "RL_hip",
+          "kind": "motor",
+          "joint": "RL_hip_joint",
+          "gear": 1.0,
+          "ctrlrange": [
+            -23.7,
+            23.7
+          ]
+        },
+        {
+          "name": "RL_thigh",
+          "kind": "motor",
+          "joint": "RL_thigh_joint",
+          "gear": 1.0,
+          "ctrlrange": [
+            -23.7,
+            23.7
+          ]
+        },
+        {
+          "name": "RL_calf",
+          "kind": "motor",
+          "joint": "RL_calf_joint",
+          "gear": 1.0,
+          "ctrlrange": [
+            -45.43,
+            45.43
+          ]
+        },
+        {
+          "name": "RR_hip",
+          "kind": "motor",
+          "joint": "RR_hip_joint",
+          "gear": 1.0,
+          "ctrlrange": [
+            -23.7,
+            23.7
+          ]
+        },
+        {
+          "name": "RR_thigh",
+          "kind": "motor",
+          "joint": "RR_thigh_joint",
+          "gear": 1.0,
+          "ctrlrange": [
+            -23.7,
+            23.7
+          ]
+        },
+        {
+          "name": "RR_calf",
+          "kind": "motor",
+          "joint": "RR_calf_joint",
+          "gear": 1.0,
+          "ctrlrange": [
+            -45.43,
+            45.43
+          ]
+        }
+      ]
+    },
+    "camera_projection_bbox_px": 0.4495325229859759,
+    "camera_projection_per_view_px": {
+      "front": 0.44953252298574853,
+      "side": 0.42504986695587377,
+      "top": 0.4495325229859759
+    },
+    "mesh_vertices": 419023
+  },
+  "intermediate": {
+    "fk_body_pose_vs_mujoco": 7.771561172376096e-16,
+    "fk_joint_anchor_axis_vs_mujoco": 1.2212453270876722e-15,
+    "body_velocity_vs_mujoco": 2.220446049250313e-15,
+    "com_vs_pinocchio_m": 8.881784197001252e-16,
+    "centroidal_momentum_vs_pinocchio": 4.263256414560601e-14,
+    "actuator_force_vs_mujoco": 0.0,
+    "samples": 200,
+    "armature_in_mass_matrix": 1.734723475976807e-18,
+    "stand_M_diag_links": [
+      0.02357173145104648,
+      0.02039024442756596,
+      0.006326302457873294,
+      0.02357173145104648,
+      0.02039024442756596,
+      0.006326302457873294,
+      0.02357173145104648,
+      0.02039024442756597,
+      0.006326302457873292,
+      0.02357173145104648,
+      0.02039024442756597,
+      0.006326302457873292
+    ],
+    "stand_M_diag_with_armature": [
+      0.03357173145104648,
+      0.03039024442756596,
+      0.016326302457873296,
+      0.03357173145104648,
+      0.03039024442756596,
+      0.016326302457873296,
+      0.03357173145104648,
+      0.030390244427565972,
+      0.016326302457873292,
+      0.03357173145104648,
+      0.030390244427565972,
+      0.016326302457873292
+    ],
+    "stand_torque_Nm": [
+      -0.2513441667578215,
+      1.3340555085608365,
+      5.940835395562842,
+      0.2513640871095667,
+      1.3340519231677184,
+      5.940839450373773,
+      -0.28107715925681465,
+      0.8207661841372758,
+      7.059689888187524,
+      0.28109449030747446,
+      0.8207699719952684,
+      7.059677958313939
+    ],
+    "torque_limit_Nm": [
+      23.7,
+      23.7,
+      45.43,
+      23.7,
+      23.7,
+      45.43,
+      23.7,
+      23.7,
+      45.43,
+      23.7,
+      23.7,
+      45.43
+    ],
+    "stand_torque_utilisation": [
+      0.010605239103705548,
+      0.05628926196459226,
+      0.13076899395912045,
+      0.010606079624876233,
+      0.05628911068218221,
+      0.1307690832131581,
+      0.011859795749232686,
+      0.03463148456275425,
+      0.1553970919697892,
+      0.011860527017193015,
+      0.03463164438798601,
+      0.15539682937076688
+    ],
+    "stand_torque_utilisation_max": 0.1553970919697892,
+    "stand_foot_fz_N": [
+      33.425300900465686,
+      33.4253457821995,
+      41.16307822015336,
+      41.162999439838806
+    ],
+    "fz_max_per_foot_N": [
+      245.52556955944908,
+      245.52534835316914,
+      245.2593450487088,
+      245.2591580639816
+    ],
+    "static_capacity_total_kg": 100.05804495670831,
+    "static_payload_kg": 84.85163695670832,
+    "stand_height_m": 0.25605424361663176
+  },
+  "advanced": {
+    "B_base_rows_max_abs": 0.0,
+    "rank_B": 12,
+    "nullspace_BT_dim": 6,
+    "qfrc_actuator_base_rows_max_abs": 0.0,
+    "flight_momentum_rate_vs_Mg_fd": 1.8290924330699454e-08,
+    "flight_momentum_rate_vs_Mg_pinocchio": 2.7693902726610986e-11,
+    "flight_momentum_rate_default_solver_tol": 1.4472807379206643e-06,
+    "flight_torque_effect_on_base_ang_acc_median": 107.33206248132157,
+    "flight_com_acc_minus_g_max": 5.698190151376327e-10,
+    "samples": 200,
+    "stance_momentum_rate_vs_wrench": 1.2618102118722163e-09,
+    "stance_samples": 180,
+    "stance_error_without_contacts_min_N": 132.68683536593005,
+    "stance_fz_range_N": [
+      132.68683536627944,
+      168.72868634483095
+    ],
+    "euler_2ms_lin": 0.05031620026440464,
+    "euler_2ms_ang": 0.01068712816603977,
+    "euler_2ms_floor_contacts": 0.0,
+    "euler_1ms_lin": 0.025323841120496127,
+    "euler_1ms_ang": 0.0053506978329163485,
+    "euler_1ms_floor_contacts": 0.0,
+    "rk4_2ms_lin": 8.204775332712466e-06,
+    "rk4_2ms_ang": 1.93792601159426e-06,
+    "rk4_2ms_floor_contacts": 0.0,
+    "rk4_1ms_lin": 3.725535066511493e-06,
+    "rk4_1ms_ang": 7.985233222082555e-07,
+    "rk4_1ms_floor_contacts": 0.0,
+    "flight_drift_order_euler": 1.9973335254132354,
+    "flight_drift_order_rk4": 2.426887177490412,
+    "flight_drift_rk4_ang_kgm2s": 1.93792601159426e-06,
+    "reorient_pitch_5_cycles_deg": 11.658987307568264,
+    "reorient_pitch_signed_deg": -11.658987307568264,
+    "reorient_reverse_deg": 16.790785685038344,
+    "reorient_half_speed_deg": -13.703646475139449,
+    "reorient_reverse_ratio": -1.4401581580021832,
+    "reorient_half_speed_ratio": 1.1753719352832577,
+    "reorient_max_ang_momentum": 1.5678608692057998e-07,
+    "reorient_max_lin_momentum": 1.657762045866683e-06,
+    "reorient_track_err_rad": 0.1993788992187664,
+    "flight_com_vs_ballistic_m": 3.854347532458724e-07,
+    "flight_base_pitch_range_deg": 8.90970692705404,
+    "flight_base_vs_ballistic_m": 0.03406640685059281
+  },
+  "checks": {
+    "count_mismatches_vs_mujoco_pinocchio": {
+      "measured": 0,
+      "op": "<=",
+      "threshold": 0,
+      "passed": true
+    },
+    "parse_bodies_vs_mujoco": {
+      "measured": 0.0,
+      "op": "<",
+      "threshold": 1e-12,
+      "passed": true
+    },
+    "parse_joints_vs_mujoco": {
+      "measured": 0.0,
+      "op": "<",
+      "threshold": 1e-12,
+      "passed": true
+    },
+    "parse_actuators_vs_mujoco": {
+      "measured": 0.0,
+      "op": "<",
+      "threshold": 1e-12,
+      "passed": true
+    },
+    "total_mass_vs_mujoco_kg": {
+      "measured": 0.0,
+      "op": "<",
+      "threshold": 1e-12,
+      "passed": true
+    },
+    "joint_limits_vs_pinocchio": {
+      "measured": 0.0,
+      "op": "<",
+      "threshold": 1e-12,
+      "passed": true
+    },
+    "armature_damping_vs_pinocchio": {
+      "measured": 0.0,
+      "op": "<",
+      "threshold": 1e-12,
+      "passed": true
+    },
+    "camera_projection_bbox_px": {
+      "measured": 0.4495325229859759,
+      "op": "<=",
+      "threshold": 1.5,
+      "passed": true
+    },
+    "fk_body_pose_vs_mujoco": {
+      "measured": 7.771561172376096e-16,
+      "op": "<",
+      "threshold": 1e-12,
+      "passed": true
+    },
+    "fk_joint_anchor_axis_vs_mujoco": {
+      "measured": 1.2212453270876722e-15,
+      "op": "<",
+      "threshold": 1e-12,
+      "passed": true
+    },
+    "body_velocity_vs_mujoco": {
+      "measured": 2.220446049250313e-15,
+      "op": "<",
+      "threshold": 1e-12,
+      "passed": true
+    },
+    "com_vs_pinocchio_m": {
+      "measured": 8.881784197001252e-16,
+      "op": "<",
+      "threshold": 1e-12,
+      "passed": true
+    },
+    "centroidal_momentum_vs_pinocchio": {
+      "measured": 4.263256414560601e-14,
+      "op": "<",
+      "threshold": 1e-12,
+      "passed": true
+    },
+    "actuator_force_vs_mujoco": {
+      "measured": 0.0,
+      "op": "<",
+      "threshold": 1e-12,
+      "passed": true
+    },
+    "armature_in_mass_matrix": {
+      "measured": 1.734723475976807e-18,
+      "op": "<",
+      "threshold": 1e-12,
+      "passed": true
+    },
+    "stand_torque_utilisation_max": {
+      "measured": 0.1553970919697892,
+      "op": "<",
+      "threshold": 0.5,
+      "passed": true
+    },
+    "B_base_rows_max_abs": {
+      "measured": 0.0,
+      "op": "<=",
+      "threshold": 0.0,
+      "passed": true
+    },
+    "qfrc_actuator_base_rows_max_abs": {
+      "measured": 0.0,
+      "op": "<=",
+      "threshold": 0.0,
+      "passed": true
+    },
+    "rank_B": {
+      "measured": 12,
+      "op": "range",
+      "threshold": [
+        12,
+        12
+      ],
+      "passed": true
+    },
+    "flight_momentum_rate_vs_Mg_fd": {
+      "measured": 1.8290924330699454e-08,
+      "op": "<",
+      "threshold": 1e-06,
+      "passed": true
+    },
+    "flight_momentum_rate_vs_Mg_pinocchio": {
+      "measured": 2.7693902726610986e-11,
+      "op": "<",
+      "threshold": 1e-08,
+      "passed": true
+    },
+    "stance_momentum_rate_vs_wrench": {
+      "measured": 1.2618102118722163e-09,
+      "op": "<",
+      "threshold": 1e-05,
+      "passed": true
+    },
+    "flight_drift_order_euler": {
+      "measured": 1.9973335254132354,
+      "op": "range",
+      "threshold": [
+        1.6,
+        2.4
+      ],
+      "passed": true
+    },
+    "flight_drift_rk4_ang_kgm2s": {
+      "measured": 1.93792601159426e-06,
+      "op": "<",
+      "threshold": 0.0001,
+      "passed": true
+    },
+    "reorient_pitch_5_cycles_deg": {
+      "measured": 11.658987307568264,
+      "op": ">",
+      "threshold": 5.0,
+      "passed": true
+    },
+    "reorient_max_ang_momentum": {
+      "measured": 1.5678608692057998e-07,
+      "op": "<",
+      "threshold": 0.0001,
+      "passed": true
+    },
+    "reorient_reverse_ratio": {
+      "measured": -1.4401581580021832,
+      "op": "range",
+      "threshold": [
+        -1.1,
+        -0.9
+      ],
+      "passed": false
+    },
+    "reorient_half_speed_ratio": {
+      "measured": 1.1753719352832577,
+      "op": "range",
+      "threshold": [
+        0.9,
+        1.1
+      ],
+      "passed": false
+    }
+  },
+  "wall_time_s": 68.0
+}

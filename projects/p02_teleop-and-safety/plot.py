@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Figures for this project.
-usage: python3 projects/p02_teleop-and-safety/plot.py BAG_DIR
-  BAG_DIR: a bag of the teleop drive with /odom_gt, /odom, /teleop/cmd_vel, /cmd_vel  -> figures/teleop_drive.png
-  results/*.csv from measure_stop.py                                                     -> figures/stop_time.png"""
-import csv, math, pathlib, sys
+usage: python3 projects/p02_teleop-and-safety/plot.py [BAG_DIR] [--dir DIR]
+  BAG_DIR: a bag of the teleop drive with /odom_gt, /odom, /teleop/cmd_vel, /cmd_vel  -> teleop_drive.png
+  *.csv from measure_stop.py                                                             -> stop_time.png
+  Without --dir the CSVs are read from results/ and the figures written to figures/ (the author's runs).
+  With --dir DIR both happen in DIR, so your own runs do not mix with or overwrite the author's."""
+import argparse, csv, math, pathlib, sys
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
@@ -51,7 +53,7 @@ def draw_arena(ax):
     ax.set_xlabel('x (m, world)'); ax.set_ylabel('y (m, world)')
 
 
-def drive_figure(bag):
+def drive_figure(bag, fig_dir):
     d = read_bag(bag, ['/odom_gt', '/odom', '/teleop/cmd_vel', '/cmd_vel'])
     # /odom_gt is relative to the spawn point A; shift it into the world frame
     gt = np.array([(t, m.pose.pose.position.x + arena.A[0], m.pose.pose.position.y + arena.A[1]) for t, m in d['/odom_gt']])
@@ -83,20 +85,20 @@ def drive_figure(bag):
     bx.plot([t - t_sim[0] for t, _ in speeds], [v for _, v in speeds], color=GT, lw=1.2, label='true speed, 0.5 s window')
     bx.set_xlabel('time (s, simulated)'); bx.set_ylabel('m/s  or  rad/s'); bx.legend(fontsize=7, frameon=False, loc='upper right')
     bx.set_ylim(-1.1, 1.25); bx.grid(alpha=0.3)
-    fig.tight_layout(); fig.savefig(HERE / 'figures/teleop_drive.png', dpi=120)
+    fig.tight_layout(); fig.savefig(fig_dir / 'teleop_drive.png', dpi=120)
     err = math.hypot(ex[-1] - gt[-1, 1], ey[-1] - gt[-1, 2])
     path = np.sum(np.hypot(np.diff(gt[:, 1]), np.diff(gt[:, 2])))
     print(f'drive: {t_sim[-1] - t_sim[0]:.1f} s simulated, true path {path:.2f} m, odometry end error {err:.3f} m, '
           f'end at ({gt[-1, 1]:.2f}, {gt[-1, 2]:.2f})')
 
 
-def stop_figure():
+def stop_figure(csv_dir, fig_dir):
     runs = [('direct_zero', 'straight to CHAMP, one zero twist', '#444444'),
             ('direct_silence', 'straight to CHAMP, then silence', '#b03030'),
             ('safety_silence', 'through safety_node.py, then silence', '#1f6fd1')]
     fig, ax = plt.subplots(figsize=(7, 3.6))
     for name, label, col in runs:
-        for k, p in enumerate(sorted(HERE.glob(f'results/{name}*.csv'))):
+        for k, p in enumerate(sorted(csv_dir.glob(f'{name}*.csv'))):
             rows = list(csv.reader(open(p)))[1:]
             t_last = float(rows[0][1]); gt = [(float(r[1]), float(r[2]), float(r[3])) for r in rows if r[0] == 'gt']
             t_stop, speeds = stop_time(gt, t_last)
@@ -113,10 +115,14 @@ def stop_figure():
     ax.set_xlim(-2, 6); ax.set_ylim(0, 0.35)
     ax.set_xlabel('time since the last command (s, simulated)'); ax.set_ylabel('true speed, 0.5 s window (m/s)')
     ax.legend(fontsize=8, frameon=False, loc='center right'); ax.grid(alpha=0.3)
-    fig.tight_layout(); fig.savefig(HERE / 'figures/stop_time.png', dpi=120)
+    fig.tight_layout(); fig.savefig(fig_dir / 'stop_time.png', dpi=120)
 
 
 if __name__ == '__main__':
-    if len(sys.argv) > 1:
-        drive_figure(sys.argv[1])
-    stop_figure()
+    ap = argparse.ArgumentParser()
+    ap.add_argument('bag', nargs='?'); ap.add_argument('--dir', type=pathlib.Path)
+    a = ap.parse_args()
+    csv_dir, fig_dir = (a.dir, a.dir) if a.dir else (HERE / 'results', HERE / 'figures')
+    if a.bag:
+        drive_figure(a.bag, fig_dir)
+    stop_figure(csv_dir, fig_dir)

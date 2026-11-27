@@ -35,6 +35,9 @@ class Safety(Node):
 
     def on_timer(self):
         t = self.now()
+        if self.lim.t_out is not None and t < self.lim.t_out:
+            self.get_logger().warn(f'simulated time went back {self.lim.t_out - t:.1f} s (simulator restarted): '
+                                   'last command treated as stale')
         stale = self.lim.stale(t)
         if stale and not self.was_stale:
             self.get_logger().warn(f'no command for {self.lim.timeout} s: stopping')
