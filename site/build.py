@@ -44,7 +44,7 @@ def page(title, body, root, current='', desc='', extra_head=''):
 <main id="main">
 {body}
 </main>
-<footer class="site"><div class="wrap">Built from <a href="{REPO}">{REPO.split('//')[1]}</a>. Simulation only; ground truth is used for scoring, never by the robot.</div></footer>
+<footer class="site"><div class="wrap">Built from <a href="{REPO}">{REPO.split('//')[1]}</a>. Simulation only. Ground truth initialises AMCL once and is otherwise used only for scoring.</div></footer>
 <script type="module" src="{root}static/js/site.js"></script>
 </body>
 </html>

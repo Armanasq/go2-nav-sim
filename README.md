@@ -43,7 +43,7 @@ Install the dependencies first: [chapter 2](docs/02-prerequisites.md). Unit test
 
 ## Tutorial
 
-Website: **https://armanasq.github.io/go2-nav-sim/** (the same chapters, plus a run replay, a 3D lidar viewer and the evidence).
+Website: **https://armanasq.github.io/go2-nav-sim/** (built by `site/build.py`, checked by `tools/check_site.py`, published with `scripts/publish_site.sh`) (the same chapters, plus a run replay, a 3D lidar viewer and the evidence).
 
 Foundations
 

@@ -218,7 +218,7 @@
       "col": 4,
       "label": "Ground truth (p3d)",
       "kind": "sensor",
-      "what": "Noise-free simulator pose. Never read by the robot; only recorded and used for scoring.",
+      "what": "Noise-free simulator pose. Used once by go_to_goal.py to initialise AMCL, then only recorded and used for scoring.",
       "topics": [
         {
           "name": "/odom_gt",
