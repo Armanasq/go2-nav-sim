@@ -137,7 +137,8 @@ Subscription count: 1
 Node name: quadruped_controller_node
 ```
 
-`behavior_server` appears five times because it holds one publisher per recovery behaviour. Nav2's `velocity_smoother` and
+`behavior_server` appears five times because each of its five behaviour plugins (spin, backup, drive_on_heading,
+assisted_teleop, wait in `src/go2_nav_sim/config/nav2_params.yaml`) has its own publisher. Nav2's `velocity_smoother` and
 `behavior_server` are idle until Nav2 is given a goal. While you drive by hand they stay quiet;
 if you send a Nav2 goal at the same time, both of you command the same robot. (With `ros2 topic echo /cmd_vel` running for
 25 s while I sent one command, the echo printed that one message and nothing else.)
@@ -240,7 +241,7 @@ t   16.0 s  x  -1.59  y  -3.46  heading     0.3 deg  speed 0.00 m/s
 ```
 
 The robot covered 2.81 m (x from -4.40 to -1.59) and drifted 3 cm to the left. Your distance will differ: `timeout` counts
-wall time, and how much simulated time fits into 10 s of wall time depends on how loaded your machine is. A second run of
+wall time, and how much simulated time fits into 10 s of wall time depends on how loaded your machine is. A learner's run of
 this step on the same machine covered 3.20 m. What should match is the speed of 0.30 m/s, the robot still walking after
 `timeout` returns, and the speed falling to 0.00 after the zero twist. In a separate test I published one 0.2 m/s
 message with `--once` and nothing else: 21 s later the robot was still walking at 0.19 m/s and had covered 3.99 m, and its trunk
@@ -265,7 +266,7 @@ t   24.0 s  x  -1.58  y  -3.63  heading   177.0 deg  speed 0.00 m/s
 ```
 
 The heading grows by about 27 degrees per second, 0.47 rad/s against the 0.5 commanded. The total angle depends on the
-machine for the same reason as the distance in step 7: my run turned 175 degrees, a second run 199 degrees. The rate of about
+machine for the same reason as the distance in step 7: my run turned 175 degrees, a learner's run 199 degrees. The rate of about
 27 degrees per second is what to compare. The trunk also moves a few
 centimetres while turning in place: the turn is made of steps, and the centre of rotation is not exactly the trunk origin.
 
@@ -315,7 +316,8 @@ stop: zero twist sent
 ```
 
 When it has stopped, press Ctrl-C in terminals 1 and 2. `record.py` prints the number of frames it wrote, at 10 frames per
-simulated second: `first_walk.mp4: 307 frames` in my latest run, with a load average of about 58. My first measurement:
+simulated second: `first_walk.mp4: 310 frames` in my latest run, with a load average of about 58 (31.0 s of video according
+to `ffprobe`). My first measurement:
 
 ```
 ground truth: 21.6 s  path 4.28 m  net 2.96 m  mean speed 0.198 m/s  turned 91.0 deg  end (-1.51, -2.68) heading 90.8 deg
@@ -359,7 +361,7 @@ Check: `ros2 node list` prints nothing (it may take a few seconds for the daemon
 
 ## How the code works
 
-Three scripts, all plain rclpy, all on simulated time.
+Three scripts, all plain rclpy, all on simulated time. `record.py` only wraps the shared recorder (step 10).
 
 ### `measure.py`
 
@@ -391,6 +393,10 @@ for (_, x0, y0, a0), (_, x1, y1, a1) in zip(samples, samples[1:]):
     path += math.hypot(x1 - x0, y1 - y0)
     turn += wrap(a1 - a0)                  # sum of small steps, so a 400 degree spin counts as 400, not 40
 ```
+
+The summary and the CSV are written after Ctrl-C, so `measure.py` turns off rclpy's own Ctrl-C handler, as `drive.py` does
+(explained below). With the handler on, one of five Ctrl-Cs in my runs raised a `RuntimeError` inside rclpy and the summary
+was lost; with it off, ten of ten wrote the CSV.
 
 `wrap` maps an angle into [-180, 180) degrees. Subtracting the first heading from the last would be wrong as soon as the robot
 crosses ±180 degrees (step 9 ends at 176.9 degrees true and -170.7 degrees estimated, which are 12.4 degrees apart, not 347).
@@ -462,13 +468,15 @@ estimate from `/odom`.
 | One message, no stop | `ros2 topic pub --once`, vx 0.2 | still 0.19 m/s after 21 s, 3.99 m | |
 | `drive.py` default, run 1 | 3.0 m, 91.7°, 0.9 m | 2.94 m, 91.0°, end 0.15 m from prediction | end 0.03 m from truth (start aligned), heading 3.6° off |
 | `drive.py` default, run 2 (video) | 3.0 m, 91.7°, 0.9 m | 2.97 m, 91.3°, end 0.11 m from prediction | end 0.07 m from truth (start aligned), heading 8.2° off |
-| Exercise 1, square | 4 × (1.02 m, 91.7°) | turned 363.0°, ended 0.10 m from its start | turned 370.0°, net 0.16 m |
-| Exercise 2, vx 0.5 | clipped to 0.3 | 0.30 m/s steady | |
-| Exercise 3, vy -0.25 | 1.5 m to the right | 0.26 to 0.29 m/s, 1.61 m, heading -6.9° | turned -12.7° |
+| `drive.py` default, run 3 | 3.0 m, 91.7°, 0.9 m | 2.96 m, 91.1°, end 0.13 m from prediction | end 0.02 m from truth (start aligned), heading 3.4° off |
+| Exercise 1, vx 0.5 after wz -0.5 | clipped to 0.3 | 0.29 to 0.32 m/s (two runs) | |
+| Exercise 2, vy -0.25 | 1.5 m to the right | 0.26 to 0.29 m/s, 1.61 and 1.60 m, heading -6.9° and -2.3° | turned -12.7° and -4.0° |
+| Exercise 3, square | 4 × (1.02 m, 91.7°) | turned 363.0° and 355.8°, ended 0.10 and 0.14 m from its start | turned 370.0° and 364.1°, net 0.16 and 0.22 m |
 
-Steady forward speed between 6 s and 12 s of each scripted run: 0.300 and 0.302 m/s. In the two identical runs the estimate
-ended 3.6° and 8.2° off the true heading, in opposite directions: it measured the turn as 94.5° and 84.5° against 91.0° and
-91.3° true. The estimator is the subject of [chapter 9](../../docs/09-state-estimation.md); here it is enough to know that its heading can be several degrees
+Steady forward speed between 6 s and 12 s of runs 1 and 2: 0.300 and 0.302 m/s; run 3, 2 s to 8 s after the robot started
+moving (its CSV begins 8 s before the motion): 0.300 m/s. In runs 1 and 2 the estimate ended 3.6° and 8.2°
+off the true heading, in opposite directions: it measured the turn as 94.5° and 84.5° against 91.0° and 91.3° true. Run 3
+measured 94.6° against 91.1°. The estimator is the subject of [chapter 9](../../docs/09-state-estimation.md); here it is enough to know that its heading can be several degrees
 off after one turn.
 
 Commands: steps 6 to 10 above and the exercises below. The forward-leg length and steady speed come from the CSVs:
@@ -484,8 +492,9 @@ print(f'forward leg {math.hypot(leg[1] - x0, leg[2] - y0):.2f} m, speed {math.hy
 # forward leg 2.94 m, speed 0.300 m/s
 ```
 
-The CSVs of all my runs are in `results/` (`manual`, `drive_run1`, `drive_run2`, `ex_square`, `ex_clip`, `ex_side`), so you
-can re-plot them without the simulator.
+The CSVs of all my runs are in `results/` (`manual`, `drive_run1` to `drive_run3`, and `ex_clip`, `ex_side`, `ex_square` with
+a `_run2` copy of each), so you can re-plot them without the simulator. Run 3 and the `_run2` exercises were done in one
+session, in the order of the exercises above.
 
 Unit tests for the pure logic (quaternion to heading, angle wrapping, summary, sequence parsing):
 
@@ -496,40 +505,47 @@ python3 -m pytest -q projects/p01_first-steps
 
 ## Try this
 
-Each exercise continues from where the robot stopped. Check the space around it on the plot first, or restart with
-`scripts/up.sh` to return to A. Run `measure.py` in another terminal during each one.
+Each exercise starts where the previous one stopped, so do them in this order, straight after step 10 (the robot is at
+about (-1.6, -2.6), facing north). The paths were chosen to stay clear of the boxes from there. If your robot is somewhere
+else, restart with `scripts/up.sh` and run `drive.py` without arguments first. Run `measure.py` in another terminal during
+each one.
 
-1. Walk a square with 1 m sides: four times forward 0.3 m/s for 3.4 s, then left 0.5 rad/s for 3.2 s. How far from its start
+1. Ask for more than the robot can do: turn right to face east, then 0.5 m/s forward. What speed does `measure.py` report?
+
+   ```bash
+   python3 projects/p01_first-steps/drive.py 0,0,-0.5,3.2 0.5,0,0,6     # wz -0.5 is a right turn: from north to east
+   ```
+
+   Answer: 0.29 to 0.32 m/s on every full second of the straight part after the first, which is the gait speeding up. CHAMP
+   clips `linear.x` to `max_linear_velocity_x` = 0.3 and says nothing about it; the publisher gets no error. In my two runs
+   the heading was 8 and 11 degrees when the robot started walking east (the turn was a few degrees short) and drifted to
+   about 2 degrees by the end. The robot stopped at (0.20, -2.63) and (0.14, -2.49).
+
+2. Walk sideways to the right: `linear.y` = -0.25 m/s for 6 s. Is it as clean as walking forward?
+
+   ```bash
+   python3 projects/p01_first-steps/drive.py 0,-0.25,0,6
+   ```
+
+   Answer: no. In two runs the robot moved 1.61 and 1.60 m (6 s at 0.25 m/s would be 1.5 m) at 0.26 to 0.29 m/s, faster
+   than the 0.25 m/s clip, and crept backwards by 0.29 and 0.28 m while facing about +x. The heading drift varies from run to
+   run: -6.9 and -2.3 degrees in mine, +1.3 in a learner's run. Sideways walking is the least accurate of the three motions,
+   so prefer turning and walking forward when you need precision.
+
+3. Walk a square with 1 m sides: four times forward 0.3 m/s for 3.4 s, then left 0.5 rad/s for 3.2 s. How far from its start
    does the robot end, and how much has it turned?
 
    ```bash
    python3 projects/p01_first-steps/drive.py 0.3,0,0,3.4 0,0,0.5,3.2 0.3,0,0,3.4 0,0,0.5,3.2 0.3,0,0,3.4 0,0,0.5,3.2 0.3,0,0,3.4 0,0,0.5,3.2
    ```
 
-   Answer from my run: `turned 363.0 deg`, `net 0.10 m`. The commands ask for 4 × 0.5 × 3.2 rad = 366.7 degrees; each side
-   came out at about 0.9 m because the gait needs about a second to reach full speed. The estimate turned 370.0 degrees.
-   Ground truth grey, estimate blue (shifted to the same start, not rotated, so the heading error it already had shows):
+   Answer from my two runs: `turned 363.0 deg`, `net 0.10 m` and `turned 355.8 deg`, `net 0.14 m`. A learner who restarted
+   and walked the square from A got 353.9 degrees and 0.12 m. The commands ask for 4 × 0.5 × 3.2 rad = 366.7 degrees; each
+   side came out at about 0.9 m because the gait needs about a second to reach full speed. The estimate turned 370.0 and 364.1
+   degrees. Ground truth grey, estimate blue (shifted to the same start, not rotated, so the heading error it already had
+   shows):
 
-   ![Square walked with drive.py: ground truth and estimate](figures/ex_square.png)
-
-2. Ask for more than the robot can do: 0.5 m/s forward. What speed does `measure.py` report?
-
-   ```bash
-   python3 projects/p01_first-steps/drive.py 0,0,0.5,3.2 0.5,0,0,6     # in my run this first turned the robot from north to east
-   ```
-
-   Answer: 0.30 m/s on every full second of the straight part after the first, which is the gait speeding up. CHAMP clips `linear.x` to `max_linear_velocity_x` = 0.3 and
-   says nothing about it; the publisher gets no error.
-
-3. Walk sideways to the right: `linear.y` = -0.25 m/s for 6 s. Is it as clean as walking forward?
-
-   ```bash
-   python3 projects/p01_first-steps/drive.py 0,-0.25,0,6
-   ```
-
-   Answer: no. The robot moved 1.61 m (6 s at 0.25 m/s would be 1.5 m) at 0.26 to 0.29 m/s, faster than the 0.25 m/s
-   clip, crept backwards by 0.29 m (x from 0.20 to -0.09 while facing about +x) and turned -6.9 degrees. Sideways
-   walking is the least accurate of the three motions, so prefer turning and walking forward when you need precision.
+   ![Square walked with drive.py: ground truth as a grey band, estimate as a blue line](figures/ex_square.png)
 
 ## If it goes wrong
 
@@ -538,6 +554,6 @@ Each exercise continues from where the robot stopped. Check the space around it 
 | `TIMEOUT waiting for: gazebo` from `up.sh`, but `logs/up_sim.log` shows the controllers loaded | On a loaded machine (load average above 100 in my case) `gz stats` did not answer within its 5 s timeout, so `up.sh` gave up although Gazebo was running | Check `ros2 topic echo --once /clock`. If the clock runs, start the other two launch files by hand: `ros2 launch go2_nav_sim estimation.launch.py`, wait for a `pose=` line, then `ros2 launch go2_nav_sim nav.launch.py`. Or run `scripts/up.sh` again when the machine is quieter |
 | The robot keeps walking after `ros2 topic pub` ended | CHAMP holds the last command | `ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist "{}"` |
 | `timeout 10 ros2 topic pub` moves the robot for less (or more) than 10 s | `timeout` counts wall time, including the 2 to 3 s the `ros2` process needs to start; the robot moves in simulated time | Use `drive.py`, which times segments on `/clock` |
-| `record_cam.py` prints `1 frames` and the video is a still | It subscribes best effort (`qos_profile_sensor_data`). A 960 × 540 image is 1.5 MB, sent in many fragments; on a loaded machine one lost fragment loses the whole image, and best effort does not resend. In 25 s a best-effort subscriber got 2 spectator images, a reliable one 150 | In `projects/common/record_cam.py` replace `qos_profile_sensor_data` in `create_subscription` with `10` (a reliable profile, depth 10). My video was recorded that way |
+| `projects/common/record_cam.py` prints `1 frames` and the video is a still | It subscribes best effort (`qos_profile_sensor_data`). A 960 × 540 image is 1.5 MB, sent in many fragments; on a loaded machine one lost fragment loses the whole image, and best effort does not resend. In 25 s a best-effort subscriber got 2 spectator images, a reliable one 150 | Record with `projects/p01_first-steps/record.py` (same arguments), which subscribes reliably. It wrote 310 frames (31.0 s) for the step 10 sequence at a load average of about 58 |
 | The estimate's `end` differs from the truth by a constant 0.1 to 0.2 m even right after a restart | `/odom_gt` starts at the spawn point, `/odom` where the robot had settled; the robot slides 0.10 to 0.15 m on landing | Compare displacements, or shift the estimate's start onto the truth as `plot_run.py` does |
 | The robot is somewhere you did not expect after several exercises | Every run starts where the last one stopped | Restart with `scripts/up.sh` to return to A |
