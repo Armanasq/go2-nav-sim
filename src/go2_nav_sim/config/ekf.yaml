@@ -1,4 +1,6 @@
-# odom -> base_footprint: fuses planar lidar odometry (pose + twist) with the IMU yaw rate; owns the odom TF at 50 Hz.
+# odom -> base_footprint at 50 Hz. Each quantity enters once: x, y from the lidar odometry pose (with its registration covariance),
+# yaw from the IMU yaw rate. The lidar odometry's yaw and twist are not fused: its yaw is the integrated gyro and its twist is
+# differenced from the same poses, so fusing them again would count the same information twice.
 odom_ekf:
   ros__parameters:
     use_sim_time: true
@@ -11,7 +13,7 @@ odom_ekf:
     world_frame: odom
     #                x      y      z      roll   pitch  yaw    vx     vy     vz     vroll  vpitch vyaw   ax     ay     az
     odom0: lidar_odom
-    odom0_config: [true,  true,  false, false, false, true,  true,  true,  false, false, false, true,  false, false, false]
+    odom0_config: [true,  true,  false, false, false, false, false, false, false, false, false, false, false, false, false]
     odom0_differential: false
     odom0_queue_size: 10
     imu0: imu/data

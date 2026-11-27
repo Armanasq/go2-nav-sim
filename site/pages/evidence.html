@@ -1,0 +1,83 @@
+<!-- title: Evidence · go2-nav-sim | nav: Evidence | desc: Recorded runs, metrics against ground truth, unit tests, setup and site checks for go2-nav-sim. -->
+<div class="wrap page">
+  <h1>What was run, and what came out</h1>
+  <p class="lead">Everything on this page is generated when the site is built, from files in the repository: the metrics JSON of each run,
+    the captured output of the missions, the unit tests and the site checks. If a number here disagrees with the repository,
+    the build is out of date.</p>
+
+  <h2 id="missions">Missions</h2>
+  <p class="prose">Three consecutive runs of <code>scripts/run_mission.sh</code> from a fresh start (new Gazebo, new estimator, new Nav2), on one
+    machine (32 threads, RTX 4090 laptop GPU), with the final code. Metrics are computed by <code>bag_metrics.py</code> from the bag of each run.</p>
+  {{RUNS_TABLE}}
+  <p class="small muted">All pairing is by message timestamp, with ground truth interpolated at the stamp of each estimate. ATE aligned: RMSE of the
+    odometry position after the best rigid SE(2) alignment (Umeyama), the standard definition. ATE anchored: aligned on the first pose only,
+    so drift shows. RPE: translational error over 1 m of travelled path. AMCL error is scored only at AMCL's own updates; an earlier
+    version held the last AMCL pose between updates and overstated the error by about 2–3 cm. End distance to B: Nav2 stops inside its
+    0.25 m goal tolerance, so this number mostly reflects that setting. Ground truth initialises AMCL once and is never used again.</p>
+  <h3>Mission output</h3>
+  <pre class="log">{{MISSIONS}}</pre>
+
+  <h2 id="tests">Unit tests</h2>
+  <p class="prose">Registration and gyro integration on synthetic scans of the real arena geometry, plus consistency of the generated world and map.
+    No ROS needed: <code>python3 -m pytest -q src/go2_nav_sim/test</code>.</p>
+  <pre class="log">{{PYTEST}}</pre>
+
+  <h2 id="setup">Fresh-clone setup</h2>
+  <p class="prose">Output of <code>scripts/setup.sh</code> in a clean checkout: fetch the pinned upstream, apply the patch, unpack the plugin overlay, build.</p>
+  <pre class="log">{{SETUP}}</pre>
+
+  <h2 id="site">Site checks</h2>
+  <p class="prose">Every internal link and asset of this site resolved, and every page loaded in headless Chrome at desktop and phone width without
+    console errors or failed requests. The screenshots are below.</p>
+  <pre class="log">{{SITECHECK}}</pre>
+
+  <h2 id="incidents">What broke, and what fixed it</h2>
+  <p class="prose muted">Each of these cost time while building the stack. Chapter 12 has the full table.</p>
+  <div class="incidents">
+      <article class="incident"><h3>Odometry turned half as fast as the robot</h3><dl>
+        <dt>Symptom</dt><dd>During an in-place turn the estimate reached 36° while the robot had turned 65°.</dd>
+        <dt>Cause</dt><dd>IMU and lidar callbacks shared a thread; IMU samples that arrived during a registration fell outside the next integration window.</dd>
+        <dt>Fix</dt><dd>Integrate the gyro into a timestamped history and look it up by time; separate callback groups.</dd>
+        <dt>Proof</dt><dd><a href="tutorial/09-state-estimation.html#failures-worth-knowing-about">chapter 9</a>, unit test <span class="evidence">test_gyro_yaw_is_independent_of_arrival_order</span></dd></dl></article>
+      <article class="incident"><h3>Scan matching flipped the room by 180°</h3><dl>
+        <dt>Symptom</dt><dd>When Nav2's spin recovery turned the robot at 1 rad/s, odometry yaw ended 175° off.</dd>
+        <dt>Cause</dt><dd>A rectangular room is nearly symmetric; full SE(2) ICP can lock onto the flipped solution. The integrated gyro matched ground truth to 1–2°.</dd>
+        <dt>Fix</dt><dd>Yaw from the gyro, ICP solves translation only.</dd>
+        <dt>Proof</dt><dd><a href="evidence.html#missions">three of three missions</a> afterwards</dd></dl></article>
+      <article class="incident"><h3>A uniform prior biased every pose</h3><dl>
+        <dt>Symptom</dt><dd>Unit test: with the prediction 25 cm off, registration stopped 2.5 cm short; without the prior, 1–2 mm.</dd>
+        <dt>Cause</dt><dd>A prior added in every direction to stop sliding along walls also pulls well-constrained solutions.</dd>
+        <dt>Fix</dt><dd>Prior only along directions whose information eigenvalue is below 10 (arena: 90–100; corridor: 0).</dd>
+        <dt>Proof</dt><dd><a href="evidence.html#tests">test_corridor_prior_stops_sliding_but_corrects_across</a></dd></dl></article>
+      <article class="incident"><h3>The floor became a wall</h3><dl>
+        <dt>Symptom</dt><dd>The global costmap filled with obstacles before the robot moved; the planner found no path.</dd>
+        <dt>Cause</dt><dd><code>base_footprint</code> sits 0.209 m below the real ground (CHAMP publishes a constant 0.426 m base height), so a 0.12 m threshold was below the floor. I first blamed gait tilt; that came later in the analysis.</dd>
+        <dt>Fix</dt><dd>Height band 0.30–0.90 m in that frame (about 0.09–0.69 m real). The proper fix, a correct <code>base_link</code> transform from IMU tilt and leg kinematics, is open.</dd>
+        <dt>Proof</dt><dd><a href="tutorial/10-mapping-and-navigation.html#the-height-band">chapter 10</a></dd></dl></article>
+      <article class="incident"><h3>Sensors existed in Gazebo but not in ROS</h3><dl>
+        <dt>Symptom</dt><dd>No <code>/scan</code>, no camera, no <code>/imu/data</code>, and no error anywhere.</dd>
+        <dt>Cause</dt><dd><code>ros-humble-gazebo-plugins</code> was not installed and there was no sudo.</dd>
+        <dt>Fix</dt><dd><code>setup.sh</code> unpacks the three packages into <code>overlay/</code> with <code>apt-get download</code>.</dd>
+        <dt>Proof</dt><dd><a href="tutorial/12-troubleshooting.html">chapter 12</a></dd></dl></article>
+      <article class="incident"><h3>Nav2 would not start on a busy machine</h3><dl>
+        <dt>Symptom</dt><dd><code>change_state ... client will not receive response</code>; lifecycle bring-up aborted.</dd>
+        <dt>Cause</dt><dd>Fast DDS dropped service replies under load; separately, orphaned lifecycle managers ignored SIGTERM and spun at 100% CPU each.</dd>
+        <dt>Fix</dt><dd>Cyclone DDS on loopback, a retrying <code>up.sh</code>, and SIGKILL escalation in <code>stop.sh</code>.</dd>
+        <dt>Proof</dt><dd><a href="tutorial/02-prerequisites.html#two-environment-traps">chapter 2</a></dd></dl></article>
+    </div>
+
+  <h2 id="figures">Figures</h2>
+  <figure class="figure"><img src="img/dashboard.png" alt="Dashboard frame: external view, RGB, depth, lidar sweep, map, metrics and IMU" loading="lazy">
+    <figcaption>One frame of the dashboard video, rendered from the rosbag of the run shown on the home page.</figcaption></figure>
+  <figure class="figure"><img src="img/sensors.png" alt="RGB, depth, 3D lidar sweep and map panels" loading="lazy">
+    <figcaption>Sensor panels from the same frame: RGB, depth (turbo, 0.3–8 m), lidar sweep coloured by height, and the map with the plan.</figcaption></figure>
+
+  <h2 id="limits">Limits of this evidence</h2>
+  <ul class="prose">
+    <li>Three runs on one machine is a small sample. Earlier versions of the estimator failed about one run in three; the causes are in
+      <a href="tutorial/09-state-estimation.html#failures-worth-knowing-about">chapter 9</a>.</li>
+    <li>The arena is small and closed, so the odometry behaves partly like localisation against a fixed map.</li>
+    <li>AMCL starts from the true pose and the map is known in advance.</li>
+    <li>The dependency list in chapter 2 was not tested on a clean operating-system install.</li>
+  </ul>
+</div>

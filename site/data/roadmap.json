@@ -1,0 +1,638 @@
+{
+  "intro": "Modules follow the dependency structure of a legged robot: model, kinematics, dynamics, control, locomotion, estimation, perception, planning, navigation. Each module lists what it needs, what this repository already provides with its evidence, and the next step. Status is strict: validated means there is a measured result in the repository.",
+  "status_legend": {
+    "validated": "the fundamental level has a measured result here; each level below shows its own status",
+    "partial": "used or explained here, or some levels done, but the fundamental level is not measured",
+    "planned": "not started"
+  },
+  "modules": [
+    {
+      "id": "00",
+      "title": "Mathematical foundations",
+      "prereq": [],
+      "levels": [
+        "Linear algebra, calculus, mechanics",
+        "Coordinate transformations, quaternions, SO(3), SE(3)",
+        "Lie groups, numerical optimization"
+      ],
+      "status": "validated",
+      "here": "modules/m00_math: rotations, quaternions, ZYX Euler extraction, SE(2)/SE(3), SO(3) exp/log, derived and matched to scipy and Pinocchio to ≤ 8e-15 over 100k samples (Pinocchio's log3 loses digits near π; the atan2 form here does not). Tilt-compensated yaw rate and the camera optical frame derived with numbers. 13 tests.",
+      "chapters": [
+        "09-state-estimation"
+      ],
+      "next": "Numerical optimisation: Gauss-Newton and Levenberg-Marquardt on SE(2) registration, checked against scipy.optimize.",
+      "refs": [
+        "Lynch & Park, Modern Robotics (2017), ch. 3",
+        "Solà, Deray, Atchuthan, A micro Lie theory for state estimation in robotics (2018)"
+      ],
+      "level_status": [
+        "validated",
+        "validated",
+        "partial"
+      ],
+      "evidence": "https://github.com/Armanasq/go2-nav-sim/tree/main/modules/m00_math"
+    },
+    {
+      "id": "01",
+      "title": "Robot anatomy",
+      "prereq": [
+        "00"
+      ],
+      "levels": [
+        "Links, joints, actuators, degrees of freedom",
+        "Kinematic trees, joint limits, transmissions",
+        "Floating-base systems, underactuation"
+      ],
+      "status": "partial",
+      "here": "Chapter 1 explains the Go2's 12 actuated joints, floating base and the layers between description and gait.",
+      "chapters": [
+        "01-legged-robot-foundations"
+      ],
+      "next": "Count and verify the degrees of freedom and joint limits programmatically from the URDF.",
+      "refs": [
+        "Lynch & Park, Modern Robotics, ch. 2",
+        "Tedrake, Underactuated Robotics (MIT 6.832 notes), ch. 1"
+      ],
+      "level_status": [
+        "partial",
+        "partial",
+        "planned"
+      ]
+    },
+    {
+      "id": "02",
+      "title": "Robot description",
+      "prereq": [
+        "01"
+      ],
+      "levels": [
+        "URDF, MJCF, meshes",
+        "Mass, inertia, collision geometry",
+        "Model identification and validation"
+      ],
+      "status": "partial",
+      "here": "Go2 xacro wrapped without edits, sensor macros with REP-103 frames; a unit test keeps the world and the map consistent. The Go2 MJCF from MuJoCo Menagerie loads identically in MuJoCo and Pinocchio (12 actuated joints, 15.2064 kg). Not yet compared with the Gazebo URDF.",
+      "chapters": [
+        "06-import-the-go2",
+        "08-robot-and-sensors"
+      ],
+      "evidence": "evidence.html#tests",
+      "next": "Compare masses, inertias and leg lengths between the MJCF and the Gazebo URDF; report the differences.",
+      "refs": [
+        "ROS 2 URDF tutorials",
+        "MuJoCo documentation, MJCF modeling",
+        "MuJoCo Menagerie: unitree_go2"
+      ],
+      "level_status": [
+        "partial",
+        "planned",
+        "planned"
+      ]
+    },
+    {
+      "id": "03",
+      "title": "Simulation",
+      "prereq": [
+        "02"
+      ],
+      "levels": [
+        "Import and visualize the robot",
+        "Gravity, friction, collisions, time integration",
+        "Contact modeling, actuator dynamics"
+      ],
+      "status": "validated",
+      "here": "Gazebo Classic with ODE, 1 ms step, real-time factor 1.0 measured. Contact and actuator models used as configured, not studied.",
+      "chapters": [
+        "03-install-and-first-run"
+      ],
+      "next": "Port the stack to ROS 2 Jazzy + Gazebo Harmonic; MuJoCo drop and friction-cone tests with known analytic answers.",
+      "refs": [
+        "Todorov, Erez, Tassa, MuJoCo: a physics engine for model-based control (IROS 2012)"
+      ],
+      "current": "Gazebo Classic 11, used here, reached end of life on 31 January 2025. Current pairing: ROS 2 Jazzy with Gazebo Harmonic (supported to Sept 2028); MuJoCo for controller and learning work.",
+      "level_status": [
+        "validated",
+        "partial",
+        "planned"
+      ]
+    },
+    {
+      "id": "04",
+      "title": "Kinematics",
+      "prereq": [
+        "00",
+        "02"
+      ],
+      "levels": [
+        "Forward and inverse kinematics",
+        "Jacobians, velocity kinematics, workspace",
+        "Differential IK, singularities, constrained IK"
+      ],
+      "status": "validated",
+      "here": "modules/m04_kinematics: FK, geometric Jacobian, numerical and closed-form IK from first principles. FK and Jacobian match MuJoCo and Pinocchio to ~1e-16; closed-form IK solves 100% of reachable targets to 7e-14 rad, 40–80× faster than the numerical solver (99.3–99.9%). det J = −l1·l2·sin(q3+γ)·s_z; the knee limits keep |sin(q3+γ)| ≥ 0.415. 20 tests.",
+      "next": "Constrained IK as a QP with joint limits; whole-body IK with the floating base.",
+      "refs": [
+        "Lynch & Park, Modern Robotics, ch. 4–6",
+        "Carpentier et al., The Pinocchio C++ library (SII 2019)"
+      ],
+      "evidence": "https://github.com/Armanasq/go2-nav-sim/tree/main/modules/m04_kinematics",
+      "level_status": [
+        "validated",
+        "validated",
+        "partial"
+      ]
+    },
+    {
+      "id": "05",
+      "title": "Dynamics",
+      "prereq": [
+        "04"
+      ],
+      "levels": [
+        "Forces, torques, Newton–Euler",
+        "Mass matrix, Lagrangian dynamics, inverse dynamics",
+        "Floating-base and contact-constrained dynamics"
+      ],
+      "status": "partial",
+      "here": "Statics only: τ = Jᵀf for the standing Go2 (37.29 N per foot from 15.2064 kg) matches MuJoCo's standing torques to 2.4e-6 N·m once leg weight is included; trot torques reach 30% and 27% of the 23.7 and 45.43 N·m limits. No dynamics yet.",
+      "next": "RNEA for one leg from first principles, compared with Pinocchio rnea and MuJoCo qfrc_inverse; then the mass matrix (CRBA).",
+      "refs": [
+        "Featherstone, Rigid Body Dynamics Algorithms (2008)",
+        "Lynch & Park, Modern Robotics, ch. 8"
+      ],
+      "level_status": [
+        "partial",
+        "planned",
+        "planned"
+      ],
+      "chapters": [],
+      "evidence": "https://github.com/Armanasq/go2-nav-sim/tree/main/modules/m04_kinematics"
+    },
+    {
+      "id": "06",
+      "title": "Sensors",
+      "prereq": [
+        "02"
+      ],
+      "levels": [
+        "IMU, encoders, contact sensors",
+        "Measurement models, calibration, synchronization",
+        "Noise, biases, uncertainty, sensor failure"
+      ],
+      "status": "validated",
+      "here": "16-beam lidar, RGB-D and IMU with measured rates (10/10/100 Hz). Integrated gyro matches ground-truth yaw to 1–2° over 6 s. Late IMU samples were found and fixed.",
+      "chapters": [
+        "08-robot-and-sensors"
+      ],
+      "evidence": "evidence.html#incidents",
+      "next": "Gyro bias and accelerometer noise models; contact sensing for the legs.",
+      "refs": [
+        "Thrun, Burgard, Fox, Probabilistic Robotics (2005), ch. 6"
+      ],
+      "level_status": [
+        "validated",
+        "partial",
+        "planned"
+      ]
+    },
+    {
+      "id": "07",
+      "title": "Low-level control",
+      "prereq": [
+        "05"
+      ],
+      "levels": [
+        "Position, velocity and torque commands",
+        "PD/PID, gravity compensation",
+        "Impedance control, inverse dynamics control"
+      ],
+      "status": "partial",
+      "here": "ros2_control effort controller driven by CHAMP is used as given; not built or tuned here.",
+      "chapters": [
+        "06-import-the-go2"
+      ],
+      "next": "Joint PD in MuJoCo with step-response metrics (rise time, overshoot), then gravity compensation.",
+      "refs": [
+        "Lynch & Park, Modern Robotics, ch. 11"
+      ],
+      "level_status": [
+        "partial",
+        "planned",
+        "planned"
+      ]
+    },
+    {
+      "id": "08",
+      "title": "Balance and stability",
+      "prereq": [
+        "05",
+        "07"
+      ],
+      "levels": [
+        "Center of mass, support polygon",
+        "Ground reaction forces, friction cones",
+        "Centroidal dynamics, disturbance rejection"
+      ],
+      "status": "planned",
+      "here": "Not implemented.",
+      "next": "Standing with a QP that distributes ground reaction forces inside friction cones; push-recovery test.",
+      "refs": [
+        "Tedrake, Underactuated Robotics",
+        "Orin, Goswami, Lee, Centroidal dynamics of a humanoid robot (2013)"
+      ],
+      "level_status": [
+        "planned",
+        "planned",
+        "planned"
+      ]
+    },
+    {
+      "id": "09",
+      "title": "Locomotion",
+      "prereq": [
+        "08"
+      ],
+      "levels": [
+        "Standing, lifting a foot, stepping",
+        "Gait scheduling, walking, trotting",
+        "Dynamic locomotion, adaptive gait generation"
+      ],
+      "status": "partial",
+      "here": "CHAMP trot driven through Nav2. Chapter 7 measures commanded against achieved speed. Not implemented from first principles.",
+      "chapters": [
+        "07-make-it-walk"
+      ],
+      "next": "Own gait scheduler and swing trajectories on the MuJoCo Go2, compared with CHAMP's.",
+      "refs": [
+        "Raibert, Legged Robots That Balance (1986)"
+      ],
+      "level_status": [
+        "partial",
+        "partial",
+        "planned"
+      ]
+    },
+    {
+      "id": "10",
+      "title": "Motion control",
+      "prereq": [
+        "09"
+      ],
+      "levels": [
+        "Joint and foot trajectories",
+        "Body pose and velocity tracking",
+        "MPC, whole-body control, trajectory optimization"
+      ],
+      "status": "planned",
+      "here": "Not implemented.",
+      "next": "Convex MPC on single-rigid-body dynamics, velocity-tracking error as the metric.",
+      "refs": [
+        "Di Carlo et al., Dynamic locomotion in the MIT Cheetah 3 through convex model-predictive control (IROS 2018)"
+      ],
+      "current": "Convex MPC on single-rigid-body dynamics is the established model-based baseline; whole-body MPC and learned policies build on it.",
+      "level_status": [
+        "planned",
+        "planned",
+        "planned"
+      ]
+    },
+    {
+      "id": "11",
+      "title": "State estimation",
+      "prereq": [
+        "06",
+        "04"
+      ],
+      "levels": [
+        "Encoder-based odometry, IMU integration",
+        "Contact-aided EKF, sensor fusion",
+        "InEKF, slip-aware estimation, factor graphs"
+      ],
+      "status": "partial",
+      "here": "Lidar-inertial odometry (gyro-anchored point-to-line ICP with a per-point degeneracy test) fused with the IMU in an EKF: SE(2)-aligned ATE 1.1–1.7 cm and 1.6–2.4 % relative error per metre over three runs, unit-tested. The listed fundamentals (encoder-based leg odometry) are not done: CHAMP's leg odometry measured unusable in Gazebo (0.55 m reported for 3.2 m), hence partial.",
+      "chapters": [
+        "09-state-estimation"
+      ],
+      "evidence": "evidence.html#missions",
+      "next": "Estimate the gyro bias online (it is not estimated now; 0.07–0.1°/s was measured in some runs). Then proprioceptive leg odometry from the module 04 Jacobian, v = -ω × f_p(q) - J_v(q) q̇ (SLAM Handbook), fused with the IMU in an EKF, then a contact-aided invariant EKF.",
+      "refs": [
+        "Bloesch et al., State estimation for legged robots: consistent fusion of leg kinematics and IMU (RSS 2012)",
+        "Hartley et al., Contact-aided invariant extended Kalman filtering for robot state estimation, arXiv:1904.09251",
+        "Zhang, Kaess, Singh, On degeneracy of optimization-based state estimation problems (ICRA 2016)",
+        "Xu et al., FAST-LIO2: Fast direct LiDAR-inertial odometry, arXiv:2107.06829 (T-RO 2022)",
+        "SLAM Handbook (2025), chapter on leg odometry: contact estimation, stance-foot velocity, filters vs smoothers",
+        "GrandTour legged-robot dataset with a 63-estimator benchmark, huggingface.co/datasets/leggedrobotics/grand_tour_dataset"
+      ],
+      "current": "3D lidar-inertial odometry with an iterated error-state Kalman filter (FAST-LIO2) is a common reference; for legs, contact-aided invariant EKFs. The planar ICP here is a teaching implementation, not a competitor.",
+      "level_status": [
+        "partial",
+        "partial",
+        "planned"
+      ]
+    },
+    {
+      "id": "12",
+      "title": "Perception",
+      "prereq": [
+        "06"
+      ],
+      "levels": [
+        "Cameras, depth sensors, LiDAR",
+        "Point clouds, terrain reconstruction",
+        "Semantic perception, traversability estimation"
+      ],
+      "status": "partial",
+      "here": "Point cloud to scan with a height band; depth and RGB recorded and visualised. The band is not tilt-compensated: base_footprint to base_link is a constant in this setup. No terrain model.",
+      "chapters": [
+        "08-robot-and-sensors",
+        "10-mapping-and-navigation"
+      ],
+      "next": "Publish base_footprint to base_link from IMU roll/pitch and leg-kinematics height (module 04), then an elevation map with height variance.",
+      "refs": [
+        "Fankhauser et al., Probabilistic terrain mapping for mobile robots with uncertain localization (RA-L 2018)",
+        "Miki et al., Elevation mapping for locomotion and navigation using GPU, arXiv:2204.12876 (IROS 2022)"
+      ],
+      "current": "GPU elevation mapping with traversability layers (elevation_mapping_cupy) is used on deployed quadrupeds.",
+      "level_status": [
+        "partial",
+        "planned",
+        "planned"
+      ]
+    },
+    {
+      "id": "13",
+      "title": "Localization and mapping",
+      "prereq": [
+        "11",
+        "12"
+      ],
+      "levels": [
+        "Coordinate frames, odometry",
+        "Visual/LiDAR SLAM",
+        "Multimodal fusion, semantic mapping"
+      ],
+      "status": "validated",
+      "here": "AMCL scored at its own updates: 8.3–18.7 cm RMSE over three runs, now the weakest link (odometry is 1–2 cm). slam_toolbox builds a map in parallel without touching the TF tree.",
+      "chapters": [
+        "10-mapping-and-navigation"
+      ],
+      "evidence": "evidence.html#missions",
+      "next": "Find why AMCL is 5–10 times worse than the odometry (likelihood-field parameters, beam count, the uncompensated tilt in /scan); score the SLAM map against the ground-truth map (IoU).",
+      "refs": [
+        "Macenski & Jambrecic, SLAM Toolbox: SLAM for the dynamic world (JOSS 2021)",
+        "Thrun, Burgard, Fox, Probabilistic Robotics, ch. 8",
+        "Behley et al., LiDAR SLAM chapter, SLAM Handbook (2025), dynamic.robots.ox.ac.uk/pdfs/2025CHAPTER_behley.pdf",
+        "Tao et al., The Oxford Spires dataset, arXiv:2411.10546 (IJRR 2025)"
+      ],
+      "level_status": [
+        "validated",
+        "partial",
+        "planned"
+      ]
+    },
+    {
+      "id": "14",
+      "title": "Motion planning",
+      "prereq": [
+        "13"
+      ],
+      "levels": [
+        "Waypoints, A*, collision avoidance",
+        "Local planning, foothold selection",
+        "Terrain-aware and kinodynamic planning"
+      ],
+      "status": "validated",
+      "here": "Nav2 NavFn with A*, inflation tuned after a narrow-gap failure; Regulated Pure Pursuit. No footholds.",
+      "chapters": [
+        "10-mapping-and-navigation"
+      ],
+      "next": "Foothold scoring on the elevation map.",
+      "refs": [
+        "Macenski et al., The Marathon 2: a navigation system (IROS 2020)",
+        "Wermelinger et al., Navigation planning for legged robots in challenging terrain (IROS 2016)"
+      ],
+      "level_status": [
+        "validated",
+        "planned",
+        "planned"
+      ]
+    },
+    {
+      "id": "15",
+      "title": "Autonomous navigation",
+      "prereq": [
+        "14",
+        "09"
+      ],
+      "levels": [
+        "Point-to-point movement",
+        "Closed-loop navigation, obstacle avoidance",
+        "Perceptive locomotion, navigation under uncertainty"
+      ],
+      "status": "validated",
+      "here": "A to B, 11.6–13.8 m around obstacles: three of three consecutive missions succeeded (54.4, 54.8, 83.1 s). End distances 0.21–0.34 m reflect the 0.25 m goal tolerance plus AMCL error. Ground truth is used once, to initialise AMCL, and never after.",
+      "chapters": [
+        "03-install-and-first-run",
+        "10-mapping-and-navigation"
+      ],
+      "evidence": "evidence.html#missions",
+      "next": "Goals in unexplored space (frontier exploration); dynamic obstacles.",
+      "refs": [
+        "Miki et al., Learning robust perceptive locomotion for quadrupedal robots in the wild (Science Robotics 2022)"
+      ],
+      "level_status": [
+        "validated",
+        "validated",
+        "planned"
+      ]
+    },
+    {
+      "id": "16",
+      "title": "Learning-based robotics",
+      "prereq": [
+        "10",
+        "17"
+      ],
+      "levels": [
+        "Observation, action, reward",
+        "Reinforcement learning, imitation learning",
+        "Hybrid model-based and learned control"
+      ],
+      "status": "planned",
+      "here": "Not started, on purpose: model-based baselines come first.",
+      "next": "A learned velocity-tracking policy compared against the MPC baseline on the same metric.",
+      "refs": [
+        "Ha et al., Learning-based legged locomotion: state of the art and future perspectives (IJRR, doi:10.1177/02783649241312698)",
+        "Hwangbo et al., Learning agile and dynamic motor skills for legged robots (Science Robotics 2019)",
+        "Zakka et al., MuJoCo Playground, arXiv:2502.08844 (2025)"
+      ],
+      "current": "Policies trained in massively parallel simulation; MuJoCo Playground (MJX) trains Go2 locomotion on one GPU.",
+      "level_status": [
+        "planned",
+        "planned",
+        "planned"
+      ]
+    },
+    {
+      "id": "17",
+      "title": "System validation",
+      "prereq": [
+        "11",
+        "15"
+      ],
+      "levels": [
+        "Functional testing",
+        "Accuracy, stability, robustness, latency",
+        "Failure analysis, domain randomization, sim-to-real assessment"
+      ],
+      "status": "validated",
+      "here": "Unit tests without ROS, three recorded missions scored against ground truth, a link-and-browser check of this site in CI, and written root-cause analyses of every failure.",
+      "chapters": [
+        "11-record-and-visualise",
+        "12-troubleshooting"
+      ],
+      "evidence": "evidence.html",
+      "next": "Randomise friction, mass and sensor noise; report success rate over 20 runs.",
+      "refs": [
+        "Sturm et al., A benchmark for the evaluation of RGB-D SLAM systems (IROS 2012): the ATE and RPE definitions used here"
+      ],
+      "level_status": [
+        "validated",
+        "partial",
+        "planned"
+      ]
+    },
+    {
+      "id": "18",
+      "title": "ROS 2 system integration",
+      "prereq": [],
+      "levels": [
+        "Nodes, topics, services, actions, parameters, launch",
+        "QoS, TF2, lifecycle nodes, executors and callback groups, bags",
+        "DDS tuning, real-time scheduling, ros2_control hardware interfaces, multi-machine"
+      ],
+      "level_status": [
+        "partial",
+        "partial",
+        "planned"
+      ],
+      "status": "partial",
+      "here": "Used throughout the stack; chapters 4 and 5 teach it from scratch with a node the learner writes. Two DDS problems and a callback-group bug were found and fixed (chapter 12).",
+      "chapters": [
+        "04-ros2-from-scratch",
+        "05-frames-and-tf2",
+        "12-troubleshooting"
+      ],
+      "next": "A ros2_control hardware interface for a simulated joint, and an executor timing measurement under load.",
+      "refs": [
+        "ROS 2 Humble documentation, docs.ros.org/en/humble",
+        "REP-103 and REP-105 (units and coordinate frames for mobile platforms)"
+      ]
+    }
+  ],
+  "stages": [
+    {
+      "n": "00",
+      "title": "Mathematics and mechanical foundations",
+      "modules": [
+        "00",
+        "01"
+      ]
+    },
+    {
+      "n": "01",
+      "title": "Robot model and physics simulation",
+      "modules": [
+        "02",
+        "03"
+      ]
+    },
+    {
+      "n": "02",
+      "title": "Single-leg kinematics and dynamics",
+      "modules": [
+        "04",
+        "05"
+      ]
+    },
+    {
+      "n": "03",
+      "title": "Joint-level feedback control",
+      "modules": [
+        "07"
+      ]
+    },
+    {
+      "n": "04",
+      "title": "Whole-body standing and balance",
+      "modules": [
+        "08"
+      ]
+    },
+    {
+      "n": "05",
+      "title": "Foot trajectories and gait generation",
+      "modules": [
+        "09"
+      ]
+    },
+    {
+      "n": "06",
+      "title": "Stable locomotion and velocity tracking",
+      "modules": [
+        "09",
+        "10"
+      ]
+    },
+    {
+      "n": "07",
+      "title": "Proprioceptive state estimation",
+      "modules": [
+        "06",
+        "11"
+      ]
+    },
+    {
+      "n": "08",
+      "title": "Perception, localization and mapping",
+      "modules": [
+        "12",
+        "13"
+      ]
+    },
+    {
+      "n": "09",
+      "title": "Path planning and autonomous navigation",
+      "modules": [
+        "14",
+        "15"
+      ]
+    },
+    {
+      "n": "10",
+      "title": "Advanced control and learning-based methods",
+      "modules": [
+        "10",
+        "16"
+      ]
+    },
+    {
+      "n": "11",
+      "title": "Integrated autonomous robotic system",
+      "modules": [
+        "17",
+        "18"
+      ]
+    }
+  ],
+  "module_template": [
+    "Objective",
+    "Prerequisites",
+    "Theory",
+    "Implementation",
+    "Experiment",
+    "Validation",
+    "Failure analysis",
+    "References"
+  ]
+}

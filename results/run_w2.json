@@ -1,0 +1,15 @@
+{
+  "duration_s": 63.5,
+  "path_m": 11.59,
+  "mean_speed_ms": 0.183,
+  "odom_ate_aligned_cm": 1.1,
+  "odom_ate_anchored_cm": 2.5,
+  "odom_final_err_cm": 2.8,
+  "odom_drift_pct": 0.24,
+  "odom_rpe_1m_pct": 1.64,
+  "amcl_rmse_cm": 10.8,
+  "amcl_max_cm": 21.8,
+  "amcl_updates": 170,
+  "goal_error_m": 0.21,
+  "goal_tolerance_m": 0.25
+}

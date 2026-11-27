@@ -1,0 +1,55 @@
+name: test, build and publish the site
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install Python tools
+        run: pip install numpy scipy pytest markdown pyyaml playwright
+      - name: Lint (undefined names and other errors that tests can miss)
+        run: |
+          pip install pyflakes
+          python -m pyflakes src/go2_nav_sim/scripts src/go2_nav_sim/test modules site/build.py tools | tee lint.txt
+          ! grep -E "undefined name|syntax error|invalid syntax" lint.txt
+      - name: Unit tests (registration, gyro integration, world/map consistency)
+        run: python -m pytest -v src/go2_nav_sim/test
+      - name: First-principles modules (MuJoCo + Pinocchio against the Go2 MJCF)
+        run: |
+          pip install mujoco pin matplotlib
+          modules/fetch_go2.sh
+          python -m pytest -v modules
+      - name: Build site
+        run: python site/build.py
+      - name: Check links, page loads and console errors
+        run: |
+          python -m playwright install --with-deps chromium
+          python tools/check_site.py _site
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+  deploy:
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,9 +1,12 @@
+bags/
 build/
 install/
 log/
 logs/
-bags/
 overlay/
-videos/
-src/third_party/
 __pycache__/
+_site/
+site/dev/
+src/third_party/
+.venv-modules/
+videos/

@@ -1,0 +1,59 @@
+{
+  "n": 100000,
+  "max_error": {
+    "quat_to_R_vs_scipy": 6.661338147750939e-16,
+    "R_to_quat_vs_scipy": 1.6653345369377348e-16,
+    "rpy_to_R_vs_pinocchio": 1.2212453270876722e-15,
+    "R_to_rpy_vs_pinocchio": 7.66053886991358e-15,
+    "exp_vs_pinocchio": 8.881784197001252e-16,
+    "log_vs_pinocchio": 5.723865825757457e-11,
+    "log_vs_scipy": 1.3322676295501878e-15,
+    "se3_inverse_vs_pinocchio": 0.0,
+    "rpy_rates_vs_pinocchio": 2.6645352591003757e-15
+  },
+  "yaw_from_omega_z": {
+    "roll 1.0 pitch 0.0": {
+      "predicted_deg_per_turn": 0.05482974369914295,
+      "integrated_deg_per_turn": 0.054828126630098686,
+      "relative": 0.00015230484360873042
+    },
+    "roll 2.1 pitch 0.0": {
+      "predicted_deg_per_turn": 0.24177823968375647,
+      "integrated_deg_per_turn": 0.24177110902614798,
+      "relative": 0.0006716062213437679
+    },
+    "roll 3.6 pitch 0.0": {
+      "predicted_deg_per_turn": 0.7103777658222388,
+      "integrated_deg_per_turn": 0.7103568149678662,
+      "relative": 0.001973271571728441
+    },
+    "roll 3.6 pitch 2.0": {
+      "predicted_deg_per_turn": 0.9292472960066034,
+      "integrated_deg_per_turn": 0.9292198901309322,
+      "relative": 0.0025812424889072316
+    },
+    "roll 10.0 pitch 0.0": {
+      "predicted_deg_per_turn": 5.469208915605113,
+      "integrated_deg_per_turn": 5.469047614667981,
+      "relative": 0.01519224698779198
+    }
+  },
+  "R_link_optical": [
+    [
+      0.0,
+      0.0,
+      1.0
+    ],
+    [
+      -1.0,
+      0.0,
+      0.0
+    ],
+    [
+      0.0,
+      -1.0,
+      0.0
+    ]
+  ],
+  "height_shift_3m_3p6deg_m": 0.18837155858794014
+}

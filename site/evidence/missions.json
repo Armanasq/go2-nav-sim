@@ -1,0 +1,23 @@
+[
+  {
+    "run": "w1",
+    "result": "SUCCEEDED",
+    "sim_time_s": 54.4,
+    "final_error_m": 0.25,
+    "nav2_retries": 0
+  },
+  {
+    "run": "w2",
+    "result": "SUCCEEDED",
+    "sim_time_s": 54.8,
+    "final_error_m": 0.22,
+    "nav2_retries": 0
+  },
+  {
+    "run": "w3",
+    "result": "SUCCEEDED",
+    "sim_time_s": 83.1,
+    "final_error_m": 0.35,
+    "nav2_retries": 0
+  }
+]

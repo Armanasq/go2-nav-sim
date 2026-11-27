@@ -1,0 +1,69 @@
+# 2026-11-28 00:32, one machine, final code, consecutive runs
+$ scripts/run_mission.sh bags/w1
+stack up
+  goal -> (4.00, 3.00, yaw 0.65)
+  distance remaining 11.65 m, recoveries 0
+  distance remaining 11.96 m, recoveries 0
+  distance remaining 11.21 m, recoveries 0
+  distance remaining 10.12 m, recoveries 0
+  distance remaining 9.63 m, recoveries 0
+  distance remaining 8.28 m, recoveries 0
+  distance remaining 7.36 m, recoveries 0
+  distance remaining 6.77 m, recoveries 0
+  distance remaining 5.69 m, recoveries 0
+  distance remaining 5.24 m, recoveries 0
+  distance remaining 6.15 m, recoveries 0
+  distance remaining 3.30 m, recoveries 0
+  distance remaining 2.45 m, recoveries 0
+  distance remaining 1.60 m, recoveries 0
+  distance remaining 0.87 m, recoveries 0
+RESULT SUCCEEDED  sim_time 54.4 s  ground-truth final error 0.25 m  final pos (3.78, 2.88)
+$ scripts/run_mission.sh bags/w2
+stack up
+  goal -> (4.00, 3.00, yaw 0.65)
+  distance remaining 11.28 m, recoveries 0
+  distance remaining 11.71 m, recoveries 0
+  distance remaining 11.05 m, recoveries 0
+  distance remaining 10.64 m, recoveries 0
+  distance remaining 9.60 m, recoveries 0
+  distance remaining 8.83 m, recoveries 0
+  distance remaining 7.97 m, recoveries 0
+  distance remaining 7.02 m, recoveries 0
+  distance remaining 6.54 m, recoveries 0
+  distance remaining 5.32 m, recoveries 0
+  distance remaining 4.95 m, recoveries 0
+  distance remaining 3.81 m, recoveries 0
+  distance remaining 3.10 m, recoveries 0
+  distance remaining 2.45 m, recoveries 0
+  distance remaining 1.77 m, recoveries 0
+  distance remaining 0.97 m, recoveries 0
+  distance remaining 0.30 m, recoveries 0
+RESULT SUCCEEDED  sim_time 54.8 s  ground-truth final error 0.22 m  final pos (3.79, 2.95)
+$ scripts/run_mission.sh bags/w3
+stack up
+  goal -> (4.00, 3.00, yaw 0.65)
+  distance remaining 11.62 m, recoveries 0
+  distance remaining 11.40 m, recoveries 0
+  distance remaining 11.79 m, recoveries 0
+  distance remaining 13.92 m, recoveries 0
+  distance remaining 11.91 m, recoveries 0
+  distance remaining 11.45 m, recoveries 0
+  distance remaining 11.80 m, recoveries 0
+  distance remaining 11.54 m, recoveries 0
+  distance remaining 11.57 m, recoveries 0
+  distance remaining 11.87 m, recoveries 0
+  distance remaining 10.97 m, recoveries 0
+  distance remaining 10.51 m, recoveries 0
+  distance remaining 9.69 m, recoveries 0
+  distance remaining 8.90 m, recoveries 0
+  distance remaining 7.71 m, recoveries 0
+  distance remaining 7.20 m, recoveries 0
+  distance remaining 6.14 m, recoveries 0
+  distance remaining 5.37 m, recoveries 0
+  distance remaining 4.75 m, recoveries 0
+  distance remaining 3.83 m, recoveries 0
+  distance remaining 3.10 m, recoveries 0
+  distance remaining 2.32 m, recoveries 0
+  distance remaining 1.50 m, recoveries 0
+  distance remaining 0.72 m, recoveries 0
+RESULT SUCCEEDED  sim_time 83.1 s  ground-truth final error 0.35 m  final pos (3.99, 2.65)

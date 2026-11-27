@@ -179,7 +179,6 @@ def render_map(S, w, h, gt_map):
         mask = (g >= 0).astype(np.uint8) * 255
         sc = res * s                                                       # px per cell
         x0 = ox + (S.slam_off[0] + mx - xmin) * s; y0 = h - oy - (S.slam_off[1] + my + hh * res - ymin) * s
-        Mx = np.float32([[sc, 0, x0], [0, -sc, y0 + hh * sc]])
         layer = cv2.warpAffine(rgb[::-1].copy(), np.float32([[sc, 0, x0], [0, sc, y0]]), (w, h), flags=cv2.INTER_NEAREST)
         lm = cv2.warpAffine(mask[::-1].copy(), np.float32([[sc, 0, x0], [0, sc, y0]]), (w, h), flags=cv2.INTER_NEAREST) > 0
         out[lm] = layer[lm]
@@ -342,7 +341,7 @@ def main():
                     PILImage.fromarray(fr).save(a.still); still_done = True
             nxt += dt
     if a.cards:
-        e = np.array(S.err)[:, 1] if S.err else np.array([0.0]); sec = S.clock if S.clock else total
+        e = np.array(S.err)[:, 1] if S.err else np.array([0.0])
         stats = [('PATH', f'{S.dist:0.1f} m'), ('DURATION', f'{total:0.0f} s'), ('MEAN SPEED', f'{S.dist / max(total, 1):0.2f} m/s'), ('LOCALISATION RMSE', f'{np.sqrt((e ** 2).mean()) * 100:0.1f} cm')]
         for i in range(int(4 * a.fps)):
             k = i / (4 * a.fps); put(card('Goal reached' if goal_hit else 'Run finished', 'Ground truth was used for evaluation only', alpha=min(1, k * 4) * min(1, (1 - k) * 3), stats=stats))

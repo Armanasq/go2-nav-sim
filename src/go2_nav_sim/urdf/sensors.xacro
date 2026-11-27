@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <!-- Sensor macros. Conventions: REP-103 (x fwd, y left, z up) for lidar/imu frames; camera_optical follows REP-103 optical
-     convention (z fwd, x right, y down). Every sensor hangs off base_link by a fixed joint so TF carries the gait pitch/roll. -->
+     convention (z fwd, x right, y down). Every sensor hangs off base_link by a fixed joint. (In this setup base_footprint->base_link is a constant, so gait pitch/roll do not reach TF; see chapter 7.) -->
 <robot xmlns:xacro="http://www.ros.org/wiki/xacro">
 
   <xacro:macro name="tiny_link" params="name">
@@ -9,7 +9,7 @@
     </link>
   </xacro:macro>
 
-  <!-- 3D spinning lidar, VLP-16-like: 16 beams, +-15 deg, 0.4 deg azimuth, 10 Hz, PointCloud2 (x y z intensity ring) on /lidar/points.
+  <!-- 3D spinning lidar, VLP-16-like: 16 beams, +-15 deg, 0.4 deg azimuth, 10 Hz, PointCloud2 (x y z intensity; no ring field) on /lidar/points.
        Mounted on top of the trunk (trunk top is 0.057 m above base_link); min range 0.3 m rejects returns from the own body. -->
   <xacro:macro name="lidar3d" params="parent xyz">
     <xacro:tiny_link name="lidar_link"/>

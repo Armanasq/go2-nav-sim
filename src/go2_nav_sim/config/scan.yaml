@@ -1,5 +1,7 @@
-# 3D lidar -> 2D scan for Nav2 / slam_toolbox. Height band is measured in base_footprint (gravity-aligned through TF),
-# so ground (z~0) is excluded even while the trunk pitches during the gait. 0.30 m tolerates ~1.6 deg of tilt error at 10 m; all arena obstacles are >= 0.45 m tall.
+# 3D lidar -> 2D scan for Nav2 / slam_toolbox. Heights are in base_footprint, which here sits 0.209 m BELOW the real ground
+# (CHAMP publishes base_footprint->base_link as a constant 0.426 m; the real base height is ~0.217 m) and is not tilt-compensated.
+# The band below is therefore ~0.09-0.69 m above the real ground. A 0.09 m margin over the floor is used up by an uncompensated
+# tilt of 0.52 deg at 10 m or 1.6 deg at 3.2 m.
 pointcloud_to_laserscan:
   ros__parameters:
     use_sim_time: true

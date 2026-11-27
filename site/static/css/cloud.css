@@ -1,0 +1,32 @@
+/* Lidar sweep viewer (static/js/cloud.js). Theme tokens from base.css; only the 3D scene internals hard-code colour. */
+.cloud { container-type: inline-size; }
+.cloud-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; }
+.cloud-grid > * { min-width: 0; }
+@container (max-width: 760px) { .cloud-grid { grid-template-columns: minmax(0, 1fr); } }
+
+.cloud-stage { position: relative; height: clamp(300px, 62vh, 600px); background: var(--code-bg); color: var(--code-ink);
+  border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; touch-action: none; }
+.cloud-stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; cursor: grab; }
+.cloud-stage canvas:active { cursor: grabbing; }
+.cloud-stage canvas:focus-visible { outline-offset: -3px; }
+.cloud-stage.is-fallback { height: auto; padding: 14px 16px; touch-action: auto; background: var(--surface); color: var(--ink); }
+.cloud-notice { margin: 0; font-size: 14px; }
+.cloud-reset { position: absolute; top: 10px; right: 10px; height: 32px; padding: 0 12px; font-size: 13px; }
+
+.cloud-hint { font-size: 13px; margin: 8px 0 0; }
+.cloud-legend { display: grid; gap: 4px; margin-top: 10px; font-size: 12.5px; color: var(--muted); }
+.cloud-legend-k { font-weight: 500; color: var(--ink); }
+.cloud-ramp { display: block; height: 10px; border-radius: 3px; border: 1px solid var(--line); }
+.cloud-ticks { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; }
+
+.cloud-side { display: grid; gap: 16px; }
+.cloud-picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 6px; }
+.cloud-picker .btn { height: 40px; padding: 0 8px; justify-content: center; font: 500 13px var(--font); font-variant-numeric: tabular-nums; }
+.cloud-picker .btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.cloud-side figure { margin: 0; }
+.cloud-side img { width: 100%; height: auto; aspect-ratio: 16 / 9; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface-2); }
+.cloud-side figcaption { font-size: 12.5px; margin-top: 6px; line-height: 1.4; }
+.cloud-facts { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; padding: 12px 14px; font-size: 13px;
+  border-top: 1px solid var(--line-strong); padding-inline: 0; }
+.cloud-facts dt { color: var(--muted); font-family: var(--font); }
+.cloud-facts dd { margin: 0; text-align: right; }

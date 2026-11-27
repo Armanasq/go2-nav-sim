@@ -1,0 +1,81 @@
+/* Architecture explorer (static/js/arch.js). Colours only from base.css tokens, so theme switches need no redraw. */
+.arch { container-type: inline-size; }
+.arch-stage { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+.arch-svg { width: 100%; height: auto; overflow: visible; }
+
+.arch-coltitle { font: 600 12px var(--font); fill: var(--muted); }
+.arch-colrule { stroke: var(--line); stroke-width: 1; }
+
+.arch-edge .wire { fill: none; stroke: var(--muted); stroke-opacity: .55; stroke-width: 1.25; transition: stroke .12s, opacity .12s; }
+.arch-edge .head { fill: var(--muted); fill-opacity: .75; }
+.arch-edge.tf .wire { stroke-dasharray: 4 3; }
+.arch-edge.hot .wire { stroke: var(--accent); stroke-opacity: 1; stroke-width: 1.75; }
+.arch-edge.hot .head { fill: var(--accent); fill-opacity: 1; }
+
+.arch-node { cursor: pointer; outline: none; transition: opacity .12s; }
+.arch-node .box { fill: var(--surface); stroke: color-mix(in srgb, var(--ink) 30%, var(--surface)); stroke-width: 1; }
+.arch-node .ring { fill: none; stroke: none; }
+.arch-node:hover .box, .arch-node.near .box { stroke: color-mix(in srgb, var(--ink) 60%, var(--surface)); }
+.arch-node.sel .box { fill: color-mix(in srgb, var(--accent) 10%, var(--surface)); stroke: var(--accent); stroke-width: 1.5; }
+.arch-node:focus-visible .ring { stroke: var(--accent); stroke-width: 2; }
+.arch-nlabel { font: 500 13px var(--font); fill: var(--ink); }
+.glyph { fill: var(--muted); stroke: none; }
+.process .glyph, circle.glyph { fill: none; stroke: var(--muted); stroke-width: 1.5; }
+.sel .glyph { fill: var(--accent); }
+.sel.process .glyph { fill: none; stroke: var(--accent); }
+
+.arch-dim .arch-svg .arch-edge:not(.hot), .arch-dim .arch-node:not(.near) { opacity: .25; }
+
+.arch-elabel { display: none; pointer-events: none; }
+.arch-elabel.on { display: inline; }
+.arch-elabel rect { fill: var(--surface); stroke: color-mix(in srgb, var(--accent) 45%, var(--surface)); stroke-width: 1; }
+.arch-elabel text { font: 400 10.5px var(--mono); fill: var(--ink); }
+
+.arch-legend { margin-top: 10px; align-items: center; }
+.arch-legend > span { display: inline-flex; align-items: center; gap: 6px; }
+.arch-legend svg { display: inline-block; overflow: visible; }
+.arch-hint { margin-left: auto; }
+
+/* narrow screens: grouped list instead of a shrunken diagram */
+.arch-list { display: none; }
+.arch-list section + section { margin-top: 14px; }
+.arch-list h4 { margin: 0 0 8px; }
+.arch-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.arch-chip { display: inline-flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 12px; border-radius: var(--radius);
+  border: 1px solid color-mix(in srgb, var(--ink) 30%, var(--surface)); background: var(--surface); color: var(--ink); font: 500 14px var(--font); cursor: pointer; text-align: left; }
+.arch-chip .glyph { width: 8px; height: 8px; border-radius: 1px; background: var(--muted); flex: none; }
+.arch-chip.process .glyph { background: none; border: 1.5px solid var(--muted); border-radius: 50%; }
+.arch-chip[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 10%, var(--surface)); box-shadow: inset 0 0 0 .5px var(--accent); }
+.arch-chip[aria-pressed="true"] .glyph { border-color: var(--accent); }
+.arch-chip.sensor[aria-pressed="true"] .glyph { background: var(--accent); }
+
+/* detail panel: below the diagram, two internal columns when there is room */
+.arch-panel { margin-top: var(--s5); padding-top: var(--s5); border-top: 1px solid var(--line);
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 8px 32px; }
+.arch-panel h3 { margin: 0 0 var(--s2); font-size: 1.2rem; font-family: var(--mono); font-weight: 500; letter-spacing: 0; }
+.arch-panel .eyebrow { display: block; margin: 0 0 var(--s1); }
+.arch-what { margin-bottom: 14px; }
+.arch-io { margin-bottom: 12px; font-size: 14px; }
+.arch-io ul, .arch-files { list-style: none; padding: 0; margin: 0; }
+.arch-io li { padding: 2px 0; }
+.arch-peer { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.arch-chapter { margin: 4px 0 0; font-weight: 500; }
+.arch-panel .table-wrap { margin-bottom: 14px; }
+.arch-panel table { font-size: 13px; }
+.arch-panel td.mono { font-family: var(--mono); font-size: 12.5px; }
+.arch-panel td.nowrap { white-space: nowrap; }
+.arch-files { font: 400 13px var(--mono); }
+.arch-files li { padding: 2px 0; overflow-wrap: anywhere; }
+.arch-none { font-size: 14px; }
+
+@container (max-width: 760px) {
+  .arch-stage, .arch-legend .arch-wireleg { display: none; }
+  .arch-panel thead { display: none; }
+  .arch-panel table, .arch-panel tbody, .arch-panel tr, .arch-panel td { display: block; }
+  .arch-panel tr { padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  .arch-panel tr:last-child { border-bottom: 0; }
+  .arch-panel td { border: 0; padding: 2px 0; white-space: normal; }
+  .arch-panel td[data-label]::before { content: attr(data-label); display: inline-block; min-width: 3.6em; font: 600 12px var(--font); color: var(--muted); }
+  .arch-list { display: block; }
+  .arch-panel { grid-template-columns: minmax(0, 1fr); }
+}
