@@ -78,5 +78,5 @@ def test_reverse_command_passes_through_zero_at_a_max():
 def test_clock_jump_back_is_stale():
     lim = Limiter()
     lim.command(100.0, (0.0, 0.0, 0.0)); run(lim, 100.0, 103.0)      # last command a zero, limiter quiet
-    out = run(lim, 1.0, 3.0)                                          # simulator restarted: the clock is back near 0
-    assert all(o is None for o in out)                                # stays quiet, does not resend the old zero
+    out = run(lim, 1.0, 103.0)                                        # simulator restarted: the clock is back near 0
+    assert all(o is None for o in out)                                # stays quiet, also when t passes the old t_cmd

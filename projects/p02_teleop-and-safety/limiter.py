@@ -28,6 +28,8 @@ class Limiter:
 
     def step(self, t):
         """Output for time t, or None when there is nothing to send (idle and already stopped)."""
+        if self.t_cmd is not None and t < self.t_cmd:
+            self.t_cmd = None              # clock went back: forget the old command, or it revives when t passes t_cmd again
         target = (0.0, 0.0, 0.0) if self.stale(t) else self.target
         dt = 0.0 if self.t_out is None else max(0.0, t - self.t_out)
         self.t_out = t

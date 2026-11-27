@@ -566,13 +566,13 @@
     "mesh_vertices": 419023
   },
   "intermediate": {
-    "fk_body_pose_vs_mujoco": 7.771561172376096e-16,
+    "fk_body_pose_vs_mujoco": 8.881784197001252e-16,
     "fk_joint_anchor_axis_vs_mujoco": 1.2212453270876722e-15,
-    "body_velocity_vs_mujoco": 2.220446049250313e-15,
+    "body_velocity_vs_mujoco": 2.6645352591003757e-15,
     "com_vs_pinocchio_m": 8.881784197001252e-16,
     "centroidal_momentum_vs_pinocchio": 4.263256414560601e-14,
     "actuator_force_vs_mujoco": 0.0,
-    "samples": 200,
+    "samples": 1000,
     "armature_in_mass_matrix": 1.734723475976807e-18,
     "stand_M_diag_links": [
       0.02357173145104648,
@@ -668,10 +668,10 @@
     "qfrc_actuator_base_rows_max_abs": 0.0,
     "flight_momentum_rate_vs_Mg_fd": 1.8290924330699454e-08,
     "flight_momentum_rate_vs_Mg_pinocchio": 2.7693902726610986e-11,
-    "flight_momentum_rate_default_solver_tol": 1.4472807379206643e-06,
-    "flight_torque_effect_on_base_ang_acc_median": 107.33206248132157,
-    "flight_com_acc_minus_g_max": 5.698190151376327e-10,
-    "samples": 200,
+    "flight_momentum_rate_default_solver_tol": 7.165956117205496e-05,
+    "flight_torque_effect_on_base_ang_acc_median": 112.49615124494986,
+    "flight_com_acc_minus_g_max": 1.1107648918649635e-09,
+    "samples": 1000,
     "stance_momentum_rate_vs_wrench": 1.2618102118722163e-09,
     "stance_samples": 180,
     "stance_error_without_contacts_min_N": 132.68683536593005,
@@ -694,18 +694,29 @@
     "flight_drift_order_euler": 1.9973335254132354,
     "flight_drift_order_rk4": 2.426887177490412,
     "flight_drift_rk4_ang_kgm2s": 1.93792601159426e-06,
-    "reorient_pitch_5_cycles_deg": 11.658987307568264,
-    "reorient_pitch_signed_deg": -11.658987307568264,
-    "reorient_reverse_deg": 16.790785685038344,
-    "reorient_half_speed_deg": -13.703646475139449,
-    "reorient_reverse_ratio": -1.4401581580021832,
-    "reorient_half_speed_ratio": 1.1753719352832577,
-    "reorient_max_ang_momentum": 1.5678608692057998e-07,
-    "reorient_max_lin_momentum": 1.657762045866683e-06,
-    "reorient_track_err_rad": 0.1993788992187664,
+    "reorient_pitch_5_cycles_deg": 12.428635098835054,
+    "reorient_pitch_signed_deg": -12.428635098835054,
+    "reorient_reverse_deg": 12.448962746134299,
+    "reorient_half_speed_deg": -12.802612120174214,
+    "reorient_reverse_ratio": -1.0016355494499272,
+    "reorient_half_speed_ratio": 1.030089951017567,
+    "reorient_max_ang_momentum": 1.4987723555724407e-07,
+    "reorient_max_lin_momentum": 1.1636690155034172e-06,
+    "reorient_track_err_rad": 0.05675339453924577,
+    "reorient_lowgain_1Hz_deg": -9.873003845602438,
+    "reorient_lowgain_half_speed_deg": -11.754819610279021,
+    "reorient_lowgain_half_speed_ratio": 1.1906021504807545,
+    "reorient_lowgain_track_err_rad": 0.17979141184637903,
+    "reorient_half_speed_track_err_rad": 0.028742106707627446,
     "flight_com_vs_ballistic_m": 3.854347532458724e-07,
     "flight_base_pitch_range_deg": 8.90970692705404,
     "flight_base_vs_ballistic_m": 0.03406640685059281
+  },
+  "media_bytes": {
+    "turntable.mp4": 2128427,
+    "joint_sweep.mp4": 864707,
+    "flight.mp4": 130049,
+    "reorientation.mp4": 238366
   },
   "checks": {
     "count_mismatches_vs_mujoco_pinocchio": {
@@ -757,7 +768,7 @@
       "passed": true
     },
     "fk_body_pose_vs_mujoco": {
-      "measured": 7.771561172376096e-16,
+      "measured": 8.881784197001252e-16,
       "op": "<",
       "threshold": 1e-12,
       "passed": true
@@ -769,7 +780,7 @@
       "passed": true
     },
     "body_velocity_vs_mujoco": {
-      "measured": 2.220446049250313e-15,
+      "measured": 2.6645352591003757e-15,
       "op": "<",
       "threshold": 1e-12,
       "passed": true
@@ -859,35 +870,41 @@
       "passed": true
     },
     "reorient_pitch_5_cycles_deg": {
-      "measured": 11.658987307568264,
+      "measured": 12.428635098835054,
       "op": ">",
       "threshold": 5.0,
       "passed": true
     },
     "reorient_max_ang_momentum": {
-      "measured": 1.5678608692057998e-07,
+      "measured": 1.4987723555724407e-07,
       "op": "<",
       "threshold": 0.0001,
       "passed": true
     },
     "reorient_reverse_ratio": {
-      "measured": -1.4401581580021832,
+      "measured": -1.0016355494499272,
       "op": "range",
       "threshold": [
         -1.1,
         -0.9
       ],
-      "passed": false
+      "passed": true
     },
     "reorient_half_speed_ratio": {
-      "measured": 1.1753719352832577,
+      "measured": 1.030089951017567,
       "op": "range",
       "threshold": [
         0.9,
         1.1
       ],
-      "passed": false
+      "passed": true
+    },
+    "media_mp4_under_6MB": {
+      "measured": 1.0,
+      "op": ">=",
+      "threshold": 1.0,
+      "passed": true
     }
   },
-  "wall_time_s": 68.0
+  "wall_time_s": 126.0
 }
