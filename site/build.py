@@ -11,7 +11,7 @@ import yaml
 ROOT = pathlib.Path(__file__).resolve().parents[1]; SITE = ROOT / 'site'
 CUR = ' aria-current="page"'
 REPO = 'https://github.com/Armanasq/go2-nav-sim'; BLOB = REPO + '/blob/main/'
-NAV = [('Roadmap', 'roadmap.html'), ('Tutorial', 'tutorial/00-overview.html'), ('Explore', 'explore.html'), ('Evidence', 'evidence.html'), ('Reference', 'reference.html')]
+NAV = [('Roadmap', 'roadmap.html'), ('Tutorial', 'tutorial/00-overview.html'), ('Modules', 'modules/index.html'), ('Explore', 'explore.html'), ('Evidence', 'evidence.html'), ('Reference', 'reference.html')]
 PARTS = [('Foundations', range(0, 8)), ('Tasks', range(8, 12)), ('Help', range(12, 100))]
 
 
@@ -52,6 +52,30 @@ def page(title, body, root, current='', desc='', extra_head=''):
 
 
 # ---------------------------------------------------------------------------------------------------------------------------
+KATEX = ('<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">'
+         '<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>'
+         '<script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" '
+         'onload="renderMathInElement(document.querySelector(\'main\'),{delimiters:[{left:\'$$\',right:\'$$\',display:true},'
+         '{left:\'$\',right:\'$\',display:false}],throwOnError:false})"></script>')
+
+
+def md_convert(text, md=None):
+    """Markdown to HTML without letting Markdown touch LaTeX: code is set aside first, then $$..$$ and $..$ math, then both are
+    restored (code before conversion, math after). Returns (html, has_math, md)."""
+    md = md or markdown.Markdown(extensions=['tables', 'fenced_code', 'toc', 'sane_lists'])
+    code, math = [], []
+    def keep(store, tag):
+        return lambda m: (store.append(m.group(0)), f'{tag}{len(store) - 1}X')[1]
+    t = re.sub(r'```.*?```', keep(code, 'CODEPH'), text, flags=re.S)
+    t = re.sub(r'`[^`\n]+`', keep(code, 'CODEPH'), t)
+    t = re.sub(r'\$\$.+?\$\$', keep(math, 'MATHPH'), t, flags=re.S)
+    t = re.sub(r'(?<![\\$\w])\$(?=[^\s${])([^$\n]+?)(?<=[^\s\\])\$(?!\w)', keep(math, 'MATHPH'), t)
+    t = re.sub(r'CODEPH(\d+)X', lambda m: code[int(m.group(1))], t)
+    h = md.convert(t)
+    h = re.sub(r'MATHPH(\d+)X', lambda m: html.escape(math[int(m.group(1))], quote=False), h)
+    return h, bool(math), md
+
+
 def chapters():
     out = []
     for p in sorted((ROOT / 'docs').glob('[0-9][0-9]-*.md')):
@@ -73,9 +97,8 @@ def rewrite_links(h, root):
 def build_chapters(out):
     chs = chapters(); (out / 'tutorial').mkdir(parents=True, exist_ok=True)
     for i, c in enumerate(chs):
-        md = markdown.Markdown(extensions=['tables', 'fenced_code', 'toc', 'sane_lists'])
         body_md = re.sub(r'\n+Next: \[.*?\]\(.*?\)\s*$', '\n', c['md'].split('\n', 1)[1])          # title and "Next:" handled by the layout
-        content = rewrite_links(md.convert(body_md), '../')
+        content, has_math, md = md_convert(body_md); content = rewrite_links(content, '../')
         toc = ''.join(f'<li><a href="#{t["id"]}">{html.escape(t["name"])}</a></li>' for t in md.toc_tokens if t['level'] == 2)
         side = ''
         for pname, rng in PARTS:
@@ -94,7 +117,7 @@ def build_chapters(out):
 </article>
 <aside class="onpage" aria-label="On this page">{"<p class=onpage-title>On this page</p><ul>" + toc + "</ul>" if toc else ""}</aside>
 </div>'''
-        (out / 'tutorial' / f'{c["slug"]}.html').write_text(page(f'{c["title"]} · go2-nav-sim', body, '../', 'Tutorial', c['summary'][:150]))
+        (out / 'tutorial' / f'{c["slug"]}.html').write_text(page(f'{c["title"]} · go2-nav-sim', body, '../', 'Tutorial', c['summary'][:150], KATEX if has_math else ''))
     return chs
 
 
@@ -189,6 +212,8 @@ def roadmap_html(chs):
         pre = ', '.join(f'<a href="#m{p}">{p}</a>' for p in m['prereq']) or 'none'
         ch = ' · '.join(f'<a href="tutorial/{s}.html">{html.escape(slugs[s]["title"])}</a>' for s in m.get('chapters', []) if s in slugs)
         ev = f'<a href="{m["evidence"]}">evidence</a>' if m.get('evidence') else ''
+        mdir = next((d.name for d in module_dirs() if d.name[1:3] == m['id']), None)
+        ev = (f'<a href="modules/{mdir}/index.html">module page</a>' + (' · ' + ev if ev else '')) if mdir else ev
         ls = m.get('level_status', ['planned'] * 3)
         levels = ''.join(f'<div class="lvl-{s}"><span class="lvl">{k} · <span class="status {s}">{s}</span></span>{html.escape(v)}</div>' for k, v, s in zip(('Fundamental', 'Intermediate', 'Advanced'), m['levels'], ls))
         refs = ''.join(f'<li>{html.escape(x)}</li>' for x in m['refs'])
@@ -198,6 +223,46 @@ def roadmap_html(chs):
               f'{"<br>" + ch if ch else ""}{" · " + ev if ev else ""}</dd>{"<dt>Current practice</dt><dd>" + html.escape(m["current"]) + "</dd>" if m.get("current") else ""}<dt>Next</dt><dd>{html.escape(m["next"])}</dd></dl>'
               f'{"<p class=refs-title>References</p><ul class=refs>" + refs + "</ul>" if refs else ""}</div></details>')
     return h + '</div>'
+
+
+
+# ---------------------------------------------------------------------------------------------------------------------------
+def module_dirs():
+    return sorted(d for d in (ROOT / 'modules').glob('m[0-9][0-9]_*') if (d / 'README.md').exists())
+
+
+def build_modules(out):
+    """modules/mNN_x/README.md -> modules/mNN_x/index.html with its figures/ and media/ copied alongside."""
+    road = {m['id']: m for m in json.loads((SITE / 'data/roadmap.json').read_text())['modules']}; cards = ''
+    for d in module_dirs():
+        dst = out / 'modules' / d.name; dst.mkdir(parents=True, exist_ok=True)
+        for sub in ('figures', 'media'):
+            if (d / sub).is_dir():
+                shutil.copytree(d / sub, dst / sub, dirs_exist_ok=True)
+        for f in d.iterdir():                                                    # images/videos kept at the module root
+            if f.suffix.lower() in ('.png', '.svg', '.jpg', '.gif', '.mp4', '.webm'):
+                shutil.copy2(f, dst / f.name)
+        text = (d / 'README.md').read_text(); title = re.match(r'#\s+(.*)', text).group(1) if text.startswith('#') else d.name
+        body, has_math, md = md_convert(text.split('\n', 1)[1] if text.startswith('#') else text)
+        body = re.sub(r'href="(?!https?:|#|mailto:|figures/|media/)([^"]+?)"', lambda m: m.group(0) if re.search(r'\.(png|svg|jpg|gif|mp4|webm)$', m.group(1)) else f'href="{BLOB}modules/{d.name}/{m.group(1)}"', body)
+        body = re.sub(r'<table>', '<div class="table-wrap"><table>', body).replace('</table>', '</table></div>')
+        mid = d.name[1:3]; rm = road.get(mid, {}); st = rm.get('status', '')
+        toc = ''.join(f'<li><a href="#{t["id"]}">{html.escape(t["name"])}</a></li>' for t in md.toc_tokens if t['level'] == 2)
+        page_body = (f'<div class="wrap chapter"><nav class="chapters" aria-label="Modules"><p class="part-name"><a href="../index.html">All modules</a></p>'
+                     f'<p class="part-name"><a href="../../roadmap.html#m{mid}">Roadmap entry</a></p></nav><article class="prose-col">'
+                     f'<p class="where">Module {mid}{" · " + st if st else ""}</p><h1>{html.escape(title)}</h1>{body}'
+                     f'<p class="source">Source: <a href="{BLOB}modules/{d.name}/README.md">modules/{d.name}/README.md</a></p></article>'
+                     f'<aside class="onpage" aria-label="On this page">{"<p class=onpage-title>On this page</p><ul>" + toc + "</ul>" if toc else ""}</aside></div>')
+        (dst / 'index.html').write_text(page(f'{title} · go2-nav-sim', page_body, '../../', 'Modules', rm.get('here', '')[:150], KATEX if has_math else ''))
+        thumb = next(iter(sorted((d / 'figures').glob('*.png'))), None) or next(iter(sorted(d.glob('*.png'))), None)
+        img = f'<img src="{d.name}/{thumb.relative_to(d)}" alt="" loading="lazy">' if thumb else ''
+        cards += (f'<li><a href="{d.name}/index.html">{img}<span class="num">{mid}</span><strong>{html.escape(rm.get("title", title))}</strong>'
+                  + (f'<span class="status {st}">{st}</span>' if st else '') + '</a></li>')
+    idx = (f'<div class="wrap page"><h1>Modules</h1><p class="lead">The first-principles track: each module solves one problem on the Go2 in MuJoCo, '
+           f'with code, tests, derivations, figures and measured validation. Order and status are on the <a href="../roadmap.html">roadmap</a>.</p>'
+           f'<ol class="module-cards">{cards}</ol></div>')
+    (out / 'modules' / 'index.html').write_text(page('Modules · go2-nav-sim', idx, '../', 'Modules', 'First-principles modules on the Unitree Go2 in MuJoCo.'))
+    return [d.name for d in module_dirs()]
 
 
 def evidence_block(name):
@@ -215,7 +280,7 @@ def main():
         shutil.copytree(src, out / dst, ignore=shutil.ignore_patterns('dev', '*.py'))
     if (SITE / 'evidence').exists():
         shutil.copytree(SITE / 'evidence', out / 'evidence')
-    chs = build_chapters(out); rs = runs(); ms = missions()
+    chs = build_chapters(out); mods = build_modules(out); rs = runs(); ms = missions()
     steps = ''
     for pname, rng in PARTS:
         rows = ''.join(f'<li><a href="tutorial/{c["slug"]}.html"><span class="num">{c["num"]}</span><strong>{html.escape(c["name"])}</strong></a></li>' for c in chs if int(c['num'] or 0) in rng)

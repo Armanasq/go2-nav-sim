@@ -138,3 +138,13 @@ pre.log { font-size: 12.5px; line-height: 1.55; max-height: 420px; overflow: aut
 .page > h1 + h2 { margin-top: var(--s6); }
 .page > h2 + .prose, .page > h2 + p { margin-top: 0; }
 .incident dd a { overflow-wrap: anywhere; }       /* long test names must not widen a phone screen */
+
+/* modules index: figure thumbnails, number, title, status */
+.module-cards { list-style: none; padding: 0; margin: 24px 0 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); gap: 24px 20px; }
+.module-cards a { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto auto; gap: 4px 8px; color: var(--ink); text-decoration: none; }
+.module-cards img { grid-column: 1 / -1; width: 100%; aspect-ratio: 16 / 10; object-fit: contain; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 6px; }
+.module-cards a:hover img { border-color: var(--accent); }
+.module-cards .num { font-family: var(--mono); color: var(--muted); font-size: 14px; align-self: baseline; }
+.module-cards strong { font-weight: 600; align-self: baseline; }
+.module-cards .status { grid-column: 2; justify-self: start; font-size: 12px; }
+.katex-display { overflow-x: auto; overflow-y: hidden; padding: 4px 0; }
