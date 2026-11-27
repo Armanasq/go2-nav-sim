@@ -1,0 +1,10 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>go2_nav_sim</name><version>0.1.0</version>
+  <description>Unitree Go2 in Gazebo: 3D lidar, RGB-D, IMU, lidar-inertial odometry, AMCL, Nav2, passive SLAM, rosbag dashboard</description>
+  <maintainer email="noreply@example.com">go2-nav-sim</maintainer><license>Apache-2.0</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <exec_depend>champ_bringup</exec_depend><exec_depend>champ_gazebo</exec_depend><exec_depend>go2_config</exec_depend>
+  <exec_depend>nav2_bringup</exec_depend><exec_depend>slam_toolbox</exec_depend><exec_depend>robot_localization</exec_depend><exec_depend>pointcloud_to_laserscan</exec_depend><exec_depend>nav2_simple_commander</exec_depend><exec_depend>rclpy</exec_depend>
+  <export><build_type>ament_cmake</build_type></export>
+</package>

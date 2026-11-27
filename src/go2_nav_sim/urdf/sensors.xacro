@@ -1,0 +1,90 @@
+<?xml version="1.0"?>
+<!-- Sensor macros. Conventions: REP-103 (x fwd, y left, z up) for lidar/imu frames; camera_optical follows REP-103 optical
+     convention (z fwd, x right, y down). Every sensor hangs off base_link by a fixed joint so TF carries the gait pitch/roll. -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro">
+
+  <xacro:macro name="tiny_link" params="name">
+    <link name="${name}">
+      <inertial><mass value="1e-5"/><origin xyz="0 0 0"/><inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/></inertial>
+    </link>
+  </xacro:macro>
+
+  <!-- 3D spinning lidar, VLP-16-like: 16 beams, +-15 deg, 0.4 deg azimuth, 10 Hz, PointCloud2 (x y z intensity ring) on /lidar/points.
+       Mounted on top of the trunk (trunk top is 0.057 m above base_link); min range 0.3 m rejects returns from the own body. -->
+  <xacro:macro name="lidar3d" params="parent xyz">
+    <xacro:tiny_link name="lidar_link"/>
+    <joint name="lidar_joint" type="fixed"><parent link="${parent}"/><child link="lidar_link"/><origin xyz="${xyz}" rpy="0 0 0"/></joint>
+    <link name="lidar_visual"><visual><geometry><cylinder radius="0.04" length="0.06"/></geometry>
+      <material name="lidar_mat"><color rgba="0.08 0.08 0.1 1"/></material></visual>
+      <inertial><mass value="1e-5"/><inertia ixx="1e-6" ixy="0" ixz="0" iyy="1e-6" iyz="0" izz="1e-6"/></inertial></link>
+    <joint name="lidar_visual_joint" type="fixed"><parent link="lidar_link"/><child link="lidar_visual"/><origin xyz="0 0 0.0"/></joint>
+    <gazebo reference="lidar_link">
+      <sensor name="lidar3d" type="gpu_ray">
+        <always_on>true</always_on><visualize>false</visualize><update_rate>10</update_rate>
+        <ray>
+          <scan>
+            <horizontal><samples>900</samples><resolution>1</resolution><min_angle>-3.14159</min_angle><max_angle>3.14159</max_angle></horizontal>
+            <vertical><samples>16</samples><resolution>1</resolution><min_angle>-0.261799</min_angle><max_angle>0.261799</max_angle></vertical>
+          </scan>
+          <range><min>0.3</min><max>20.0</max><resolution>0.01</resolution></range>
+          <noise><type>gaussian</type><mean>0.0</mean><stddev>0.01</stddev></noise>
+        </ray>
+        <plugin name="lidar3d_plugin" filename="libgazebo_ros_ray_sensor.so">
+          <ros><namespace>/lidar</namespace><remapping>~/out:=points</remapping></ros>
+          <output_type>sensor_msgs/PointCloud2</output_type><frame_name>lidar_link</frame_name>
+        </plugin>
+      </sensor>
+    </gazebo>
+  </xacro:macro>
+
+  <!-- RGB-D camera (front of the head): 640x360, 10 Hz, 1.2 rad HFOV. Publishes /camera/image_raw, /camera/depth/image_raw (32FC1, m),
+       /camera/camera_info. Gaussian depth noise 7 mm. Images are stamped in camera_optical. -->
+  <xacro:macro name="rgbd_camera" params="parent xyz">
+    <xacro:tiny_link name="camera_link"/>
+    <xacro:tiny_link name="camera_optical"/>
+    <joint name="camera_joint" type="fixed"><parent link="${parent}"/><child link="camera_link"/><origin xyz="${xyz}" rpy="0 0 0"/></joint>
+    <joint name="camera_optical_joint" type="fixed"><parent link="camera_link"/><child link="camera_optical"/><origin xyz="0 0 0" rpy="-1.5707963 0 -1.5707963"/></joint>
+    <gazebo reference="camera_link">
+      <sensor name="rgbd" type="depth">
+        <always_on>true</always_on><update_rate>10</update_rate>
+        <camera>
+          <horizontal_fov>1.2</horizontal_fov>
+          <image><width>640</width><height>360</height><format>R8G8B8</format></image>
+          <clip><near>0.3</near><far>8.0</far></clip>
+          <depth_camera><output>depths</output></depth_camera>
+          <noise><type>gaussian</type><mean>0.0</mean><stddev>0.007</stddev></noise>
+        </camera>
+        <plugin name="rgbd_plugin" filename="libgazebo_ros_camera.so">
+          <ros><namespace>/</namespace></ros>
+          <camera_name>camera</camera_name><frame_name>camera_optical</frame_name>
+          <min_depth>0.3</min_depth><max_depth>8.0</max_depth>
+        </plugin>
+      </sensor>
+    </gazebo>
+  </xacro:macro>
+
+  <!-- Third-person camera (documentation video only, not used by any algorithm). -->
+  <xacro:macro name="chase_camera" params="parent xyz rpy">
+    <xacro:tiny_link name="chase_cam"/>
+    <joint name="chase_cam_joint" type="fixed"><parent link="${parent}"/><child link="chase_cam"/><origin xyz="${xyz}" rpy="${rpy}"/></joint>
+    <gazebo reference="chase_cam">
+      <sensor name="chase_sensor" type="camera">
+        <always_on>true</always_on><update_rate>10</update_rate>
+        <camera><horizontal_fov>1.3</horizontal_fov><image><width>640</width><height>360</height><format>R8G8B8</format></image><clip><near>0.05</near><far>40</far></clip></camera>
+        <plugin name="chase_plugin" filename="libgazebo_ros_camera.so"><ros><namespace>chase</namespace></ros><camera_name>cam</camera_name><frame_name>chase_cam</frame_name></plugin>
+      </sensor>
+    </gazebo>
+  </xacro:macro>
+
+  <!-- Ground-truth base_link pose (50 Hz, noise-free), used ONLY for evaluation / the optional gt odometry source.
+       odom-frame origin = world shifted so the robot starts at (0,0). -->
+  <xacro:macro name="ground_truth" params="sx sy">
+    <gazebo>
+      <plugin name="p3d_gt" filename="libgazebo_ros_p3d.so">
+        <ros><remapping>odom:=odom_gt</remapping></ros>
+        <body_name>base_link</body_name><frame_name>world</frame_name><update_rate>50.0</update_rate>
+        <xyz_offset>${-sx} ${-sy} 0</xyz_offset><rpy_offset>0 0 0</rpy_offset><gaussian_noise>0.0</gaussian_noise>
+      </plugin>
+    </gazebo>
+  </xacro:macro>
+</robot>

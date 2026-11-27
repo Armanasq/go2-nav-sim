@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<!-- Loopback-only Cyclone DDS: no multicast, no LAN traffic. Replaces Fast DDS, whose service responses were dropped under load
+     (Nav2 lifecycle "change_state" timeouts) on a busy machine. -->
+<CycloneDDS xmlns="https://cdds.io/config">
+  <Domain id="any">
+    <General><Interfaces><NetworkInterface name="lo"/></Interfaces><AllowMulticast>false</AllowMulticast></General>
+    <Discovery><ParticipantIndex>auto</ParticipantIndex><MaxAutoParticipantIndex>200</MaxAutoParticipantIndex></Discovery>
+  </Domain>
+</CycloneDDS>

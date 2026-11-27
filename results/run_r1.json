@@ -1,0 +1,11 @@
+{
+  "duration_s": 113.7,
+  "path_m": 15.12,
+  "mean_speed_ms": 0.133,
+  "odom_ate_rmse_cm": 3.8,
+  "odom_final_err_cm": 13.5,
+  "odom_drift_pct": 0.89,
+  "amcl_rmse_cm": 11.0,
+  "amcl_max_cm": 24.3,
+  "goal_error_m": 0.24
+}

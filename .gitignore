@@ -1,0 +1,9 @@
+build/
+install/
+log/
+logs/
+bags/
+overlay/
+videos/
+src/third_party/
+__pycache__/
