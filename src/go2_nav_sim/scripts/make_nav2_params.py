@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """config/nav2_params.yaml = Humble's stock nav2_params.yaml + the Go2 deltas below (regenerate: python3 scripts/make_nav2_params.py)."""
 import pathlib, yaml
+from typing import Any
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-P = yaml.safe_load(open('/opt/ros/humble/share/nav2_bringup/params/nav2_params.yaml'))
+P: dict[str, Any] = yaml.safe_load(open('/opt/ros/humble/share/nav2_bringup/params/nav2_params.yaml'))  # type: ignore[reportAssignmentType]  # pyyaml is untyped; both files are mappings
 p = lambda n: P[n]['ros__parameters']
 A = (-4.5, -3.5)                                                   # start marker, map frame (== make_arena.A)
 R = 0.33                                                           # circumscribed radius of a Go2 (~0.65 m long)
@@ -51,13 +52,13 @@ for s in ('amcl', 'bt_navigator', 'controller_server', 'planner_server', 'behavi
 for cm, (om, rm) in (('local_costmap', (4.0, 4.5)), ('global_costmap', (8.0, 9.0))):
     s = P[cm][cm]['ros__parameters']['obstacle_layer']['scan']; s.update(obstacle_max_range=om, raytrace_max_range=rm)
 
-(ROOT / 'config/nav2_params.yaml').write_text(yaml.safe_dump(P, sort_keys=False))
+(ROOT / 'config/nav2_params.yaml').write_text(yaml.safe_dump(P, sort_keys=False))  # type: ignore[reportArgumentType]  # pyyaml is untyped; safe_dump returns str when no stream is given
 
 # ---- slam_toolbox: passive mapper (publishes /slam/map, never the map->odom TF, so it cannot fight AMCL) ----
-M = yaml.safe_load(open('/opt/ros/humble/share/slam_toolbox/config/mapper_params_online_async.yaml'))
+M: dict[str, Any] = yaml.safe_load(open('/opt/ros/humble/share/slam_toolbox/config/mapper_params_online_async.yaml'))  # type: ignore[reportAssignmentType]  # pyyaml is untyped; both files are mappings
 m = M['slam_toolbox']['ros__parameters']
 m.update(use_sim_time=True, max_laser_range=12.0, scan_buffer_maximum_scan_distance=12.0, minimum_travel_distance=0.15,
          minimum_travel_heading=0.15, minimum_time_interval=0.3, map_update_interval=1.0, enable_interactive_mode=False,
          transform_timeout=0.3, throttle_scans=1, map_frame='slam_map', transform_publish_period=0.0)
-(ROOT / 'config/slam.yaml').write_text(yaml.safe_dump(M, sort_keys=False))
+(ROOT / 'config/slam.yaml').write_text(yaml.safe_dump(M, sort_keys=False))  # type: ignore[reportArgumentType]  # pyyaml is untyped; safe_dump returns str when no stream is given
 print('wrote nav2_params.yaml, slam.yaml')

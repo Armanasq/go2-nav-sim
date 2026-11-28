@@ -6,6 +6,7 @@ of the whole arena), /chase/cam/image_raw (behind the robot), /camera/image_raw 
 import argparse, signal, subprocess, sys
 import numpy as np
 import rclpy
+import rclpy.parameter
 from rclpy.node import Node
 from rclpy.qos import qos_profile_sensor_data
 from sensor_msgs.msg import Image
@@ -26,11 +27,13 @@ class Rec(Node):
                                         '-crf', '26', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', self.a.out], stdin=subprocess.PIPE)
         t = m.header.stamp.sec + m.header.stamp.nanosec * 1e-9
         self.t0 = t if self.t0 is None else self.t0
+        assert self.ff.stdin is not None
         while self.n <= int((t - self.t0) * self.a.fps):             # repeat frames if rendering is slower than fps
             self.ff.stdin.write(img.tobytes()); self.n += 1
 
     def close(self):
         if self.ff:
+            assert self.ff.stdin is not None
             self.ff.stdin.close(); self.ff.wait()
         print(f'{self.a.out}: {self.n} frames', file=sys.stderr)
 

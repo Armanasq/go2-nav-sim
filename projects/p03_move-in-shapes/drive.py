@@ -6,7 +6,10 @@ usage: python3 projects/p03_move-in-shapes/drive.py {square,figure8} {open,close
 The shape starts at the robot's current pose. Every control tick (20 Hz of simulated time) one CSV row is written to
 projects/p03_move-in-shapes/results/<shape>_<mode>.csv (plus a suffix for the options above): the command, the estimated pose (/odom) and the true pose (/odom_gt)."""
 import csv, math, pathlib, sys
+from typing import Any
 import rclpy
+import rclpy.parameter
+import rclpy.utilities
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
@@ -21,6 +24,10 @@ def pose_of(m):
 
 
 class Driver(Node):
+    odom: 'tuple[float, float, float] | None'          # set by the subscription callbacks
+    gt: 'tuple[float, float, float] | None'
+    plan: Any                                          # open: a shapes schedule; closed: a shapes.Follower
+
     def __init__(self, shape, mode, real):
         super().__init__('drive_shapes', parameter_overrides=[rclpy.parameter.Parameter('use_sim_time', value=True)])
         self.shape, self.mode, self.real = shape, mode, real
@@ -40,6 +47,7 @@ class Driver(Node):
 
     def start(self, t):
         """Fix the plan at the current pose: closed-loop waypoints are moved from the start frame into the odom frame."""
+        assert self.odom is not None
         x0, y0, a0 = self.odom
         if self.mode == 'open':
             self.plan = shapes.square_schedule(**self.real) if self.shape == 'square' else shapes.figure8_schedule()

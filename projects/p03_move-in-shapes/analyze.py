@@ -2,6 +2,7 @@
 """Score the logged runs against ground truth and draw them.
 usage: python3 projects/p03_move-in-shapes/analyze.py      (reads results/*.csv, writes figures/*.png, prints the tables)"""
 import csv, math, pathlib, sys
+from typing import Any
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
@@ -16,7 +17,7 @@ import make_arena as arena  # noqa: E402  (obstacle list and marker A)
 def load(name):
     with open(HERE / 'results' / f'{name}.csv') as f:
         rows = list(csv.DictReader(f))
-    num = {k: np.array([float(r[k]) for r in rows]) for k in rows[0] if k != 'label'}
+    num: dict[str, Any] = {k: np.array([float(r[k]) for r in rows]) for k in rows[0] if k != 'label'}
     num['label'] = [r['label'] for r in rows]
     for k in ('x', 'gt_x'):                    # odom and odom_gt start at marker A: shift both into the world frame
         num[k] = num[k] + arena.A[0]

@@ -40,7 +40,7 @@ def font(size, weight='Regular', mono=False):
     return ImageFont.load_default()
 
 
-F = {k: font(*v) for k, v in dict(h1=(30, 'Bold'), h2=(15, 'Medium'), small=(13,), label=(12, 'Medium'), big=(34, 'Bold'), mid=(20, 'Medium')).items()}
+F = {k: font(*v) for k, v in dict(h1=(30, 'Bold'), h2=(15, 'Medium'), small=(13, 'Regular'), label=(12, 'Medium'), big=(34, 'Bold'), mid=(20, 'Medium')).items()}
 F['mono'], F['monob'] = font(15, mono=True), font(26, mono=True)
 TURBO = cv2.applyColorMap(np.arange(256, dtype=np.uint8).reshape(-1, 1), cv2.COLORMAP_TURBO).reshape(256, 3)[:, ::-1]   # RGB LUT
 
@@ -179,8 +179,8 @@ def render_map(S, w, h, gt_map):
         mask = (g >= 0).astype(np.uint8) * 255
         sc = res * s                                                       # px per cell
         x0 = ox + (S.slam_off[0] + mx - xmin) * s; y0 = h - oy - (S.slam_off[1] + my + hh * res - ymin) * s
-        layer = cv2.warpAffine(rgb[::-1].copy(), np.float32([[sc, 0, x0], [0, sc, y0]]), (w, h), flags=cv2.INTER_NEAREST)
-        lm = cv2.warpAffine(mask[::-1].copy(), np.float32([[sc, 0, x0], [0, sc, y0]]), (w, h), flags=cv2.INTER_NEAREST) > 0
+        layer = cv2.warpAffine(rgb[::-1].copy(), np.array([[sc, 0, x0], [0, sc, y0]], np.float32), (w, h), flags=cv2.INTER_NEAREST)
+        lm = cv2.warpAffine(mask[::-1].copy(), np.array([[sc, 0, x0], [0, sc, y0]], np.float32), (w, h), flags=cv2.INTER_NEAREST) > 0
         out[lm] = layer[lm]
     if len(S.traj_gt) > 1:
         cv2.polylines(out, [np.array([P(*p) for p in S.traj_gt], np.int32)], False, (96, 108, 126), 1, cv2.LINE_AA)
@@ -326,7 +326,8 @@ def main():
     S = State(); gt_map = gt_contours(); dt = 1.0 / a.fps; nxt = start; goal_hit = False; n = 0; still_done = False
     ff = subprocess.Popen(['ffmpeg', '-y', '-loglevel', 'error', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', f'{W}x{H}', '-r', str(a.fps), '-i', '-',
                            '-c:v', 'libx264', '-preset', 'medium', '-crf', '17', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', a.out], stdin=subprocess.PIPE)
-    put = lambda fr: ff.stdin.write(np.ascontiguousarray(fr).tobytes())
+    stdin = ff.stdin; assert stdin is not None                       # stdin=PIPE
+    put = lambda fr: stdin.write(np.ascontiguousarray(fr).tobytes())
     if a.cards:
         for i in range(int(2.5 * a.fps)):
             k = i / (2.5 * a.fps); put(card('Navigation without a prior map or GPS', 'LiDAR-inertial odometry · AMCL · Nav2 · slam_toolbox · RGB-D', alpha=min(1, k * 3) * min(1, (1 - k) * 4)))
@@ -345,7 +346,7 @@ def main():
         stats = [('PATH', f'{S.dist:0.1f} m'), ('DURATION', f'{total:0.0f} s'), ('MEAN SPEED', f'{S.dist / max(total, 1):0.2f} m/s'), ('LOCALISATION RMSE', f'{np.sqrt((e ** 2).mean()) * 100:0.1f} cm')]
         for i in range(int(4 * a.fps)):
             k = i / (4 * a.fps); put(card('Goal reached' if goal_hit else 'Run finished', 'Ground truth was used for evaluation only', alpha=min(1, k * 4) * min(1, (1 - k) * 3), stats=stats))
-    ff.stdin.close(); ff.wait(); print(f'\nwrote {a.out}: {n} frames', file=sys.stderr)
+    stdin.close(); ff.wait(); print(f'\nwrote {a.out}: {n} frames', file=sys.stderr)
 
 
 if __name__ == '__main__':

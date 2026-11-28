@@ -104,7 +104,7 @@ def stop_figure(csv_dir, fig_dir):
             t_stop, speeds = stop_time(gt, t_last)
             ax.plot([t - t_last for t, _ in speeds], [v for _, v in speeds], color=col, lw=1, label=None if k else label)
             i0 = min(range(len(gt)), key=lambda i: abs(gt[i][0] - t_last))
-            i1 = min(range(len(gt)), key=lambda i: abs(gt[i][0] - t_stop)) if t_stop else len(gt) - 1
+            i1 = min(range(len(gt)), key=lambda i, ts=t_stop: abs(gt[i][0] - ts)) if t_stop else len(gt) - 1
             dist = math.hypot(gt[i1][1] - gt[i0][1], gt[i1][2] - gt[i0][2])
             if t_stop:
                 print(f'{p.stem:18s} standstill {t_stop - t_last:.2f} s after the last command, {dist:.3f} m')

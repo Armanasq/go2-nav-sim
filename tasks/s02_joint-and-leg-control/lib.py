@@ -264,7 +264,7 @@ def foot_ref(m, paths, q_start=Q_HOLD):
 
 def foot_errors(log, m, leg, P, start=0):
     """Tracking error |p_mujoco(t) - p*(t)| and path error (distance to the nearest reference sample), from sample `start`."""
-    from scipy.spatial import cKDTree
+    from scipy.spatial import cKDTree  # type: ignore[reportAttributeAccessIssue]  # scipy re-exports it from the compiled _ckdtree, which has no .pyi here
     i = LEGS.index(leg)
     k = np.minimum(np.round(log['t'] / DT).astype(int), len(P) - 1)
     keep = k >= start
@@ -292,7 +292,7 @@ class PathRecorder(sim.Recorder):
         self.feet, self.trail, self.idx = feet, [], sim.index(m)
 
     def render(self, d):
-        if not self.ok:
+        if self.renderer is None:                                  # same test as self.ok
             return None
         self.renderer.update_scene(d, camera=self.cam, scene_option=self.opt)
         for f in self.feet:

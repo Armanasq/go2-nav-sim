@@ -8,7 +8,7 @@ prediction (2.5 cm for a 25 cm prediction error in the unit test); this one leav
 corridor."""
 import bisect, math, threading
 import numpy as np
-from scipy.spatial import cKDTree
+from scipy.spatial import cKDTree  # type: ignore[reportAttributeAccessIssue]  # scipy ships _ckdtree compiled, without a stub
 
 
 def wrap(a):

@@ -209,6 +209,7 @@ def frames_clip(seconds=10.0, fps=25, W=1280, H=720):
     ff = subprocess.Popen(['ffmpeg', '-v', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', f'{W}x{H}', '-r', str(fps),
                            '-i', '-', '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-crf', '28', '-preset', 'slow',
                            '-movflags', '+faststart', str(out)], stdin=subprocess.PIPE)
+    assert ff.stdin is not None
     f_gait = 1.0                          # Hz, 0.5 s per half cycle
     for k in range(int(seconds * fps)):
         t = k / fps

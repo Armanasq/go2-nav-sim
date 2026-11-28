@@ -2,7 +2,7 @@
 """Send the Go2 to a goal with Nav2 and report the outcome against simulator ground truth.
 usage: go_to_goal.py [x y yaw]      world/map coordinates in metres (default: marker B, facing away from A)"""
 import math, sys, time
-import rclpy
+import rclpy, rclpy.parameter
 from geometry_msgs.msg import PoseStamped, PoseWithCovarianceStamped
 from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
 from nav2_simple_commander.robot_navigator import BasicNavigator, TaskResult
@@ -22,14 +22,14 @@ def main():
     nav = BasicNavigator()
     nav.set_parameters([rclpy.parameter.Parameter('use_sim_time', rclpy.Parameter.Type.BOOL, True)])
     gt = {}
-    nav.create_subscription(Odometry, '/odom_gt', lambda m: gt.update(x=m.pose.pose.position.x + A[0], y=m.pose.pose.position.y + A[1],
-                                                                       qz=m.pose.pose.orientation.z, qw=m.pose.pose.orientation.w), 10)
+    nav.create_subscription(Odometry, '/odom_gt', lambda m: gt.update(x=m.pose.pose.position.x + A[0], y=m.pose.pose.position.y + A[1],  # type: ignore[reportAttributeAccessIssue]  # rclpy types the callback message as an unbound TypeVar
+                                                                       qz=m.pose.pose.orientation.z, qw=m.pose.pose.orientation.w), 10)  # type: ignore[reportAttributeAccessIssue]  # rclpy types the callback message as an unbound TypeVar
     while not gt:
         pump(nav, 20); time.sleep(0.05)
     # Localise AMCL from the true pose. A single message is not enough: it can be dropped by a few-millisecond TF race
     # ("Failed to transform initial pose in time"). A zero stamp makes AMCL use the latest TF; repeat until /amcl_pose agrees.
     amcl = {}
-    nav.create_subscription(PoseWithCovarianceStamped, '/amcl_pose', lambda m: amcl.update(x=m.pose.pose.position.x, y=m.pose.pose.position.y),
+    nav.create_subscription(PoseWithCovarianceStamped, '/amcl_pose', lambda m: amcl.update(x=m.pose.pose.position.x, y=m.pose.pose.position.y),  # type: ignore[reportAttributeAccessIssue]  # rclpy types the callback message as an unbound TypeVar
                             QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL, reliability=ReliabilityPolicy.RELIABLE))
     pub = nav.create_publisher(PoseWithCovarianceStamped, 'initialpose', 10)
     nav._waitForNodeToActivate('amcl')

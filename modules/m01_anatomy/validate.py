@@ -12,6 +12,7 @@
 Writes results.json, figures/ (PNG + SVG) and media/ (MP4 + PNG).
 usage: python validate.py [--n 1000] [--no-media]"""
 import argparse, json, os, pathlib, sys, time, warnings
+from typing import Any
 import numpy as np
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent)); sys.path.insert(0, str(HERE)); sys.path.insert(0, str(HERE.parent / 'm00_math'))
@@ -77,7 +78,7 @@ def mx(*arrs):
     return float(max(np.abs(np.asarray(a, float)).max() for a in arrs))
 
 
-def to_pin(q, v=None, a=None):
+def to_pin(q, v=None, a=None) -> Any:                  # qp, (qp, vp) or (qp, vp, ap): one item per argument given
     """MuJoCo (q, v, a) to Pinocchio's free-flyer convention: quaternion x y z w; linear velocity in the base frame;
     a_lin = R^T p_ddot - w x v_local (derivative of the base-frame velocity vector)."""
     R = quat_to_R(q[3:7]); qp = np.r_[q[:3], q[4:7], q[3], q[7:]]
@@ -98,9 +99,9 @@ def random_state(rng, robot):
 # ---- fundamental ---------------------------------------------------------------------------------------------------------
 
 def fundamental(r, m, pm):
-    res = {}
+    res: dict[str, Any] = {}
     dm = A.dof(r)
-    pin_bodies = sum(f.type == pin.FrameType.BODY for f in pm.frames)
+    pin_bodies = sum(f.type == pin.FrameType.BODY for f in pm.frames)  # type: ignore[reportAttributeAccessIssue]  # pinocchio: API in a compiled extension, no stubs
     counts = dict(nq=(r.nq, m.nq, pm.nq), nv=(r.nv, m.nv, pm.nv), nu=(len(r.actuators), m.nu, None),     # Pinocchio has no actuators
                   bodies=(len(r.bodies), m.nbody - 1, pin_bodies), joints=(len(r.joints), m.njnt, pm.njoints - 1))
     res['counts'] = {k: dict(parsed=v[0], mujoco=int(v[1]), pinocchio=v[2] if v[2] is None else int(v[2])) for k, v in counts.items()}
@@ -240,7 +241,7 @@ def intermediate(r, m, pm, n):
             ov = np.zeros(6); mujoco.mj_objectVelocity(m, d, mujoco.mjtObj.mjOBJ_XBODY, i + 1, ov, 0)
             e['vel'] = max(e['vel'], mx(ov[:3] - w[i], ov[3:] - vb[i]))
         M, c, l, k = A.centroidal(r, q, v)
-        qp, vp = to_pin(q, v); hg = pin.computeCentroidalMomentum(pm, pd, qp, vp)
+        qp, vp = to_pin(q, v); hg = pin.computeCentroidalMomentum(pm, pd, qp, vp)  # type: ignore[reportAttributeAccessIssue]  # pinocchio: API in a compiled extension, no stubs
         e['com'] = max(e['com'], mx(pd.com[0] - c)); e['h'] = max(e['h'], mx(hg.linear - l, hg.angular - k))
         _, _, l, k = A.centroidal(r_raw, q, v); e['h_raw'] = max(e['h_raw'], mx(hg.linear - l, hg.angular - k))
         e['act'] = max(e['act'], mx(A.actuator_force(r, u) - d.qfrc_actuator))
@@ -298,7 +299,7 @@ def contact_wrenches(m, d):
 def underactuation(r, m, pm, n):
     """B structure; in flight (no contacts with the world) the momentum rate is m_tot g whatever the joint torques; in stance it is
     m_tot g plus the contact wrenches. The constraint solver runs to tolerance 0 here (see README, failure analysis)."""
-    B = A.selection(r); res = dict(B_base_rows_max_abs=mx(B[:6]), rank_B=int(np.linalg.matrix_rank(B)))
+    B = A.selection(r); res: dict[str, Any] = dict(B_base_rows_max_abs=mx(B[:6]), rank_B=int(np.linalg.matrix_rank(B)))
     res['nullspace_BT_dim'] = int(r.nv - np.linalg.matrix_rank(B))
     d = mujoco.MjData(m); pd = pm.createData(); rng = np.random.default_rng(1)
     worst_act = worst_fd = worst_pin = 0.0; worst_fd_default = 0.0; base_acc, com_acc = [], []
@@ -318,7 +319,7 @@ def underactuation(r, m, pm, n):
             if tol > 0:
                 worst_fd_default = max(worst_fd_default, err); continue
             worst_fd = max(worst_fd, err); worst_act = max(worst_act, mx(d.qfrc_actuator[:6]))
-            qp, vp, ap = to_pin(q, v, d.qacc.copy()); pin.computeCentroidalMomentumTimeVariation(pm, pd, qp, vp, ap)
+            qp, vp, ap = to_pin(q, v, d.qacc.copy()); pin.computeCentroidalMomentumTimeVariation(pm, pd, qp, vp, ap)  # type: ignore[reportAttributeAccessIssue]  # pinocchio: API in a compiled extension, no stubs
             worst_pin = max(worst_pin, mx(pd.dhg.linear - M * g, pd.dhg.angular))
             base_acc.append(np.linalg.norm(d.qacc[3:6])); com_acc.append(np.linalg.norm(ld / M - g))
     m.opt.tolerance, m.opt.iterations = 1e-8, 100
@@ -723,6 +724,7 @@ class Rec(sim.Recorder):
     def render(self, d):
         if not self.ok:
             return None
+        assert self.renderer is not None                       # self.ok is renderer is not None
         self.renderer.update_scene(d, camera=self.cam, scene_option=self.opt)
         scn = self.renderer.scene
         for pos, rgba, rad in (self.marks(d) if self.marks else []):
@@ -741,7 +743,8 @@ class Rec(sim.Recorder):
                 ['ffmpeg', '-y', '-loglevel', 'error', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', f'{self.w}x{self.h}',
                  '-r', str(self.fps), '-i', '-', '-c:v', 'libx264', '-preset', 'medium', '-crf', '23', '-pix_fmt', 'yuv420p',
                  '-movflags', '+faststart', str(self.mp4)], stdin=subprocess.PIPE)
-        self.proc.stdin.write(self.render(d).tobytes()); self.n += 1
+        frame = self.render(d); assert frame is not None and self.proc.stdin is not None   # self.ok checked above, stdin=PIPE
+        self.proc.stdin.write(frame.tobytes()); self.n += 1
         return None
 
 
@@ -846,10 +849,10 @@ def video_reorient():
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument('--n', type=int, default=1000); ap.add_argument('--no-media', action='store_true')
     ap.add_argument('--json', default=str(HERE / 'results.json')); a = ap.parse_args()
-    t0 = time.time(); r = A.parse(); m = mujoco.MjModel.from_xml_path(str(GO2_XML)); pm = pin.buildModelFromMJCF(str(GO2_XML))
+    t0 = time.time(); r = A.parse(); m = mujoco.MjModel.from_xml_path(str(GO2_XML)); pm = pin.buildModelFromMJCF(str(GO2_XML))  # type: ignore[reportAttributeAccessIssue]  # pinocchio: API in a compiled extension, no stubs
     res = {}
     res['fundamental'] = fundamental(r, m, pm)
-    gl = can_render(m)
+    gl = can_render(m); views = mv = dv = None                  # set by render_views below when gl
     if gl:
         views, mv, dv = render_views(r, lift=0.0)
         lifted, ml, dl = render_views(r, lift=0.4)                 # in the air: no floor occlusion for the bbox check

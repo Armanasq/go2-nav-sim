@@ -7,6 +7,7 @@ import math, os, signal, sys
 
 import numpy as np
 import rclpy
+import rclpy.parameter
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
 from rclpy.signals import SignalHandlerOptions
@@ -19,7 +20,9 @@ from obstacle import centre_depth, front_min
 class Sense(Node):
     def __init__(self):
         super().__init__('sense', parameter_overrides=[rclpy.parameter.Parameter('use_sim_time', value=True)])
-        self.half = math.radians(self.declare_parameter('half_angle', 20.0).value)   # degrees on the command line
+        half = self.declare_parameter('half_angle', 20.0).value
+        assert half is not None
+        self.half = math.radians(half)   # degrees on the command line
         self.pub_scan = self.create_publisher(Range, 'front_range', 10)
         self.pub_depth = self.create_publisher(Range, 'centre_depth', 10)
         self.create_subscription(LaserScan, 'scan', self.on_scan, qos_profile_sensor_data)

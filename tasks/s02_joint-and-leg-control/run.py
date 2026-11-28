@@ -5,6 +5,7 @@ Writes results/<id>.json (measured values, thresholds from acceptance.json, pass
 Wrap runs that render (2.11, 2.14, all) in `flock /tmp/go2_render.lock`."""
 import json
 import sys
+from typing import Any
 
 import numpy as np
 
@@ -219,7 +220,7 @@ def t204():
 
 
 # ---- 2.05 / 2.06 ------------------------------------------------------------------------------------------------------------
-def step_trial(kp, kd, step=0.2, T=0.8, t_step=0.2):
+def step_trial(kp, kd, step=0.2, T=0.8, t_step=0.2) -> tuple[dict[str, Any], np.ndarray, np.ndarray, np.ndarray]:
     m, d = lib.load_supported()
     J = lib.LegModel(m, 'FL').inertia(Q_HOLD[:3], HIP)
     log = lib.simulate(m, d, lib.joint_controller(m, step_ref(HIP, 0.0, step, t_step), kp, kd), t_step + T)
@@ -428,7 +429,7 @@ def t212():
 # ---- 2.13 -------------------------------------------------------------------------------------------------------------------
 @task('2.13')
 def t213():
-    from scipy.spatial import cKDTree
+    from scipy.spatial import cKDTree  # type: ignore[reportAttributeAccessIssue]  # scipy re-exports it from the compiled _ckdtree, which has no .pyi here
     m, d = lib.load_supported()
     L = lib.LegModel(m, 'FL')
     p0 = L.fk(Q_HOLD[:3])

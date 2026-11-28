@@ -7,6 +7,7 @@
 Writes results.json, figures/ (PNG + SVG) and media/ (MP4 + PNG).
 usage: python validate.py [--n 100000] [--no-media]"""
 import argparse, json, math, pathlib, sys, time
+from typing import Any
 import numpy as np
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent)); sys.path.insert(0, str(HERE))
@@ -55,7 +56,7 @@ def wrap(a):
 
 # ---- fundamental + intermediate (validated earlier, unchanged) ---------------------------------------------------------------
 
-def fundamentals(n):
+def fundamentals(n) -> dict[str, Any]:
     rng = np.random.default_rng(0); rots = Rotation.random(n, random_state=0); err = dict.fromkeys(
         ['quat_to_R_vs_scipy', 'R_to_quat_vs_scipy', 'rpy_to_R_vs_pinocchio', 'R_to_rpy_vs_pinocchio', 'exp_vs_pinocchio',
          'log_vs_pinocchio', 'log_vs_scipy', 'se3_inverse_vs_pinocchio', 'rpy_rates_vs_pinocchio', 'gimbal_lock_rpy_roundtrip',
@@ -67,15 +68,15 @@ def fundamentals(n):
         x, y, z, w = r.as_quat(); R = r.as_matrix(); rv = r.as_rotvec(); t = rng.normal(size=3)
         upd('quat_to_R_vs_scipy', quat_to_R([w, x, y, z]) - R)
         upd('R_to_quat_vs_scipy', R_to_quat(R) - np.sign(w) * np.array([w, x, y, z]))
-        rpy = pin.rpy.matrixToRpy(R)
-        upd('rpy_to_R_vs_pinocchio', rpy_to_R(*rpy) - pin.rpy.rpyToMatrix(rpy))
+        rpy = pin.rpy.matrixToRpy(R)  # type: ignore[reportAttributeAccessIssue]  # pinocchio: API in a compiled extension, no stubs
+        upd('rpy_to_R_vs_pinocchio', rpy_to_R(*rpy) - pin.rpy.rpyToMatrix(rpy))  # type: ignore[reportAttributeAccessIssue]  # pinocchio: API in a compiled extension, no stubs
         upd('R_to_rpy_vs_pinocchio', R_to_rpy(R) - rpy)
-        upd('exp_vs_pinocchio', exp_so3(rv) - pin.exp3(rv))
-        upd('log_vs_pinocchio', log_so3(R) - pin.log3(R)); upd('log_vs_scipy', log_so3(R) - rv)
-        upd('se3_inverse_vs_pinocchio', se3_inverse(se3(R, t)) - pin.SE3(R, t).inverse().homogeneous)
+        upd('exp_vs_pinocchio', exp_so3(rv) - pin.exp3(rv))  # type: ignore[reportAttributeAccessIssue]  # pinocchio: API in a compiled extension, no stubs
+        upd('log_vs_pinocchio', log_so3(R) - pin.log3(R)); upd('log_vs_scipy', log_so3(R) - rv)  # type: ignore[reportAttributeAccessIssue]  # pinocchio: API in a compiled extension, no stubs
+        upd('se3_inverse_vs_pinocchio', se3_inverse(se3(R, t)) - pin.SE3(R, t).inverse().homogeneous)  # type: ignore[reportAttributeAccessIssue]  # pinocchio: API in a compiled extension, no stubs
         if abs(rpy[1]) < 1.5:                                       # rates are singular at |pitch| = pi/2
             rates = rng.normal(size=3)
-            upd('rpy_rates_vs_pinocchio', rpy_rates(rpy, pin.rpy.computeRpyJacobian(rpy, pin.LOCAL) @ rates) - rates)
+            upd('rpy_rates_vs_pinocchio', rpy_rates(rpy, pin.rpy.computeRpyJacobian(rpy, pin.LOCAL) @ rates) - rates)  # type: ignore[reportAttributeAccessIssue]  # pinocchio: API in a compiled extension, no stubs
     # Gimbal lock: at pitch +-pi/2 only phi -+ psi is defined; R_to_rpy sets psi = 0 and must still reconstruct R.
     rg = np.random.default_rng(6)
     for pitch in (np.pi / 2, -np.pi / 2):
@@ -83,7 +84,7 @@ def fundamentals(n):
             R = rpy_to_R(rg.uniform(-np.pi, np.pi), pitch, rg.uniform(-np.pi, np.pi)); rpy = R_to_rpy(R)
             assert rpy[2] == 0.0
             upd('gimbal_lock_rpy_roundtrip', rpy_to_R(*rpy) - R)
-    upd('R_link_optical_vs_pinocchio', R_LINK_OPTICAL - pin.rpy.rpyToMatrix(-np.pi / 2, 0, -np.pi / 2))
+    upd('R_link_optical_vs_pinocchio', R_LINK_OPTICAL - pin.rpy.rpyToMatrix(-np.pi / 2, 0, -np.pi / 2))  # type: ignore[reportAttributeAccessIssue]  # pinocchio: API in a compiled extension, no stubs
     for k, v in err.items():
         print(f'{k:28s} max error {v:.1e}')
     # Yaw from omega_z alone during a steady turn at constant roll and pitch: omega_z = cos(phi) cos(theta) psi_dot.
@@ -125,7 +126,7 @@ def series_jr_inv(w):
 
 
 def jacobians(n):
-    rng = np.random.default_rng(1); W = random_rotvecs(rng, n); e = dict.fromkeys(
+    rng = np.random.default_rng(1); W = random_rotvecs(rng, n); e: dict[str, Any] = dict.fromkeys(
         ['jr_vs_fd', 'jl_vs_fd', 'jr_inv_vs_fd', 'jr_inv_times_jr_minus_I', 'jl_equals_R_jr', 'jr_vs_pinocchio_Jexp3',
          'jr_inv_vs_pinocchio_Jlog3'], 0.0)
 
@@ -134,13 +135,13 @@ def jacobians(n):
     worst = dict(jr=(0.0, 0.0), jri=(0.0, 0.0))
     for w in W:
         R = exp_so3(w); Jr = jr_so3(w); Jri = jr_inv_so3(w); t = np.linalg.norm(w)
-        for k, v in (('jr', np.abs(Jr - pin.Jexp3(w)).max()), ('jri', np.abs(Jri - pin.Jlog3(R)).max())):
+        for k, v in (('jr', np.abs(Jr - pin.Jexp3(w)).max()), ('jri', np.abs(Jri - pin.Jlog3(R)).max())):  # type: ignore[reportAttributeAccessIssue]  # pinocchio: API in a compiled extension, no stubs
             worst[k] = max(worst[k], (float(v), float(t)))
         upd('jr_vs_fd', Jr - fd(lambda x: log_so3(R.T @ exp_so3(x)), w))                 # Exp(w + d) = Exp(w) Exp(Jr d)
         upd('jl_vs_fd', jl_so3(w) - fd(lambda x: log_so3(exp_so3(x) @ R.T), w))          # Exp(w + d) = Exp(Jl d) Exp(w)
         upd('jr_inv_vs_fd', Jri - fd(lambda d: log_so3(R @ exp_so3(d)), np.zeros(3)))  # Log(Exp(w) Exp(d)) = w + Jr^-1 d
         upd('jr_inv_times_jr_minus_I', Jri @ Jr - np.eye(3)); upd('jl_equals_R_jr', jl_so3(w) - R @ Jr)
-        upd('jr_vs_pinocchio_Jexp3', Jr - pin.Jexp3(w)); upd('jr_inv_vs_pinocchio_Jlog3', Jri - pin.Jlog3(R))
+        upd('jr_vs_pinocchio_Jexp3', Jr - pin.Jexp3(w)); upd('jr_inv_vs_pinocchio_Jlog3', Jri - pin.Jlog3(R))  # type: ignore[reportAttributeAccessIssue]  # pinocchio: API in a compiled extension, no stubs
     a = W[0] / np.linalg.norm(W[0]); lo, hi = a * SMALL * (1 - 1e-9), a * SMALL * (1 + 1e-9)
     e['jacobian_jump_at_series_switch'] = float(max(np.abs(f(lo) - f(hi)).max() for f in (jr_so3, jr_inv_so3)))
     # First-order accuracy: |Log(Exp(w)^T Exp(w + eps d)) - eps Jr d| ~ eps^2, against ~eps when Jr is replaced by I.
@@ -160,12 +161,12 @@ def jacobians(n):
     dg = dict.fromkeys(['jr_vs_series', 'pin_Jexp3_vs_series', 'jr_inv_vs_series', 'pin_Jlog3_vs_series'], 0.0)
     for ws in Ws:                                     # not `w`: w is the first-order test vector returned for the figure
         S, Si = series_jr(ws), series_jr_inv(ws)
-        for k, v in (('jr_vs_series', jr_so3(ws) - S), ('pin_Jexp3_vs_series', pin.Jexp3(ws) - S),
-                     ('jr_inv_vs_series', jr_inv_so3(ws) - Si), ('pin_Jlog3_vs_series', pin.Jlog3(exp_so3(ws)) - Si)):
+        for k, v in (('jr_vs_series', jr_so3(ws) - S), ('pin_Jexp3_vs_series', pin.Jexp3(ws) - S),  # type: ignore[reportAttributeAccessIssue]  # pinocchio: API in a compiled extension, no stubs
+                     ('jr_inv_vs_series', jr_inv_so3(ws) - Si), ('pin_Jlog3_vs_series', pin.Jlog3(exp_so3(ws)) - Si)):  # type: ignore[reportAttributeAccessIssue]  # pinocchio: API in a compiled extension, no stubs
             dg[k] = max(dg[k], float(np.abs(v).max()))
     big = W[np.linalg.norm(W, axis=1) > 1e-2]
-    dg['pin_Jexp3_vs_jr_above_1e-2rad'] = float(max(np.abs(jr_so3(w) - pin.Jexp3(w)).max() for w in big))
-    dg['pin_Jlog3_vs_jr_inv_above_1e-2rad'] = float(max(np.abs(jr_inv_so3(w) - pin.Jlog3(exp_so3(w))).max() for w in big))
+    dg['pin_Jexp3_vs_jr_above_1e-2rad'] = float(max(np.abs(jr_so3(w) - pin.Jexp3(w)).max() for w in big))  # type: ignore[reportAttributeAccessIssue]  # pinocchio: API in a compiled extension, no stubs
+    dg['pin_Jlog3_vs_jr_inv_above_1e-2rad'] = float(max(np.abs(jr_inv_so3(w) - pin.Jlog3(exp_so3(w))).max() for w in big))  # type: ignore[reportAttributeAccessIssue]  # pinocchio: API in a compiled extension, no stubs
     e['small_angle_diagnostic'] = dg
     # Worked example: gyro x bias b during a 90 deg yaw turn at 1 rad/s. Exp((omega + b) T) = Exp(omega T) Exp(Jr(omega T) b T).
     om, T, b = np.array([0.0, 0.0, 1.0]), np.pi / 2, np.array([0.01, 0.0, 0.0])
@@ -215,7 +216,7 @@ def registration():
 
     def sfun(x):
         r = f(x)[0]; sc_cost.append(0.5 * r @ r); return r
-    S = least_squares(sfun, x0, jac=lambda x: _jac_vec(P, x), method='lm',
+    S = least_squares(sfun, x0, jac=lambda x: _jac_vec(P, x), method='lm',  # type: ignore[reportArgumentType]  # scipy has no stubs: jac type inferred from its default
                       xtol=1e-15, ftol=1e-15, gtol=1e-15)
     out.update(registration_gn_vs_closed_form=pose_err(G['x'], cf), registration_lm_vs_closed_form=pose_err(L['x'], cf),
                registration_scipy_vs_closed_form=pose_err(S.x, cf), registration_gn_iters_170deg=G['iters'],
@@ -315,7 +316,7 @@ def calibration(m, d):
 
     def sfun(p):
         r = f(p)[0]; sc_cost.append(0.5 * r @ r); return r
-    S = least_squares(sfun, P_NOMINAL, jac=lambda p: f(p)[1], method='lm', xtol=1e-15, ftol=1e-15, gtol=1e-15)
+    S = least_squares(sfun, P_NOMINAL, jac=lambda p: f(p)[1], method='lm', xtol=1e-15, ftol=1e-15, gtol=1e-15)  # type: ignore[reportArgumentType]  # scipy has no stubs: jac type inferred from its default
     sd, _ = predicted_sd(f, S.x); err = S.x - P_TRUE
     out.update(calib_gn_vs_scipy=float(np.abs(G['x'] - S.x).max()), calib_lm_vs_scipy=float(np.abs(L['x'] - S.x).max()),
                calib_cost_rel_diff_vs_scipy=float(max(abs(G['cost'][-1] - S.cost), abs(L['cost'][-1] - S.cost)) / S.cost),
@@ -333,7 +334,7 @@ def calibration(m, d):
     # A start counts as 'reference' when it ends on scipy's parameters, 'mirrored' when it ends on the same cost with a negative
     # link length (an equivalent parameterisation, README), 'local' on a higher stationary cost, 'not converged' otherwise.
     mags = [0.25, 0.5, 0.75, 1.0, 1.25, 1.5, 2.0, 2.5, 3.0]; NB = 60
-    basin = dict(mag_rad=mags, trials=NB, gn=[], lm=[], gn_min_cost=[], lm_min_cost=[], gn_kinds={}, lm_kinds={})
+    basin: dict[str, Any] = dict(mag_rad=mags, trials=NB, gn=[], lm=[], gn_min_cost=[], lm_min_cost=[], gn_kinds={}, lm_kinds={})
     for a in mags:
         ok = dict(gn=0, lm=0); mc = dict(gn=0, lm=0)
         for _ in range(NB):
@@ -351,7 +352,7 @@ def calibration(m, d):
     # Excitation: poses within +-r of standing. Predicted sd at the truth against the RMS error over 30 noise draws.
     ranges = [0.02, 0.05, 0.1, 0.2, 0.5, 1.0]; exc = dict(half_range_rad=ranges, pred_sd=[], rms_err=[], cond=[])
     for hr in ranges:
-        qe = leg.poses(np.random.default_rng(5), half_range=hr); errs = []
+        qe = leg.poses(np.random.default_rng(5), half_range=hr); errs = []; fe = None  # bound by the loop below
         for _ in range(30):
             fe = leg.problem(qe, rng); errs.append(levenberg_marquardt(fe, P_NOMINAL)['x'] - P_TRUE)
         sdp, J = predicted_sd(fe, P_TRUE)

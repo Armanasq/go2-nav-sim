@@ -60,8 +60,9 @@ class LidarOdom(Node):
         """PointCloud2 -> Nx3 in the base frame given by TF."""
         a = np.frombuffer(msg.data, np.float32).reshape(-1, msg.point_step // 4)[:, :3]
         a = a[np.isfinite(a).all(1)]
+        assert self.base is not None                                     # declared with a non-None default
         try:
-            T = self.tf.lookup_transform(self.base, msg.header.frame_id, Time.from_msg(msg.header.stamp), Duration(seconds=0.3)).transform
+            T = self.tf.lookup_transform(self.base, msg.header.frame_id, Time.from_msg(msg.header.stamp), Duration(seconds=0.3)).transform  # type: ignore[reportArgumentType]  # rclpy infers seconds: int from its default; it accepts float
         except Exception:                                                # TF a little late (loaded machine): use latest instead of dropping the scan
             T = self.tf.lookup_transform(self.base, msg.header.frame_id, Time()).transform
         R = Rotation.from_quat([T.rotation.x, T.rotation.y, T.rotation.z, T.rotation.w]).as_matrix()
@@ -96,6 +97,7 @@ class LidarOdom(Node):
         guess = self.pose.copy()
         guess[:2] += rot(self.pose[2]) @ (self.vel[:2] * dt)             # constant-velocity translation
         guess[2] = wrap(self.pose[2] + dyaw)
+        assert self.sigma is not None and self.trans_prior is not None and self.fix_yaw is not None and self.reseed_after is not None   # non-None defaults
         x, matches, rms, ok, cov = register(src, self.lmap, guess, self.sigma, self.trans_prior, self.fix_yaw)
         step = np.hypot(*(x[:2] - self.pose[:2])); turn = abs(wrap(x[2] - self.pose[2]))
         if ok and (step > 0.6 * dt + 0.05 or turn > 0.8 * dt + 0.05):      # implausible jump: keep the prediction
@@ -110,6 +112,7 @@ class LidarOdom(Node):
         d = x - self.pose; d[2] = wrap(d[2])
         self.vel = np.array([*(rot(-self.pose[2]) @ d[:2] / dt), d[2] / dt])
         self.pose = x; self.t_last = t; self.n += 1
+        assert self.key_pose is not None                                 # set with self.lmap by add_keyframe
         if (np.hypot(*(self.pose[:2] - self.key_pose[:2])) > self.key_t) or abs(wrap(self.pose[2] - self.key_pose[2])) > self.key_r:
             self.add_keyframe(src @ rot(self.pose[2]).T + self.pose[:2])
         self.publish(msg.header.stamp, ok, matches, rms, cov)

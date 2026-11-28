@@ -24,15 +24,16 @@ def broken_optical():
     for k, (title, R) in enumerate((('as launched: yaw +1.5708\noptical z points backwards, x left', AS_LAUNCHED),
                                     ('fixed: yaw -1.5708\noptical z forward, x right, y down', FIXED))):
         ax = fig.add_subplot(1, 2, k + 1, projection='3d')
+        assert isinstance(ax, Axes3D)
         ax.set_proj_type('ortho'); ax.view_init(elev=22, azim=-128)
         for i, n in enumerate('xyz'):                        # camera_link: thin, faded
             v = np.eye(3)[i]
             ax.quiver(0, 0, 0, *v, color=COLS[i], lw=1.0, alpha=0.4, arrow_length_ratio=0.12)
-            ax.text(*(1.1 * v + np.array([0, 0, -0.14])), n + '$_{link}$', color=COLS[i], alpha=0.6, fontsize=7.5)
+            ax.text(*(1.1 * v + np.array([0, 0, -0.14])), n + '$_{link}$', color=COLS[i], alpha=0.6, fontsize=7.5)  # type: ignore[call-arg]  # pyright lets *ndarray fill every positional of Axes3D.text; it is 3 values (x, y, z)
         for i, n in enumerate('xyz'):                        # camera_optical: thick
             v = R[:, i]
             ax.quiver(0, 0, 0, *v, color=COLS[i], lw=2.4, arrow_length_ratio=0.15)
-            ax.text(*(1.25 * v + np.array([0, 0, 0.08])), n + '$_{opt}$', color=COLS[i], fontsize=9.5)
+            ax.text(*(1.25 * v + np.array([0, 0, 0.08])), n + '$_{opt}$', color=COLS[i], fontsize=9.5)  # type: ignore[call-arg]  # pyright lets *ndarray fill every positional of Axes3D.text; it is 3 values (x, y, z)
         ax.text(1.5, 0, -0.35, 'forward', fontsize=7, color='#555')
         ax.set_xlim(-1, 1); ax.set_ylim(-1, 1); ax.set_zlim(-1, 1); ax.set_box_aspect((1, 1, 1)); ax.set_axis_off()
         ax.set_title(title, fontsize=8.5)

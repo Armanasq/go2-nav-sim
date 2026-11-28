@@ -3,7 +3,7 @@ import importlib.util, pathlib
 import numpy as np
 
 PKG = pathlib.Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location('arena', PKG / 'scripts/make_arena.py'); arena = importlib.util.module_from_spec(spec); spec.loader.exec_module(arena)
+spec = importlib.util.spec_from_file_location('arena', PKG / 'scripts/make_arena.py'); assert spec is not None and spec.loader is not None; arena = importlib.util.module_from_spec(spec); spec.loader.exec_module(arena)
 
 
 def load_map():

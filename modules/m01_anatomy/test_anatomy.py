@@ -7,6 +7,7 @@ sys.path.insert(0, str(HERE)); sys.path.insert(0, str(HERE.parent))
 import importlib.util  # noqa: E402
 # every module has a validate.py: load this one under its own name so pytest over all modules does not pick up another's
 _spec = importlib.util.spec_from_file_location('m01_validate', HERE / 'validate.py')
+assert _spec is not None and _spec.loader is not None
 V = importlib.util.module_from_spec(_spec); _spec.loader.exec_module(V)      # imports sim first, which sets MUJOCO_GL
 import anatomy as A  # noqa: E402
 import mujoco  # noqa: E402
@@ -20,7 +21,7 @@ def thr(k):
 
 @pytest.fixture(scope='module')
 def models():
-    return A.parse(), mujoco.MjModel.from_xml_path(str(GO2_XML)), pin.buildModelFromMJCF(str(GO2_XML))
+    return A.parse(), mujoco.MjModel.from_xml_path(str(GO2_XML)), pin.buildModelFromMJCF(str(GO2_XML))  # type: ignore[reportAttributeAccessIssue]  # pinocchio: API in a compiled extension, no stubs
 
 
 def test_parse_matches_mujoco_and_pinocchio(models):

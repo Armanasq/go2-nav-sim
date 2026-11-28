@@ -17,6 +17,7 @@ import sys
 import threading
 import time
 import xml.etree.ElementTree as ET
+from typing import Any, cast
 
 import numpy as np
 import yaml
@@ -29,6 +30,8 @@ import figstyle as fs  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
 
 import rclpy  # noqa: E402
+import rclpy.executors  # noqa: E402
+import rclpy.time  # noqa: E402
 from rclpy.node import Node  # noqa: E402
 from rclpy.parameter import Parameter  # noqa: E402
 from rclpy.qos import qos_profile_sensor_data  # noqa: E402
@@ -106,7 +109,7 @@ def rsp(urdf_text, name='rsp'):
     # A params file, not -p robot_description:=...: that value is parsed as YAML and a ': ' in an XML comment aborts the node.
     LOG.mkdir(exist_ok=True)
     f = LOG / f'{name}_params.yaml'
-    f.write_text(yaml.safe_dump({'robot_state_publisher': {'ros__parameters': {'robot_description': urdf_text}}}))
+    f.write_text(cast(str, yaml.safe_dump({'robot_state_publisher': {'ros__parameters': {'robot_description': urdf_text}}})))  # PyYAML has no type hints
     return start(['ros2', 'run', 'robot_state_publisher', 'robot_state_publisher', '--ros-args', '--params-file', str(f)], name)
 
 
@@ -205,8 +208,8 @@ class Probe:
                 t1 = time.time() + 5
                 while not fut.done() and time.time() < t1:
                     time.sleep(0.05)
-                if fut.done() and fut.result() is not None:
-                    act = sorted(c.name for c in fut.result().controller if c.state == 'active')
+                if fut.done() and (res := fut.result()) is not None:
+                    act = sorted(c.name for c in res.controller if c.state == 'active')
                     if len(act) >= 2:
                         return act
             time.sleep(1.0)
@@ -317,7 +320,7 @@ def t102():
 def t103():
     u = Urdf(expand(XACRO))
     act = u.actuated()
-    jmap = yaml.safe_load(open(CFG / 'joints/joints.yaml'))['/**']['ros__parameters']['joints_map']
+    jmap = cast(dict[str, Any], yaml.safe_load(open(CFG / 'joints/joints.yaml')))['/**']['ros__parameters']['joints_map']  # PyYAML has no type hints
     champ = {n for leg in jmap.values() for n in leg[:3]}
     rows = [dict(name=n, type=u.joints[n]['type'], parent=u.joints[n]['parent'], child=u.joints[n]['child'],
                  axis=u.joints[n]['axis'].tolist(), **u.joints[n]['limit']) for n in act]
@@ -424,7 +427,9 @@ def make_rig(limit_upper=0.3):
     effort state interface on every joint. Written to urdf/go2_rig.urdf."""
     text = expand(pathlib.Path(get_package_share_directory('go2_description')) / 'xacro/robot.xacro')
     root = ET.fromstring(text)
-    root.find("joint[@name='lf_hip_joint']/limit").set('upper', str(limit_upper))
+    lim = root.find("joint[@name='lf_hip_joint']/limit")
+    assert lim is not None
+    lim.set('upper', str(limit_upper))
     root.insert(0, ET.Element('link', name='world'))
     j = ET.Element('joint', name='world_fixed', type='fixed')
     ET.SubElement(j, 'parent', link='world'), ET.SubElement(j, 'child', link='base_link'), ET.SubElement(j, 'origin', xyz='0 0 0')
@@ -563,8 +568,11 @@ def gz_model(name, flag):
 
 def sdf_geometry(world, model):
     m = ET.parse(world).getroot().find(f".//model[@name='{model}']")
-    g = m.find('link/collision/geometry')[0]
-    return g.tag, {c.tag: [float(v) for v in c.text.split()] for c in g}
+    assert m is not None
+    geom = m.find('link/collision/geometry')
+    assert geom is not None
+    g = geom[0]
+    return g.tag, {c.tag: [float(v) for v in cast(str, c.text).split()] for c in g}
 
 
 def gz_geometry(info, kind):
@@ -572,13 +580,16 @@ def gz_geometry(info, kind):
     col = info[info.index('collision {'):]
     if kind == 'box':
         m = re.search(r'box \{\s*size \{\s*x: ([\d.e-]+)\s*y: ([\d.e-]+)\s*z: ([\d.e-]+)', col)
+        assert m is not None
         return {'size': [float(v) for v in m.groups()]}
     m = re.search(r'cylinder \{\s*radius: ([\d.e-]+)\s*length: ([\d.e-]+)', col)
+    assert m is not None
     return {'radius': [float(m.group(1))], 'length': [float(m.group(2))]}
 
 
 def gz_pose(name):
     m = re.search(r'([-\d.e]+) ([-\d.e]+) ([-\d.e]+)', gz_model(name, '-p'))
+    assert m is not None
     return np.array([float(v) for v in m.groups()])
 
 
@@ -649,7 +660,7 @@ def t110():
         js = pr.js
     stamps, wall = np.array([r[0] for r in js]), np.array([r[1] for r in js])
     rate = (len(js) - 1) / (stamps[-1] - stamps[0])
-    m = dict(n_messages=len(js), names=js[0][2], n_names=len(js[0][2]), rate_sim_hz=float(rate),
+    m: dict[str, Any] = dict(n_messages=len(js), names=js[0][2], n_names=len(js[0][2]), rate_sim_hz=float(rate),
              rate_sim_hz_error=float(abs(rate - 250.0)), rate_wall_hz=float((len(js) - 1) / (wall[-1] - wall[0])),
              position_len=len(js[0][3]), velocity_len=len(js[0][4]), effort_len=len(js[0][5]),
              position_finite_fraction=finite_fraction([r[3] for r in js]), velocity_finite_fraction=finite_fraction([r[4] for r in js]),

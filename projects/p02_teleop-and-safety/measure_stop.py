@@ -44,7 +44,7 @@ class MeasureStop(Node):
         self.robot_pub = self.create_publisher(Twist, '/cmd_vel', 10)
         self.gt, self.sent, self.robot = [], [], []
         self.create_subscription(Odometry, '/odom_gt', self.on_gt, 50)
-        self.create_subscription(Twist, '/cmd_vel', lambda m: self.robot.append((self.now(), m.linear.x)), 50)
+        self.create_subscription(Twist, '/cmd_vel', lambda m: self.robot.append((self.now(), m.linear.x)), 50)  # type: ignore[reportAttributeAccessIssue]  # rclpy: create_subscription leaves msg_type untyped, so the callback argument is typed object
         self.t0 = self.t_last = None
         self.create_timer(0.1, self.on_timer)        # 10 Hz, the rate of a held key in teleop_twist_keyboard is ~30 Hz
         self.done = False

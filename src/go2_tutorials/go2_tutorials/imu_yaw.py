@@ -27,6 +27,7 @@ class ImuYaw(Node):
     def __init__(self):
         super().__init__('imu_yaw')
         rate = self.declare_parameter('publish_rate', 10.0).value
+        assert rate is not None                  # declared with a non-None default
         self.integ = YawIntegrator()
         self.pub = self.create_publisher(Float64, 'imu_yaw', 10)
         self.create_subscription(Imu, 'imu/data', self.on_imu, qos_profile_sensor_data)

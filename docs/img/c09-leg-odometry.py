@@ -42,7 +42,12 @@ def leg_chains(urdf):
         o = j.find('origin')
         assert o is None or np.allclose([float(v) for v in o.get('rpy', '0 0 0').split()], 0), 'rotated joint not handled'
         return np.array([float(v) for v in o.get('xyz').split()]) if o is not None else np.zeros(3)
-    return {leg: ([(origin(joints[f'{leg}_{p}_joint']), np.array([float(v) for v in joints[f'{leg}_{p}_joint'].find('axis').get('xyz').split()]))
+
+    def axis(j):
+        a = j.find('axis')
+        assert a is not None, 'joint without axis'
+        return np.array([float(v) for v in a.attrib['xyz'].split()])
+    return {leg: ([(origin(joints[f'{leg}_{p}_joint']), axis(joints[f'{leg}_{p}_joint']))
                    for p in ('hip', 'upper_leg', 'lower_leg')], origin(joints[f'{leg}_foot_joint'])) for leg in LEGS}
 
 

@@ -19,6 +19,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'modules')); sys.path.insert(0, str(ROOT / 'modules/m04_kinematics'))
 import figstyle as fs  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
+from matplotlib.patches import Rectangle  # noqa: E402
 from kinematics import Leg  # noqa: E402
 
 MEDIA = ROOT / 'media'
@@ -27,6 +28,7 @@ DASH = MEDIA / 'go2_a2b_dashboard.mp4'
 
 def _load(name):
     spec = importlib.util.spec_from_file_location(name, ROOT / f'docs/img/{name}.py')
+    assert spec is not None and spec.loader is not None
     mod = importlib.util.module_from_spec(spec); spec.loader.exec_module(mod)
     return mod
 
@@ -35,6 +37,7 @@ def encode(frames_iter, w, h, fps, out, crf=26):
     cmd = ['ffmpeg', '-v', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', f'{w}x{h}', '-r', str(fps), '-i', '-',
            '-c:v', 'libx264', '-preset', 'slow', '-crf', str(crf), '-pix_fmt', 'yuv420p', '-movflags', '+faststart', str(out)]
     p = subprocess.Popen(cmd, stdin=subprocess.PIPE)
+    assert p.stdin is not None
     for f in frames_iter:
         p.stdin.write(np.ascontiguousarray(f).tobytes())
     p.stdin.close(); p.wait()
@@ -53,24 +56,24 @@ def trot(v=0.2, T=4.0, fps=25, slow=2.0, W=1280, H=720, strip_h=210):
     st, sw = F.champ_phase(t)
     # gait strip: stance solid, swing pale, cursor drawn per frame
     fig = plt.figure(figsize=(W / 100, strip_h / 100), dpi=100)
-    ax = fig.add_axes([0.05, 0.25, 0.93, 0.56])
+    ax = fig.add_axes((0.05, 0.25, 0.93, 0.56))
     col = [fs.LEGS['FL'], fs.LEGS['FR'], fs.LEGS['RL'], fs.LEGS['RR']]
     for i, name in enumerate(('lf', 'rf', 'lh', 'rh')):
         for sig, a in ((st[i] > 0, 0.9), (sw[i] > 0, 0.2)):
             e = np.flatnonzero(np.diff(np.r_[0, sig.astype(int), 0]))
             for a0, b0 in zip(e[::2], e[1::2]):
-                ax.add_patch(plt.Rectangle((t[a0], 3 - i - 0.38), t[b0 - 1] - t[a0], 0.76, fc=col[i], alpha=a, ec='none'))
+                ax.add_patch(Rectangle((float(t[a0]), 3 - i - 0.38), float(t[b0 - 1] - t[a0]), 0.76, fc=col[i], alpha=a, ec='none'))
     ax.set_xlim(0, T); ax.set_ylim(-0.5, 3.5); ax.set_yticks(range(4)); ax.set_yticklabels(['rh', 'lh', 'rf', 'lf'], fontsize=11)
     ax.tick_params(axis='x', labelsize=10)
     ax.grid(False); ax.set_xlabel('gait time [s]   (solid = stance, pale = swing)', fontsize=11)
     fig.text(0.05, 0.87, f'CHAMP trot at {v} m/s, kinematic replay (no physics), half speed', fontsize=12, fontweight='semibold')
     fig.canvas.draw()
-    strip = np.asarray(fig.canvas.buffer_rgba())[..., :3].copy()
+    strip = np.asarray(fig.canvas.buffer_rgba())[..., :3].copy()  # type: ignore[attr-defined]  # stubs type canvas as FigureCanvasBase; the Agg canvas has buffer_rgba
     x0, x1 = (ax.transData.transform([(0, 0), (T, 0)])[:, 0]).astype(int)
     yb, yt = sorted(strip_h - ax.transData.transform([(0, -0.5), (0, 3.5)])[:, 1].astype(int))
     plt.close(fig)
     prev = [np.array([0, 0.9, -1.8])] * 4
-    held = [None] * 4
+    held: list[tuple[float, float] | None] = [None] * 4
 
     def frames():
         for k in range(n):
@@ -84,7 +87,7 @@ def trot(v=0.2, T=4.0, fps=25, slow=2.0, W=1280, H=720, strip_h=210):
                 elif sw[j, k] > st[j, k]:
                     xs, zs = F.bezier_swing(sw[j, k], L, lift); dx, dz = float(xs[0]), float(zs[0])
                 else:
-                    dx, dz = held[i] if held[i] is not None else (L / 2, 0.0)
+                    dx, dz = held[i] or (L / 2, 0.0)
                 held[i] = (dx, dz)
                 target = [leg.hip[0] + dx, leg.hip[1] + leg.d, -nominal + dz]
                 sols = leg.ik_closed_form(target)

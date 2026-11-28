@@ -20,11 +20,14 @@ def test_schedule_timing():
     s = shapes.square_schedule(side=1.5, v=0.25, w=0.4, settle=1.5)
     assert shapes.command_at(s, 0.0) == (0.25, 0.0, 'side0')
     assert shapes.command_at(s, 6.5) == (0.0, 0.0, 'corner0')                # side lasts 1.5 / 0.25 = 6 s
-    assert shapes.command_at(s, 7.6)[2] == 'turn0'
+    cmd = shapes.command_at(s, 7.6)
+    assert cmd is not None and cmd[2] == 'turn0'
     total = sum(d for d, *_ in s)
     assert math.isclose(total, 4 * (6 + 1.5 + math.pi / 2 / 0.4 + 1.5))
     assert shapes.command_at(s, total + 0.01) is None
-    v, w, _ = shapes.command_at(shapes.figure8_schedule(r=0.45, v=0.18), 1.0)
+    cmd = shapes.command_at(shapes.figure8_schedule(r=0.45, v=0.18), 1.0)
+    assert cmd is not None
+    v, w, _ = cmd
     assert math.isclose(v / w, 0.45)                                          # radius = v / w
 
 

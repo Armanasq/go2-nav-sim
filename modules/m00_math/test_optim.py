@@ -35,7 +35,7 @@ def test_registration_matches_closed_form_and_scipy(scan):
     P, Q, f, cf = scan; x0 = np.array([0.0, 0.0, np.deg2rad(170.0)])
     assert V.pose_err(gauss_newton(f, x0, se2_plus)['x'], cf) < thr('registration_gn_vs_closed_form')
     assert V.pose_err(levenberg_marquardt(f, x0, se2_plus)['x'], cf) < thr('registration_lm_vs_closed_form')
-    S = least_squares(lambda x: f(x)[0], x0, jac=lambda x: V._jac_vec(P, x), method='lm', xtol=1e-15, ftol=1e-15, gtol=1e-15)
+    S = least_squares(lambda x: f(x)[0], x0, jac=lambda x: V._jac_vec(P, x), method='lm', xtol=1e-15, ftol=1e-15, gtol=1e-15)  # type: ignore[reportArgumentType]  # scipy has no stubs: jac type inferred from its default
     assert V.pose_err(S.x, cf) < thr('registration_scipy_vs_closed_form')
 
 
@@ -70,7 +70,7 @@ def test_calibration_matches_scipy_and_truth(leg):
     rng = np.random.default_rng(14); f = leg.problem(leg.poses(rng), rng)
     assert np.abs(f(V.P_NOMINAL)[1] - V.fd(lambda p: f(p)[0], V.P_NOMINAL)).max() < thr('calib_jacobian_vs_fd')
     G = gauss_newton(f, V.P_NOMINAL); L = levenberg_marquardt(f, V.P_NOMINAL)
-    S = least_squares(lambda p: f(p)[0], V.P_NOMINAL, jac=lambda p: f(p)[1], method='lm', xtol=1e-15, ftol=1e-15, gtol=1e-15)
+    S = least_squares(lambda p: f(p)[0], V.P_NOMINAL, jac=lambda p: f(p)[1], method='lm', xtol=1e-15, ftol=1e-15, gtol=1e-15)  # type: ignore[reportArgumentType]  # scipy has no stubs: jac type inferred from its default
     assert np.abs(G['x'] - S.x).max() < thr('calib_gn_vs_scipy') and np.abs(L['x'] - S.x).max() < thr('calib_lm_vs_scipy')
     assert abs(G['cost'][-1] - S.cost) / S.cost < thr('calib_cost_rel_diff_vs_scipy')
     sd, _ = V.predicted_sd(f, S.x)

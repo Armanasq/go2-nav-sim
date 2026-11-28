@@ -4,14 +4,17 @@ scipy.optimize.least_squares and MuJoCo check this code in test_optim.py and val
 
 Both solvers minimise F(x) = 1/2 |r(x)|^2. fun(x) returns (r, J) with J = dr/dh at h = 0 for the update x <- plus(x, h), so the
 same code runs on vectors (plus = +) and on SE(2) with the right perturbation T Exp(h) (lie.se2_plus)."""
+from typing import Any
+
 import numpy as np
+import numpy.typing as npt
 
 
 def _add(x, h):
     return x + h
 
 
-def gauss_newton(fun, x0, plus=_add, max_iter=100, tol_grad=1e-10, tol_step=1e-12):
+def gauss_newton(fun, x0, plus=_add, max_iter=100, tol_grad=1e-10, tol_step=1e-12) -> dict[str, Any]:
     """Undamped Gauss-Newton: solve (J^T J) h = -J^T r, take the full step. No line search, so it can overshoot or diverge; that is
     kept on purpose, the README shows when. Returns dict(x, xs and cost per iterate, step, status, iters, nfev)."""
     x = np.array(x0, float); r, J = fun(x); cost = [0.5 * r @ r]; steps = []; xs = [x.copy()]; status = 'max_iter'
@@ -31,7 +34,7 @@ def gauss_newton(fun, x0, plus=_add, max_iter=100, tol_grad=1e-10, tol_step=1e-1
     return dict(x=x, xs=xs, cost=cost, step=steps, status=status, iters=len(steps), nfev=len(cost))
 
 
-def levenberg_marquardt(fun, x0, plus=_add, max_iter=200, tol_grad=1e-10, tol_step=1e-12, tau=1e-3):
+def levenberg_marquardt(fun, x0, plus=_add, max_iter=200, tol_grad=1e-10, tol_step=1e-12, tau=1e-3) -> dict[str, Any]:
     """Levenberg-Marquardt with Nielsen's damping update (Madsen, Nielsen and Tingleff 2004, ch. 3):
     (J^T J + mu I) h = -g; gain ratio rho = (F(x) - F(x (+) h)) / (L(0) - L(h)), L(0) - L(h) = 1/2 h^T (mu h - g).
     rho > 0: accept, mu *= max(1/3, 1 - (2 rho - 1)^3), nu = 2. Otherwise reject, mu *= nu, nu *= 2.
@@ -96,12 +99,12 @@ def cauchy_weights(c):
 
 # ---- Go2 leg kinematic calibration -------------------------------------------------------------------------------------------
 
-def _rx(a):
+def _rx(a) -> npt.NDArray[np.float64]:
     c, s, o, z = np.cos(a), np.sin(a), np.ones_like(a), np.zeros_like(a)
     return np.stack([o, z, z, z, c, -s, z, s, c], -1).reshape(-1, 3, 3)
 
 
-def _ry(a):
+def _ry(a) -> npt.NDArray[np.float64]:
     c, s, o, z = np.cos(a), np.sin(a), np.ones_like(a), np.zeros_like(a)
     return np.stack([c, z, s, z, o, z, -s, z, c], -1).reshape(-1, 3, 3)
 

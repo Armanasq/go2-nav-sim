@@ -7,7 +7,7 @@ import rclpy
 from rclpy.duration import Duration
 from rclpy.node import Node
 from rclpy.time import Time
-from tf2_ros import Buffer, TransformException, TransformListener
+from tf2_ros import Buffer, TransformException, TransformListener  # type: ignore[attr-defined]  # re-exported by star import from the C extension tf2_py, invisible to pyright
 
 TARGET, SOURCE = 'odom', 'base_footprint'
 
@@ -31,9 +31,9 @@ def main():
     now = node.get_clock().now()
     print(f'now = {now.nanoseconds * 1e-9:.3f} s')
     ask(buf, 'latest, Time()', Time())
-    ask(buf, 'now - 30 s', now - Duration(seconds=30.0))
-    ask(buf, 'now + 0.5 s', now + Duration(seconds=0.5))
-    ask(buf, 'now + 0.5 s, wait 3 s', now + Duration(seconds=0.5), Duration(seconds=3.0))
+    ask(buf, 'now - 30 s', now - Duration(seconds=30.0))  # type: ignore[arg-type]  # Humble rclpy Duration is unannotated (default 0 infers int); it accepts float seconds
+    ask(buf, 'now + 0.5 s', now + Duration(seconds=0.5))  # type: ignore[arg-type]  # Humble rclpy Duration accepts float seconds
+    ask(buf, 'now + 0.5 s, wait 3 s', now + Duration(seconds=0.5), Duration(seconds=3.0))  # type: ignore[arg-type]  # Humble rclpy Duration accepts float seconds
     del listener                                           # stop its thread before shutdown
     rclpy.shutdown()
 

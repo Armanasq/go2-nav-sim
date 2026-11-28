@@ -17,16 +17,19 @@ def test_acceptance_has_every_task_with_valid_rules():
 
 def test_obstacle_box_face_is_where_run_py_expects():
     box = ET.parse(HERE / 'worlds/obstacles.world').getroot().find(".//model[@name='box']")
-    x = float(box.find('pose').text.split()[0])
-    depth = float(box.find('link/collision/geometry/box/size').text.split()[0])
+    assert box is not None
+    pose, size = box.findtext('pose'), box.findtext('link/collision/geometry/box/size')
+    assert pose is not None and size is not None
+    x = float(pose.split()[0])
+    depth = float(size.split()[0])
     assert abs((x - depth / 2) - (-3.0)) < 1e-9           # run.py 1.09: face_x = -3.0, 1.5 m ahead of the spawn x = -4.5
-    assert box.find('static').text == '1'
+    assert box.findtext('static') == '1'
 
 
 def test_empty_world_has_only_the_ground():
     w = ET.parse(HERE / 'worlds/empty.world').getroot()
     assert [m.get('name') for m in w.iter('model')] == ['ground_plane']
-    assert w.find('.//physics/max_step_size').text == '0.001'
+    assert w.findtext('.//physics/max_step_size') == '0.001'
 
 
 def test_extra_xacro_adds_rear_cam_once():

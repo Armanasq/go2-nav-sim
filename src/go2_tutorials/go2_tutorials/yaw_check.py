@@ -23,12 +23,16 @@ class YawCheck(Node):
         self.gt = self.gt_raw = None         # unwrapped ground-truth yaw, last raw value
         self.t0 = self.imu0 = self.gt0 = None
         self.next_print = 0.0
-        self.create_subscription(Float64, 'imu_yaw', lambda m: setattr(self, 'imu', m.data), 10)
+        self.create_subscription(Float64, 'imu_yaw', lambda m: setattr(self, 'imu', m.data), 10)  # type: ignore[reportAttributeAccessIssue]  # rclpy types the callback message as an unbound TypeVar
         self.create_subscription(Odometry, 'odom_gt', self.on_gt, 10)
 
     def on_gt(self, m):
         raw = yaw_of(m.pose.pose.orientation)
-        self.gt = raw if self.gt is None else self.gt + wrap(raw - self.gt_raw)
+        if self.gt is None:
+            self.gt = raw
+        else:
+            assert self.gt_raw is not None   # set together with self.gt
+            self.gt = self.gt + wrap(raw - self.gt_raw)
         self.gt_raw = raw
         if self.imu is None:
             return
@@ -37,6 +41,7 @@ class YawCheck(Node):
             self.t0, self.imu0, self.gt0 = t, self.imu, self.gt
         el = t - self.t0
         if el >= self.next_print:
+            assert self.gt0 is not None      # set with self.t0
             d_gt, d_imu = self.gt - self.gt0, self.imu - self.imu0
             print(f't {el:5.1f} s  gt turned {math.degrees(d_gt):8.2f} deg  imu_yaw turned {math.degrees(d_imu):8.2f} deg  '
                   f'error {math.degrees(d_imu - d_gt):6.2f} deg', flush=True)

@@ -18,7 +18,7 @@ from rclpy.serialization import deserialize_message
 from rosidl_runtime_py.utilities import get_message
 
 HERE = pathlib.Path(__file__).resolve().parent
-spec = importlib.util.spec_from_file_location('arena', HERE / 'make_arena.py'); arena = importlib.util.module_from_spec(spec); spec.loader.exec_module(arena)
+spec = importlib.util.spec_from_file_location('arena', HERE / 'make_arena.py'); assert spec is not None and spec.loader is not None; arena = importlib.util.module_from_spec(spec); spec.loader.exec_module(arena)
 A, B = arena.A, arena.B
 yaw_of = lambda q: math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z))
 TURBO = cv2.applyColorMap(np.arange(256, dtype=np.uint8).reshape(-1, 1), cv2.COLORMAP_TURBO).reshape(256, 3)        # BGR

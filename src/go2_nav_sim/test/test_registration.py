@@ -7,7 +7,7 @@ SCRIPTS = pathlib.Path(__file__).resolve().parents[1] / 'scripts'
 sys.path.insert(0, str(SCRIPTS))
 from registration import GyroYaw, LineMap, register, rot, voxel_downsample, wrap  # noqa: E402
 
-spec = importlib.util.spec_from_file_location('arena', SCRIPTS / 'make_arena.py'); arena = importlib.util.module_from_spec(spec); spec.loader.exec_module(arena)
+spec = importlib.util.spec_from_file_location('arena', SCRIPTS / 'make_arena.py'); assert spec is not None and spec.loader is not None; arena = importlib.util.module_from_spec(spec); spec.loader.exec_module(arena)
 
 
 def outline_points(step=0.03):

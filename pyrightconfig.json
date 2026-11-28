@@ -612,6 +612,32 @@
    ]
   },
   {
+   "root": "tasks/s05_terrain",
+   "extraPaths": [
+    "tasks/s05_terrain",
+    "modules",
+    "modules/m00_math",
+    "modules/m01_anatomy",
+    "modules/m02_description",
+    "modules/m03_simulation",
+    "modules/m04_kinematics",
+    "modules/m06_sensors",
+    "modules/m11_state_estimation",
+    "src/go2_nav_sim/scripts",
+    "projects/common",
+    "projects/p02_teleop-and-safety",
+    "projects/p03_move-in-shapes",
+    "projects/p04_go-to-pose",
+    "projects/p05_sense-and-stop",
+    "projects/p06_avoid-obstacles",
+    "projects/p07_build-a-map",
+    "/opt/ros/humble/lib/python3.10/site-packages",
+    "/opt/ros/humble/local/lib/python3.10/dist-packages",
+    ".venv-modules/lib/python3.10/site-packages/cmeel.prefix/lib/python3.10/site-packages",
+    "/home/arman/.venv/lib/python3.10/site-packages"
+   ]
+  },
+  {
    "root": "tasks/s06_sensors-and-perception",
    "extraPaths": [
     "tasks/s06_sensors-and-perception",
@@ -665,10 +691,37 @@
    ]
   },
   {
+   "root": "tasks/s09_mapping-and-localization",
+   "extraPaths": [
+    "tasks/s09_mapping-and-localization/worlds",
+    "modules",
+    "modules/m00_math",
+    "modules/m01_anatomy",
+    "modules/m02_description",
+    "modules/m03_simulation",
+    "modules/m04_kinematics",
+    "modules/m06_sensors",
+    "modules/m11_state_estimation",
+    "src/go2_nav_sim/scripts",
+    "projects/common",
+    "projects/p02_teleop-and-safety",
+    "projects/p03_move-in-shapes",
+    "projects/p04_go-to-pose",
+    "projects/p05_sense-and-stop",
+    "projects/p06_avoid-obstacles",
+    "projects/p07_build-a-map",
+    "/opt/ros/humble/lib/python3.10/site-packages",
+    "/opt/ros/humble/local/lib/python3.10/dist-packages",
+    ".venv-modules/lib/python3.10/site-packages/cmeel.prefix/lib/python3.10/site-packages",
+    "/home/arman/.venv/lib/python3.10/site-packages"
+   ]
+  },
+  {
    "root": "tasks/s10_autonomous-navigation",
    "extraPaths": [
     "tasks/s10_autonomous-navigation",
     "tasks/s10_autonomous-navigation/worlds",
+    "tasks/s10_autonomous-navigation/params",
     "modules",
     "modules/m00_math",
     "modules/m01_anatomy",

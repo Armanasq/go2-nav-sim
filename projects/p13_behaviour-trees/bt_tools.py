@@ -60,7 +60,9 @@ def waypoints(path):
     """(x, y, yaw) of every literal goal="stamp;frame;x;y;z;qx;qy;qz;qw" in the tree."""
     out = []
     for el in main_tree(path).iter('ComputePathToPose'):
-        f = el.get('goal').split(';')
+        goal = el.get('goal')
+        assert goal is not None
+        f = goal.split(';')
         if len(f) == 9:
             x, y, qz, qw = float(f[2]), float(f[3]), float(f[7]), float(f[8])
             out.append((x, y, 2 * math.atan2(qz, qw)))

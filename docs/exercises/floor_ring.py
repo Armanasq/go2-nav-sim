@@ -24,7 +24,7 @@ def main():
     node.create_subscription(Odometry, '/odom_gt', lambda m: got.setdefault('gt', m), 10)
     while len(got) < 2 or not buf.can_transform('base_footprint', 'lidar_link', Time()):
         rclpy.spin_once(node, timeout_sec=1.0)
-    p = point_cloud2.read_points_numpy(got['cloud'], field_names=('x', 'y', 'z'), skip_nans=True)
+    p = point_cloud2.read_points_numpy(got['cloud'], field_names=['x', 'y', 'z'], skip_nans=True)
     horiz = np.hypot(p[:, 0], p[:, 1])
     elev = np.round(np.degrees(np.arctan2(p[:, 2], horiz)))            # one value per ring, whole degrees
     ring = elev == elev.min()

@@ -22,6 +22,7 @@ def test_wrap():
 
 def test_straight_line():
     s = summarize([(t * 0.1, 0.03 * t, 0.0, 0.0) for t in range(101)])   # 0.3 m/s for 10 s
+    assert s is not None
     assert math.isclose(s['duration'], 10.0) and math.isclose(s['path'], 3.0) and math.isclose(s['speed'], 0.3)
     assert math.isclose(s['displacement'], 3.0) and s['turn_deg'] == 0.0
 
@@ -29,6 +30,7 @@ def test_straight_line():
 def test_turn_counts_past_180():
     # 0.5 rad/s for 10 s in place = 286.5 deg; the stored yaw wraps through +-180 on the way
     s = summarize([(t * 0.02, 0.0, 0.0, wrap(0.5 * t * 0.02)) for t in range(501)])
+    assert s is not None
     assert math.isclose(s['turn_deg'], math.degrees(5.0), rel_tol=1e-9)
     assert s['path'] == 0.0 and math.isclose(s['yaw_deg'], math.degrees(wrap(5.0)))
 

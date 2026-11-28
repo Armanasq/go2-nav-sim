@@ -8,6 +8,7 @@ usage: python3 projects/p05_sense-and-stop/stop_at_obstacle.py [--ros-args -p sp
 import os, signal, sys
 
 import rclpy
+import rclpy.parameter
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
 from rclpy.signals import SignalHandlerOptions
@@ -24,6 +25,7 @@ class StopAtObstacle(Node):
         self.speed, self.gap, self.front, self.lead = p('speed', 0.3), p('gap', 0.5), p('front', FRONT), p('lead', 0.0)
         self.timeout = p('timeout', 0.5)
         topic = p('topic', '/front_range')
+        assert topic is not None
         self.pub = self.create_publisher(Twist, 'cmd_vel', 10)
         self.create_subscription(Range, topic, self.on_range, 10)
         self.state, self.t_reading, self.t_stop = 'wait', None, None
@@ -41,6 +43,7 @@ class StopAtObstacle(Node):
         self.t_reading = self.now()
         if self.state == 'wait':
             self.state = 'walk'
+        assert self.gap is not None
         if self.state == 'walk' and should_stop(m.range, self.gap + self.lead, self.front):
             self.send(0.0)                                         # at once, not at the next timer tick
             age = self.t_reading - (m.header.stamp.sec + m.header.stamp.nanosec * 1e-9)

@@ -8,6 +8,7 @@ Arguments after `--` go to stop_at_obstacle.py. Needs the stack and sense.py run
 import argparse, csv, math, os, pathlib, re, subprocess, sys, time
 
 import rclpy
+import rclpy.parameter
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
@@ -34,8 +35,8 @@ class Rec(Node):
         self.gt, self.rng, self.cmd = [], [], []
         self.pub = self.create_publisher(Twist, 'cmd_vel', 10)
         self.create_subscription(Odometry, 'odom_gt', self.on_gt, 50)
-        self.create_subscription(Range, 'front_range', lambda m: self.rng.append((self.now(), stamp(m), m.range)), 10)
-        self.create_subscription(Twist, 'cmd_vel', lambda m: self.cmd.append((self.now(), m.linear.x)), 10)
+        self.create_subscription(Range, 'front_range', lambda m: self.rng.append((self.now(), stamp(m), m.range)), 10)  # type: ignore[reportAttributeAccessIssue]  # rclpy: create_subscription leaves msg_type untyped, so the callback argument is typed object
+        self.create_subscription(Twist, 'cmd_vel', lambda m: self.cmd.append((self.now(), m.linear.x)), 10)  # type: ignore[reportAttributeAccessIssue]  # rclpy: create_subscription leaves msg_type untyped, so the callback argument is typed object
 
     def now(self):
         return self.get_clock().now().nanoseconds * 1e-9
@@ -88,6 +89,7 @@ def run_once(n, v, extra):
         rclpy.spin_once(n, timeout_sec=0.05)
         if time.time() - t_wall > 300:
             proc.terminate()
+    assert proc.stdout is not None
     out = proc.stdout.read()
     m = re.search(r'STOP t=(\S+) range=(\S+) gap=(\S+) age=(\S+)', out)
     n.send(0.0)

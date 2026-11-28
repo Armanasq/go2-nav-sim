@@ -57,7 +57,7 @@ class Joint:
     type: str
     axis: np.ndarray         # unit vector, body frame
     pos: np.ndarray          # anchor in the body frame
-    range: tuple             # (lo, hi) rad, or None when unlimited
+    range: tuple | None      # (lo, hi) rad, or None when unlimited
     damping: float
     armature: float
     frictionloss: float
@@ -67,11 +67,11 @@ class Joint:
 
 @dataclass
 class Actuator:
-    name: str
+    name: str | None         # MJCF name attribute, optional
     kind: str                # element tag: motor, position, ...
     joint: int
     gear: float
-    ctrlrange: tuple
+    ctrlrange: tuple | None
 
 
 @dataclass
@@ -163,11 +163,13 @@ def parse(path=GO2_XML):
         for c in el.findall('body'):
             walk(c, i, active)
 
-    for el in root.find('worldbody').findall('body'):
+    wb = root.find('worldbody'); assert wb is not None
+    for el in wb.findall('body'):
         walk(el, -1, 'main')
 
     acts = []
-    for el in root.find('actuator'):
+    act = root.find('actuator'); assert act is not None
+    for el in act:
         a = resolve(el, el.tag, 'main')
         jn = [k for k, j in enumerate(joints) if j.name == a['joint']]
         assert len(jn) == 1, f'actuator {a.get("name")}: only joint transmissions are handled'
@@ -261,7 +263,7 @@ def centroidal(robot, qpos, qvel=None):
     vc = v + np.cross(w, ci - p)
     M = m.sum(); c = m @ ci / M
     l = m @ vc
-    k = sum(m[i] * np.cross(ci[i] - c, vc[i]) + R[i] @ robot.bodies[i].inertia @ R[i].T @ w[i] for i in range(len(m)))
+    k = np.asarray(sum(m[i] * np.cross(ci[i] - c, vc[i]) + R[i] @ robot.bodies[i].inertia @ R[i].T @ w[i] for i in range(len(m))))
     return M, c, l, k
 
 

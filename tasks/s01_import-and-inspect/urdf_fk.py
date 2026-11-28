@@ -45,13 +45,15 @@ def rotation_angle(R):
 class Urdf:
     def __init__(self, text):
         self.root_el = ET.fromstring(text)
-        self.links = [l.get('name') for l in self.root_el.findall('link')]
+        self.links = [l.attrib['name'] for l in self.root_el.findall('link')]
         self.joints = {}
         for j in self.root_el.findall('joint'):
             o, a, lim = j.find('origin'), j.find('axis'), j.find('limit')
             o = o.attrib if o is not None else {}
+            p, c = j.find('parent'), j.find('child')
+            assert p is not None and c is not None
             self.joints[j.get('name')] = dict(
-                type=j.get('type'), parent=j.find('parent').get('link'), child=j.find('child').get('link'),
+                type=j.get('type'), parent=p.get('link'), child=c.get('link'),
                 xyz=_vec(o.get('xyz')), rpy=_vec(o.get('rpy')),
                 axis=_vec(a.get('xyz')) if a is not None else np.array([1.0, 0, 0]),
                 limit={k: float(v) for k, v in lim.attrib.items()} if lim is not None else None)
@@ -59,9 +61,9 @@ class Urdf:
         self.inertial = {}                                  # link -> (mass, com in the link frame)
         for l in self.root_el.findall('link'):
             i = l.find('inertial')
-            if i is not None and i.find('mass') is not None:
+            if i is not None and (mass := i.find('mass')) is not None:
                 o = i.find('origin')
-                self.inertial[l.get('name')] = (float(i.find('mass').get('value')), _vec(o.get('xyz') if o is not None else None))
+                self.inertial[l.get('name')] = (float(mass.attrib['value']), _vec(o.get('xyz') if o is not None else None))
         roots = [l for l in self.links if l not in self.parent_joint]
         if len(roots) != 1:
             raise ValueError(f'expected one root link, found {roots}')

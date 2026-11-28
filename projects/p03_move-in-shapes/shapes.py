@@ -80,6 +80,7 @@ class Follower:
 
     def leg(self, x, y, yaw):
         """(distance left along the leg, heading error towards the carrot) for the current leg."""
+        assert self.prev is not None
         (px, py), (tx, ty) = self.prev, self.pts[self.i]
         L = math.hypot(tx - px, ty - py) or 1e-9
         ux, uy = (tx - px) / L, (ty - py) / L

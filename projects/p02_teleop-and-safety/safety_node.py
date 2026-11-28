@@ -20,6 +20,7 @@ class Safety(Node):
         a_max = self.declare_parameter('a_max', [0.5, 0.5, 1.0]).value
         timeout = self.declare_parameter('timeout', 0.6).value
         rate = self.declare_parameter('rate', 20.0).value
+        assert v_max is not None and a_max is not None and timeout is not None and rate is not None
         self.lim = Limiter(tuple(v_max), tuple(a_max), timeout)
         self.pub = self.create_publisher(Twist, 'cmd_vel', 10)
         self.create_subscription(Twist, 'teleop/cmd_vel', self.on_cmd, 10)

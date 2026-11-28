@@ -11,6 +11,8 @@ Ctrl-C or kill -TERM stops the robot: the node sends zero velocity before it exi
 Every 20 Hz tick of simulated time is one row of projects/p04_go-to-pose/results/NAME.csv (default NAME my_run)."""
 import argparse, csv, math, pathlib, signal
 import rclpy
+import rclpy.parameter
+import rclpy.utilities
 from rclpy.signals import SignalHandlerOptions
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
@@ -40,6 +42,9 @@ def errors(pose, goal):
 
 
 class Runner(Node):
+    odom: 'tuple[float, float, float] | None'          # set by the subscription callbacks
+    gt: 'tuple[float, float, float] | None'
+
     def __init__(self, args):
         super().__init__('go_to_pose', parameter_overrides=[rclpy.parameter.Parameter('use_sim_time', value=True)])
         self.gains, self.v_min, self.todo = tuple(args.gains), args.v_min, [GOALS[i - 1] for i in args.goals]
@@ -60,6 +65,7 @@ class Runner(Node):
 
     def next_goal(self, t):
         self.goal = self.todo.pop(0)
+        assert self.start is not None
         self.target, self.gt_target = place(self.goal, self.start[0]), place(self.goal, self.start[1])
         self.ctl, self.t_goal, self.t_done = polar.GoToPose(self.target, self.gains, v_min=self.v_min), t, None
         self.d0 = errors(self.odom, self.target)[0]
@@ -73,6 +79,7 @@ class Runner(Node):
             self.get_logger().info(f'start at odom ({self.odom[0]:.2f}, {self.odom[1]:.2f}, '
                                    f'{math.degrees(self.odom[2]):.1f} deg)')
             self.next_goal(t)
+        assert self.ctl is not None
         v, w, phase = self.ctl.step(*self.odom)
         if phase == 'drive' and errors(self.odom, self.target)[0] > self.d0 + LEASH:
             phase = 'abort'
@@ -91,6 +98,7 @@ class Runner(Node):
                 self.report(t, phase)      # after logging, so the last row of a goal is the one its errors come from
 
     def report(self, t, phase):
+        assert self.t_done is not None
         (de, he), (dt_, ht) = errors(self.odom, self.target), errors(self.gt, self.gt_target)
         self.get_logger().info(f'goal {self.ids[0]} {self.goal}: {phase} after {self.t_done - self.t_goal:.1f} s; '
                                f'error on odom {de:.3f} m {he:+.1f} deg, true {dt_:.3f} m {ht:+.1f} deg')

@@ -12,7 +12,7 @@ BOXES = [  # x, y, size_x, size_y, height, gazebo material
     (2.5, -2.5, 1.2, 1.2, 0.45, "WoodPallet"), (-2.5, 2.0, 2.0, 0.6, 0.8, "Bricks")]
 CYLS = [  # x, y, radius, height, material
     (0.0, 3.4, 0.45, 1.5, "Blue"), (-3.5, 0.0, 0.40, 0.7, "Orange")]
-WALLS = [(0, HALF_Y, 2*HALF_X + WALL_T, WALL_T), (0, -HALF_Y, 2*HALF_X + WALL_T, WALL_T),
+WALLS: list[tuple[float, float, float, float]] = [(0, HALF_Y, 2*HALF_X + WALL_T, WALL_T), (0, -HALF_Y, 2*HALF_X + WALL_T, WALL_T),
          (HALF_X, 0, WALL_T, 2*HALF_Y), (-HALF_X, 0, WALL_T, 2*HALF_Y)]
 RES, MARGIN = 0.05, 0.5
 

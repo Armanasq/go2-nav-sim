@@ -6,6 +6,7 @@ usage:  python3 bt_log.py [--gt results/patrol_gt.csv]       Ctrl-C to stop.
 --gt also logs the true pose (/odom_gt, world frame) at 5 Hz for plotting."""
 import argparse, sys
 import rclpy
+import rclpy.parameter
 from rclpy.node import Node
 from nav2_msgs.msg import BehaviorTreeLog
 from nav_msgs.msg import Odometry
@@ -39,6 +40,7 @@ class BtLog(Node):
         t = self.stamp(m.header.stamp)
         if t - self.last_gt >= 0.2:
             self.last_gt = t
+            assert self.gt is not None
             self.gt.write(f'{t:.2f},{m.pose.pose.position.x + A[0]:.3f},{m.pose.pose.position.y + A[1]:.3f}\n'); self.gt.flush()
 
 

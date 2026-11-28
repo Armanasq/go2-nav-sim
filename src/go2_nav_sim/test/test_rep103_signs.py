@@ -43,7 +43,7 @@ class Recorder:
 
     def __init__(self):
         self.phase, self.odom, self.gt, self.imu, self.tf, self.parents = None, [], [], [], [], set()
-        self.odom_publishers = None                # known only live
+        self.odom_publishers: list[str] | None = None   # known only live
 
     def odometry(self, key, m):
         p, t = m.pose.pose, m.twist.twist
@@ -105,7 +105,7 @@ def from_live():
     rclpy.init()
     node = rclpy.create_node('rep103_sign_test')
     rec, now = Recorder(), [None]
-    node.create_subscription(Clock, '/clock', lambda m: now.__setitem__(0, m.clock.sec + m.clock.nanosec * 1e-9),
+    node.create_subscription(Clock, '/clock', lambda m: now.__setitem__(0, m.clock.sec + m.clock.nanosec * 1e-9),  # type: ignore[reportAttributeAccessIssue]  # rclpy types the callback message as an unbound TypeVar
                              qos_profile_sensor_data)
     node.create_subscription(Odometry, '/odom', lambda m: rec.handle('/odom', m), 50)
     node.create_subscription(Odometry, '/odom_gt', lambda m: rec.handle('/odom_gt', m), 50)

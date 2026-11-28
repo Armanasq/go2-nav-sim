@@ -23,7 +23,7 @@ def decide(cmd, age, stopped, limits=LIMITS, timeout=TIMEOUT):
 def main():
     import rclpy
     from geometry_msgs.msg import Twist
-    from unitree_api.msg import Request   # from unitree_ros2 (cyclonedds_ws); not part of this course's install
+    from unitree_api.msg import Request   # type: ignore[reportMissingImports]  # from unitree_ros2 (cyclonedds_ws); not part of this course's install
 
     rclpy.init()
     node = rclpy.create_node('sport_bridge')

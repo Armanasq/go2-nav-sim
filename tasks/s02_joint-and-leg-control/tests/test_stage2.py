@@ -61,7 +61,8 @@ def test_step_metrics_against_closed_form():
         assert abs(z - zeta) < 1e-12 and abs(wn - 50) < 1e-12
         os_pct = 100 * np.exp(-np.pi * zeta / np.sqrt(1 - zeta ** 2))
         assert abs(lib.step_metrics(t, y, 0, 1)['overshoot_pct'] - os_pct) < 0.01
-        assert abs(lib.zeta_from_overshoot(os_pct) - zeta) < 1e-9
+        z_os = lib.zeta_from_overshoot(os_pct)
+        assert z_os is not None and abs(z_os - zeta) < 1e-9
 
 
 def test_pd_step_matches_prediction():

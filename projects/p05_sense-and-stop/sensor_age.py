@@ -5,6 +5,7 @@ import sys, time
 
 import numpy as np
 import rclpy
+import rclpy.parameter
 from sensor_msgs.msg import Range
 
 rclpy.init()
@@ -12,7 +13,7 @@ n = rclpy.create_node('sensor_age', parameter_overrides=[rclpy.parameter.Paramet
 got = {'front_range': [], 'centre_depth': []}
 for k in got:
     n.create_subscription(Range, k, lambda m, k=k: got[k].append(
-        (n.get_clock().now().nanoseconds * 1e-9, m.header.stamp.sec + m.header.stamp.nanosec * 1e-9)), 10)
+        (n.get_clock().now().nanoseconds * 1e-9, m.header.stamp.sec + m.header.stamp.nanosec * 1e-9)), 10)  # type: ignore[reportAttributeAccessIssue]  # rclpy: create_subscription leaves msg_type untyped, so the callback argument is typed object
 t0 = time.time()
 while time.time() - t0 < float(sys.argv[1] if len(sys.argv) > 1 else 40):
     rclpy.spin_once(n, timeout_sec=0.1)

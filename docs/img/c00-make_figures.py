@@ -307,14 +307,14 @@ def fig_leg_geometry():
     a1.text(-0.175, 0.0, 'trunk', fontsize=7.8, color=C['muted'], ha='center', va='center')
     a1.annotate('', xy=(0.1, 0.06), xytext=(0.0, 0.06), arrowprops=dict(arrowstyle='-|>', color=C['muted'], lw=0.8, mutation_scale=8))
     a1.text(0.105, 0.06, 'forward', fontsize=7.4, color=C['muted'], va='center')
-    a1.add_patch(Wedge(hip, 0.07, ang(3.491), ang(-1.571), width=0.01, fc=LEGS['FL'], alpha=0.3, ec='none'))
-    a1.add_patch(Wedge(knee, 0.06, ang(q2 - 0.838), ang(q2 - 2.723),
+    a1.add_patch(Wedge(hip, 0.07, ang(3.491), ang(-1.571), width=0.01, fc=LEGS['FL'], alpha=0.3, ec='none'))  # type: ignore[arg-type]  # matplotlib stubs type this point as tuple[float, float]; a length-2 ndarray works at runtime
+    a1.add_patch(Wedge(knee, 0.06, ang(q2 - 0.838), ang(q2 - 2.723),  # type: ignore[arg-type]  # matplotlib stubs: center as tuple; ndarray works
                        width=0.01, fc=C['plan'], alpha=0.45, ec='none'))
     a1.plot(*np.c_[hip, knee], color=LEGS['FL'], lw=5, solid_capstyle='round')
     a1.plot(*np.c_[knee, foot], color=LEGS['FL'], lw=3.5, solid_capstyle='round', alpha=0.75)
     for p in (hip, knee):
-        a1.add_patch(Circle(p, 0.012, fc='white', ec=C['ink'], lw=1, zorder=5))
-    a1.add_patch(Circle(foot, 0.012, fc=C['ink'], ec=C['ink'], zorder=5))
+        a1.add_patch(Circle(p, 0.012, fc='white', ec=C['ink'], lw=1, zorder=5))  # type: ignore[arg-type]  # matplotlib stubs type this point as tuple[float, float]; a length-2 ndarray works at runtime
+    a1.add_patch(Circle(foot, 0.012, fc=C['ink'], ec=C['ink'], zorder=5))  # type: ignore[arg-type]  # matplotlib stubs type this point as tuple[float, float]; a length-2 ndarray works at runtime
     a1.axhline(foot[1] - 0.012, color=C['gt'], lw=0.8)
     a1.text(0.08, -0.05, 'hip flexion (thigh)\n-1.571 to 3.491 rad, 23.7 N·m', fontsize=7.6, color=LEGS['FL'], va='top')
     a1.text(knee[0] - 0.07, knee[1], 'knee\n-2.723 to -0.838 rad\n35.55 N·m', fontsize=7.6, ha='right', va='center', color=C['plan'])
@@ -326,14 +326,14 @@ def fig_leg_geometry():
     a2.add_patch(FancyBboxPatch((-0.1, -0.03), 0.2, 0.06, boxstyle='round,pad=0,rounding_size=0.01', fc=C['fill'], ec=C['muted'], lw=0.8))
     a2.text(-0.03, 0.0, 'trunk', fontsize=7.8, color=C['muted'], ha='center', va='center')
     hp = np.array([0.0465, 0.0])                         # hip_offset_y (const.xacro), seen from the front: robot's left = right
-    a2.add_patch(Wedge(hp, 0.16, 270 - 60, 270 + 60, width=0.01, fc=LEGS['FL'], alpha=0.3, ec='none'))
+    a2.add_patch(Wedge(hp, 0.16, 270 - 60, 270 + 60, width=0.01, fc=LEGS['FL'], alpha=0.3, ec='none'))  # type: ignore[arg-type]  # matplotlib stubs type this point as tuple[float, float]; a length-2 ndarray works at runtime
     for th, alpha in ((1.047, 0.3), (-1.047, 0.3), (0.0, 1.0)):                # the two limits and zero (leg.xacro)
         R = np.array([[np.cos(th), -np.sin(th)], [np.sin(th), np.cos(th)]])
         lat = hp + R @ [0.0955, 0]
         ft = lat + R @ [0, -0.3]
         a2.plot(*np.c_[hp, lat], color=C['muted'], lw=2.2, alpha=alpha)
         a2.plot(*np.c_[lat, ft], color=LEGS['FL'], lw=4, alpha=alpha, solid_capstyle='round')
-    a2.add_patch(Circle(hp, 0.012, fc='white', ec=C['ink'], lw=1, zorder=5))
+    a2.add_patch(Circle(hp, 0.012, fc='white', ec=C['ink'], lw=1, zorder=5))  # type: ignore[arg-type]  # matplotlib stubs type this point as tuple[float, float]; a length-2 ndarray works at runtime
     a2.text(0.17, -0.2, 'hip abduction, axis x\n-1.047 to 1.047 rad\n23.7 N·m', fontsize=7.6, color=LEGS['FL'], va='center')
     a2.text(hp[0] + 0.105, 0.0, 'offset\n0.0955 m', fontsize=7.0, color=C['muted'], ha='left', va='center')
     a2.set_title("front view: robot's left leg (on the right)", fontsize=9)
@@ -541,7 +541,7 @@ def fig_goal_run(run):
     ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.14), fontsize=7.2, ncol=2)
     ax.set(xlabel='x [m]', ylabel='y [m]')
     B = np.array(run['arena']['B']); m = run['metrics']
-    ax2.add_patch(Circle(B, m['goal_tolerance_m'], fc='none', ec=C['bad'], ls='--', lw=1))
+    ax2.add_patch(Circle(B, m['goal_tolerance_m'], fc='none', ec=C['bad'], ls='--', lw=1))  # type: ignore[arg-type]  # matplotlib stubs type this point as tuple[float, float]; a length-2 ndarray works at runtime
     ax2.text(B[0], B[1] + m['goal_tolerance_m'] + 0.03, f"goal tolerance {m['goal_tolerance_m']} m", ha='center', fontsize=7.6, color=C['bad'])
     ax2.plot(*gt.T, color=C['gt'], lw=1.8); ax2.plot(*od.T, color=C['est'], lw=1.0); ax2.plot(*am.T, color=C['est2'], lw=0.8, ls='--')
     ax2.plot(*B, '+', color=C['bad'], ms=10)
@@ -708,6 +708,7 @@ def fig_final_approach():
     """Chapter 0 exercise and chapter 3 exercise: where each recorded run really stopped and where its last AMCL pose put it.
     Trajectories from site/data/runs/wN/run.json, goal errors from results/run_wN.json."""
     fig, axs = plt.subplots(1, 3, figsize=(7.8, 3.0), sharey=True)
+    B = tol = None
     for ax, w in zip(axs, ('w1', 'w2', 'w3')):
         run = json.loads((ROOT / f'site/data/runs/{w}/run.json').read_text())
         res = json.loads((ROOT / f'results/run_{w}.json').read_text())
@@ -716,7 +717,7 @@ def fig_final_approach():
         am = np.array([p['amcl'][:2] for p in run['samples'] if p.get('amcl')])
         d_gt, d_am = np.linalg.norm(gt[-1] - B), np.linalg.norm(am[-1] - B)
         assert abs(d_gt - res['goal_error_m']) < 0.01, (w, d_gt)
-        ax.add_patch(Circle(B, tol, fc=C['fill'], ec=C['bad'], ls='--', lw=1))
+        ax.add_patch(Circle(B, tol, fc=C['fill'], ec=C['bad'], ls='--', lw=1))  # type: ignore[arg-type]  # matplotlib stubs type this point as tuple[float, float]; a length-2 ndarray works at runtime
         ax.plot(*B, '+', color=C['bad'], ms=9)
         ax.plot(*gt.T, color=C['gt'], lw=1.8, label='ground truth')
         ax.plot(*am.T, color=C['est2'], lw=0.9, ls='--', label='/amcl_pose')
@@ -729,6 +730,7 @@ def fig_final_approach():
         ax.set_xlabel('x [m]')
     axs[0].set_ylabel('y [m]')
     axs[0].legend(loc='lower right', fontsize=7.0)
+    assert B is not None and tol is not None                # set by the last run of the loop
     axs[1].text(B[0], B[1] - tol - 0.06, f'tolerance {tol} m', ha='center', fontsize=7.0, color=C['bad'])
     save(fig, '00-final-approach')
 

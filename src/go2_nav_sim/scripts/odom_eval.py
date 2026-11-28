@@ -14,8 +14,8 @@ def yaw(q):
 
 def main():
     rclpy.init(); n = Node('odom_eval'); est, gt, rows = {}, {}, []
-    n.create_subscription(Odometry, sys.argv[2] if len(sys.argv) > 2 else '/odom', lambda m: est.update(x=m.pose.pose.position.x, y=m.pose.pose.position.y, a=yaw(m.pose.pose.orientation)), 10)
-    n.create_subscription(Odometry, '/odom_gt', lambda m: gt.update(x=m.pose.pose.position.x, y=m.pose.pose.position.y, a=yaw(m.pose.pose.orientation)), 10)
+    n.create_subscription(Odometry, sys.argv[2] if len(sys.argv) > 2 else '/odom', lambda m: est.update(x=m.pose.pose.position.x, y=m.pose.pose.position.y, a=yaw(m.pose.pose.orientation)), 10)  # type: ignore[reportAttributeAccessIssue]  # rclpy types the callback message as an unbound TypeVar
+    n.create_subscription(Odometry, '/odom_gt', lambda m: gt.update(x=m.pose.pose.position.x, y=m.pose.pose.position.y, a=yaw(m.pose.pose.orientation)), 10)  # type: ignore[reportAttributeAccessIssue]  # rclpy types the callback message as an unbound TypeVar
     t0 = time.time(); last = 0
     while time.time() - t0 < float(sys.argv[1] if len(sys.argv) > 1 else 30):
         rclpy.spin_once(n, timeout_sec=0.05)

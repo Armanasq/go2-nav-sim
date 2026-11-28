@@ -34,9 +34,9 @@ class Probe(Node):
         self.gt = []                         # (sim, x, y, yaw) in map coordinates
         for k in TOPICS:
             self.create_subscription(Twist, k, lambda m, k=k: self.log[k].append(
-                (time.monotonic(), self.now(), m.linear.x, m.angular.z)), 50)
+                (time.monotonic(), self.now(), m.linear.x, m.angular.z)), 50)  # type: ignore[reportAttributeAccessIssue]  # rclpy: create_subscription leaves msg_type untyped, so the callback argument is typed object
         self.create_subscription(Bool, 'e_stop', lambda m: self.log['e_stop'].append(
-            (time.monotonic(), self.now(), float(m.data), 0.0)), 10)
+            (time.monotonic(), self.now(), float(m.data), 0.0)), 10)  # type: ignore[reportAttributeAccessIssue]  # rclpy: create_subscription leaves msg_type untyped, so the callback argument is typed object
         self.create_subscription(Odometry, 'odom_gt', self.on_gt, 50)
         self.teleop = self.create_publisher(Twist, 'teleop/cmd_vel', 10)
         self.lock = self.create_publisher(Bool, 'e_stop', 10)

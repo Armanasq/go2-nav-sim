@@ -14,7 +14,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'modules'))
 import figstyle as fs  # noqa: E402
 import matplotlib.pyplot as plt  # noqa: E402
-from matplotlib.patches import FancyBboxPatch  # noqa: E402
+from matplotlib.patches import FancyBboxPatch, Rectangle  # noqa: E402
 
 OUT = ROOT / 'docs/img'
 C = fs.C
@@ -94,9 +94,11 @@ def urdf_tree(path=URDF_PATH):
     root = ET.parse(path).getroot()
     kids, joint = {}, {}
     for j in root.findall('joint'):
-        p, c = j.find('parent').get('link'), j.find('child').get('link')
+        par, chi, o = j.find('parent'), j.find('child'), j.find('origin')
+        assert par is not None and chi is not None
+        p, c = par.get('link'), chi.get('link')
         kids.setdefault(p, []).append(c)
-        joint[c] = (j.get('name'), j.get('type'), (j.find('origin').get('xyz') if j.find('origin') is not None else '0 0 0'))
+        joint[c] = (j.get('name'), j.get('type'), (o.get('xyz') if o is not None else '0 0 0'))
     order = {'trunk': 0, 'lidar_link': 1, 'camera_link': 2, 'chase_cam': 3}
     kids['base_link'].sort(key=lambda k: order.get(k, 9))
     legorder = ['imu_link', 'lf_hip_link', 'rf_hip_link', 'lh_hip_link', 'rh_hip_link']
@@ -297,7 +299,7 @@ def gait_timing():
         for mask, alpha, hatch in ((stance, 0.85, None), (swing, 0.18, None)):
             edges = np.flatnonzero(np.diff(np.r_[0, mask.astype(int), 0]))
             for a, b in zip(edges[::2], edges[1::2]):
-                ax.add_patch(plt.Rectangle((t[a], y - 0.35), t[b - 1] - t[a], 0.7, fc=col[i], alpha=alpha, ec='none'))
+                ax.add_patch(Rectangle((float(t[a]), y - 0.35), float(t[b - 1] - t[a]), 0.7, fc=col[i], alpha=alpha, ec='none'))
     for x in np.arange(0, 1.51, 0.25):
         ax.axvline(x, color=C['grid'], lw=0.6, zorder=0)
     ax.set_yticks(range(4)); ax.set_yticklabels(names[::-1]); ax.set_ylim(-0.6, 3.9); ax.set_xlim(0, 1.5)
@@ -394,19 +396,21 @@ def rpy_R(r, p, y):
 def camera_optical():
     R = rpy_R(-math.pi / 2, 0, -math.pi / 2)                    # camera_optical_joint in sensors.xacro
     assert np.allclose(R, [[0, 0, 1], [-1, 0, 0], [0, -1, 0]], atol=1e-6)
+    from mpl_toolkits.mplot3d import Axes3D
     fig = plt.figure(figsize=(9.5, 3.9))
     for k, (title, M) in enumerate((('camera_link (REP-103): x forward, y left, z up', np.eye(3)),
                                     ('camera_optical: z forward, x right, y down', R))):
         ax = fig.add_subplot(1, 3, k + 1, projection='3d')
+        assert isinstance(ax, Axes3D)
         ax.view_init(elev=18, azim=-140)
         for i, (n, c) in enumerate((('x', C['bad']), ('y', C['good']), ('z', C['est']))):
             v = M[:, i]
             ax.quiver(0, 0, 0, *v, color=c, lw=2, arrow_length_ratio=0.15)
-            ax.text(*(1.18 * v), n, color=c, fontsize=11, fontweight='semibold', ha='center')
+            ax.text(*(1.18 * v), n, color=c, fontsize=11, fontweight='semibold', ha='center')  # type: ignore[call-arg]  # pyright lets *ndarray fill every positional of Axes3D.text; it is 3 values (x, y, z)
         ax.quiver(0, 0, 0, 1.5, 0, 0, color=C['muted'], lw=0.8, ls=':', arrow_length_ratio=0.05)
         ax.text(1.6, 0, -0.15, 'robot\nforward', fontsize=7, color=C['muted'])
         ax.set_xlim(-1, 1.4); ax.set_ylim(-1, 1); ax.set_zlim(-1, 1); ax.set_box_aspect((1.2, 1, 1))
-        ax.set_xticks([]); ax.set_yticks([]); ax.set_zticks([])
+        ax.set_xticks([]); ax.set_yticks([]); ax.set_zticks([])  # type: ignore[operator]  # Axes3D.set_zticks is an untyped _axis_method_wrapper
         ax.set_xlabel('robot x', fontsize=7, labelpad=-12); ax.set_ylabel('robot y', fontsize=7, labelpad=-12)
         ax.set_zlabel('robot z', fontsize=7, labelpad=-12)
         ax.set_title(title, fontsize=8.5, loc='center')

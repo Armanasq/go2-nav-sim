@@ -9,7 +9,9 @@ SCAN_RANGE_MIN = 0.40                           # src/go2_nav_sim/config/scan.ya
 
 
 def load(name):
-    return next(iter(yaml.safe_load((HERE / 'config' / name).read_text()).values()))['ros__parameters']
+    cfg = yaml.safe_load((HERE / 'config' / name).read_text())
+    assert isinstance(cfg, dict)
+    return next(iter(cfg.values()))['ros__parameters']
 
 
 def polygon(params, name):

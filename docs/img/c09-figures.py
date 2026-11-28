@@ -9,6 +9,7 @@ import math
 import os
 import pathlib
 import sys
+from typing import Any
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 OUT = ROOT / 'docs/img'
@@ -87,6 +88,7 @@ def run_arrays():
 def test_geometry():
     """The synthetic arena scan generator of src/go2_nav_sim/test/test_registration.py (same geometry as make_arena.py)."""
     spec = importlib.util.spec_from_file_location('tr', ROOT / 'src/go2_nav_sim/test/test_registration.py')
+    assert spec is not None and spec.loader is not None
     tr = importlib.util.module_from_spec(spec); spec.loader.exec_module(tr)
     return tr
 
@@ -586,11 +588,11 @@ def ch10_inflation():
 def ch10_costmap():
     from scipy import ndimage
     import matplotlib.colors as mcolors
-    yml = dict(resolution=0.05, origin=(-6.5, -5.5))                               # src/go2_nav_sim/maps/arena.yaml
+    yml: dict[str, Any] = dict(resolution=0.05, origin=(-6.5, -5.5))                               # src/go2_nav_sim/maps/arena.yaml
     raw = plt.imread(ROOT / 'src/go2_nav_sim/maps/arena.pgm')
     raw = raw if raw.dtype == np.uint8 else (raw * 255).astype(np.uint8)
     occ = (255 - raw.astype(float)) / 255 > 0.65                                 # trinary: occupied above occupied_thresh
-    d = ndimage.distance_transform_edt(~occ) * yml['resolution']
+    d = np.asarray(ndimage.distance_transform_edt(~occ)) * yml['resolution']
     cost = nav2_cost(d)
     H, Wd = occ.shape; ext = (yml['origin'][0], yml['origin'][0] + Wd * 0.05, yml['origin'][1], yml['origin'][1] + H * 0.05)
     cmap = mcolors.LinearSegmentedColormap.from_list('cost', ['#ffffff', '#cfd5dd', '#7a8392', '#1f2328'])
@@ -730,7 +732,7 @@ def ch11_dashboard():
               ((1282, 84), '3', '/camera/depth/image_raw'), ((24, 476), '4', '/lidar/points'),
               ((653, 768), '5', '/slam/map  /plan  /scan  /odom_gt'), ((1282, 768), '6', '/odom  /amcl_pose  /odom_gt'),
               ((24, 868), '7', '/imu/data'), ((653, 868), '7', '/imu/data'), ((1282, 868), '7', '/imu/data')]
-    f = plt.figure(figsize=(9.6, 9.6 * H0 / W0)); ax = f.add_axes([0, 0, 1, 1]); ax.imshow(im); ax.axis('off')
+    f = plt.figure(figsize=(9.6, 9.6 * H0 / W0)); ax = f.add_axes((0, 0, 1, 1)); ax.imshow(im); ax.axis('off')
     for (x, y), n, topic in panels:
         ax.text(x + 8, y + 52, f' {n} ', fontsize=10, weight='bold', color='#1f2328', va='top',
                 bbox=dict(fc='#ffd27a', ec='none', boxstyle='round,pad=0.25'))
@@ -886,14 +888,15 @@ def video_limp(path=ROOT / 'media/c09-ch12-limp.mp4', T=5.0, fps=25, limp_after=
     """MuJoCo clip for chapter 12: the Go2 stands under a PD controller, then all joint torques go to zero at `limp_after` s."""
     import subprocess
     import mujoco
-    W, H = size; frames = []
+    W, H = size; frames = []; r = cam = None
     def grab(m, d):
-        if not hasattr(grab, 'r'):
+        nonlocal r, cam
+        if r is None or cam is None:
             m.vis.global_.offwidth, m.vis.global_.offheight = W, H
-            grab.r = mujoco.Renderer(m, H, W); grab.cam = mujoco.MjvCamera()
-            grab.cam.type = mujoco.mjtCamera.mjCAMERA_FREE; grab.cam.distance = 1.5; grab.cam.azimuth = 135; grab.cam.elevation = -18
-        grab.cam.lookat[:] = [d.qpos[0], d.qpos[1], 0.15]
-        grab.r.update_scene(d, camera=grab.cam); frames.append(grab.r.render().copy())
+            r = mujoco.Renderer(m, H, W); cam = mujoco.MjvCamera()
+            cam.type = mujoco.mjtCamera.mjCAMERA_FREE; cam.distance = 1.5; cam.azimuth = 135; cam.elevation = -18
+        cam.lookat[:] = [d.qpos[0], d.qpos[1], 0.15]
+        r.update_scene(d, camera=cam); frames.append(r.render().copy())
     _go2_sim(limp_after, T, fps, grab)
     ff = subprocess.Popen(['ffmpeg', '-v', 'error', '-y', '-f', 'rawvideo', '-pix_fmt', 'rgb24', '-s', f'{W}x{H}', '-r', str(fps), '-i', '-',
                            '-c:v', 'libx264', '-preset', 'slow', '-crf', '26', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', str(path)],

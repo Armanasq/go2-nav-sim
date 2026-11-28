@@ -86,12 +86,12 @@ def snapshot_figure(snap, out):
     d, b = front_min(r, a0, inc, half, float(z['range_min']), float(z['range_max']))
     fig = plt.figure(figsize=(13, 4.8))
     ax = fig.add_subplot(1, 2, 1, projection='polar')
-    ax.set_theta_zero_location('N')                                    # straight ahead up, left to the left
+    ax.set_theta_zero_location('N')                                    # straight ahead up, left to the left  # type: ignore[attr-defined]  # matplotlib: add_subplot(projection='polar') is typed as Axes but returns PolarAxes
     ok = np.isfinite(r)
     ax.plot(a[ok], r[ok], '.', ms=1.5, color='#2563eb')
     ax.fill_between(np.linspace(-half, half, 30), 0, 15, color='#d97706', alpha=0.15)
     ax.plot([b], [d], 'o', color='#d97706')
-    ax.set_rmax(8); ax.set_title(f'/scan (base_footprint, bearing + = left), nearest in +-20 deg: {d:.2f} m at {math.degrees(b):+.1f} deg', fontsize=9)
+    ax.set_rmax(8); ax.set_title(f'/scan (base_footprint, bearing + = left), nearest in +-20 deg: {d:.2f} m at {math.degrees(b):+.1f} deg', fontsize=9)  # type: ignore[attr-defined]  # matplotlib: add_subplot(projection='polar') is typed as Axes but returns PolarAxes
     dep = z['depth']
     ax2 = fig.add_subplot(1, 2, 2)
     im = ax2.imshow(dep, cmap='viridis', vmin=0.3, vmax=8.0)

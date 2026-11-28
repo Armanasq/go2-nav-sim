@@ -15,6 +15,7 @@ def with_tree(context):
     # Copy the course's Nav2 parameters and add one key. (nav2_common's RewrittenYaml only rewrites keys that already exist
     # in the file; this one does not, so it was silently dropped. See "If it goes wrong".)
     params = yaml.safe_load(open(os.path.join(me, 'config/nav2_params.yaml')))
+    assert isinstance(params, dict)
     params['bt_navigator']['ros__parameters']['default_nav_to_pose_bt_xml'] = LaunchConfiguration('bt_xml').perform(context)
     out = tempfile.NamedTemporaryFile('w', prefix='nav2_params_bt_', suffix='.yaml', delete=False)
     yaml.safe_dump(params, out); out.close()

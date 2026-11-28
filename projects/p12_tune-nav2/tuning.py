@@ -23,6 +23,7 @@ def load_map(yaml_path):
     import yaml
     from PIL import Image
     y = yaml.safe_load(open(yaml_path))
+    assert isinstance(y, dict)
     img = np.array(Image.open(pathlib.Path(yaml_path).parent / y['image']))
     occ = (255 - img) / 255.0 > y['occupied_thresh']
     return occ[::-1], tuple(y['origin'][:2]), y['resolution']

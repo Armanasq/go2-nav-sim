@@ -478,6 +478,7 @@ def optical_frame():
                                                       ('camera_optical (z forward, x right, y down)', False, True),
                                                       ('both, same origin', True, True))):
         ax = fig.add_subplot(1, 3, k + 1, projection='3d')
+        assert isinstance(ax, Axes3D)
         ax.set_proj_type('ortho'); ax.view_init(elev=22, azim=-128)
         cols = ('#c0392b', '#1e8449', '#1f5fbf')
         if show_link:
@@ -486,16 +487,16 @@ def optical_frame():
                 ax.quiver(0, 0, 0, *v, color=cols[i], lw=2.0 if not show_opt else 1.0, arrow_length_ratio=0.15,
                           alpha=1 if not show_opt else 0.45)
                 if not (show_opt and n == 'x'):          # x_link lies under z_opt in the combined panel
-                    ax.text(*(1.12 * v), n + ('' if not show_opt else '$_{link}$'), color=cols[i],
+                    ax.text(*(1.12 * v), n + ('' if not show_opt else '$_{link}$'), color=cols[i],  # type: ignore[call-arg]  # pyright lets *ndarray fill every positional of Axes3D.text; it is 3 values (x, y, z)
                             fontsize=9 if not show_opt else 7.5, alpha=1 if not show_opt else 0.6)
         if show_opt:
             for i, n in enumerate('xyz'):
                 v = R[:, i]
                 ax.quiver(0, 0, 0, *v, color=cols[i], lw=2.0, arrow_length_ratio=0.15)
                 lab = n if not show_link else n + '$_{opt}$'
-                ax.text(*(1.2 * v + np.array([0, 0, 0.08])), lab, color=cols[i], fontsize=9)
+                ax.text(*(1.2 * v + np.array([0, 0, 0.08])), lab, color=cols[i], fontsize=9)  # type: ignore[call-arg]  # pyright lets *ndarray fill every positional of Axes3D.text; it is 3 values (x, y, z)
         ax.set_xlim(-1, 1); ax.set_ylim(-1, 1); ax.set_zlim(-1, 1)
-        ax.set_xticks([]); ax.set_yticks([]); ax.set_zticks([]); ax.set_box_aspect((1, 1, 1))
+        ax.set_xticks([]); ax.set_yticks([]); ax.set_zticks([]); ax.set_box_aspect((1, 1, 1))  # type: ignore[operator]  # Axes3D.set_zticks is an untyped _axis_method_wrapper
         ax.set_axis_off()
         ax.set_title(title, fontsize=8.5, loc='center')
     fig.text(0.5, 0.01, r'$x_{opt} = -y_{link}$,   $y_{opt} = -z_{link}$,   $z_{opt} = x_{link}$   (columns of $R$ from rpy = (−π/2, 0, −π/2))',
@@ -557,7 +558,7 @@ def lookup_time():
 def compose_chain():
     """One lidar point carried through lidar_link -> base_link -> base_footprint -> odom, with the numbers of chapter 5."""
     fig = plt.figure(figsize=(9.0, 3.7))
-    ax = fig.add_axes([0, 0.0, 0.66, 1]); ax.set_xlim(0, 13.2); ax.set_ylim(0, 7.4); ax.axis('off')
+    ax = fig.add_axes((0, 0.0, 0.66, 1)); ax.set_xlim(0, 13.2); ax.set_ylim(0, 7.4); ax.axis('off')
     frames = [('lidar_link', '(1.2545, −0.0044, 0.0219)'), ('base_link', '(1.2545, −0.0044, 0.1219)'),
               ('base_footprint', '(1.2545, −0.0044, 0.5479)'), ('odom', '(0.7036, 0.4181, 0.5479)')]
     ys = [6.2, 4.4, 2.6, 0.8]
@@ -572,7 +573,7 @@ def compose_chain():
             family=MONO)
     ax.text(4.3, 0.05, 'tf2 lookup odom←lidar_link: (0.7035, 0.4181, 0.5479)', fontsize=7.6, color=C['good'], family=MONO)
     # top view in odom
-    b = fig.add_axes([0.70, 0.13, 0.29, 0.78])
+    b = fig.add_axes((0.70, 0.13, 0.29, 0.78))
     yaw = math.atan2(0.1362, 0.9907); o = np.array([-0.5398, 0.2516])
     fs.frame_axes(b, (0, 0), length=0.35, names=('x', 'y'), color=C['ink'])
     Rz = np.array([[math.cos(yaw), -math.sin(yaw)], [math.sin(yaw), math.cos(yaw)]])

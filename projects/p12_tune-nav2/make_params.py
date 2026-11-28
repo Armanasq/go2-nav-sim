@@ -74,7 +74,7 @@ def make(base, radius, scale, footprint, planner, controller):
 if __name__ == '__main__':
     base = yaml.safe_load(BASE.read_text())
     for name, s in SETTINGS.items():
-        (HERE / 'params' / f'{name}.yaml').write_text(yaml.safe_dump(make(base, *s), sort_keys=False))
+        (HERE / 'params' / f'{name}.yaml').write_text(yaml.safe_dump(make(base, *s), sort_keys=False))  # type: ignore[reportArgumentType]  # PyYAML has no stubs: pyright infers bytes | str | None from source; safe_dump without a stream returns str
         changes = [f'{k}={v}' for k, v in zip(('inflation_radius', 'cost_scaling_factor', 'footprint'), s[:3]) if v is not None]
         changes += [d.get('plugin', str(d)) for d in s[3:] if d is not None]
         print(f'params/{name}.yaml: {", ".join(changes) or "unchanged"}')
