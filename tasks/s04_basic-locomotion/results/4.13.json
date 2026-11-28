@@ -1,0 +1,38 @@
+{
+  "id": "4.13",
+  "title": "Accelerate and decelerate",
+  "status": "verified",
+  "metrics": {
+    "steady_speed_m_s": 0.2917456976262641,
+    "steady_ratio": 0.9724856587542138,
+    "rise_time_s": 0.34815551475899364,
+    "fall_time_s": 0.3559661315139122,
+    "delay_on_s": 0.05953897060889757,
+    "delay_off_s": -0.05272718047801739,
+    "window_note": "0.5 s centred window: a perfect step would show a 0.4 s 10-90 % time"
+  },
+  "acceptance": "rise_time_s <= 1.5; fall_time_s <= 1.0; 0.9 <= steady_ratio <= 1.1",
+  "checks": {
+    "rise_time_s": {
+      "value": 0.34815551475899364,
+      "rule": "rise_time_s <= 1.5",
+      "passed": true
+    },
+    "fall_time_s": {
+      "value": 0.3559661315139122,
+      "rule": "fall_time_s <= 1.0",
+      "passed": true
+    },
+    "steady_ratio": {
+      "value": 0.9724856587542138,
+      "rule": "0.9 <= steady_ratio <= 1.1",
+      "passed": true
+    }
+  },
+  "command": "python3 run.py 4.13",
+  "outputs": [
+    "figures/4-13_accel.png"
+  ],
+  "gait": "default",
+  "wall_s": 8.9
+}

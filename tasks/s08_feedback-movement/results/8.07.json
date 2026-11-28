@@ -1,0 +1,36 @@
+{
+  "id": "8.07",
+  "title": "Walk a circle",
+  "status": "verified",
+  "metrics": {
+    "rms_radial_err_m": 0.02268396138428882,
+    "max_radial_err_m": 0.07168020439013201,
+    "mean_radial_err_m": -0.009916543487005988,
+    "final_pos_err_m": 0.06718623319739948,
+    "odom_gap_m": 0.01727913294148985,
+    "time_s": 24.1
+  },
+  "acceptance": "rms_radial_err_m <= 0.05; max_radial_err_m <= 0.1; final_pos_err_m <= 0.1",
+  "checks": {
+    "rms_radial_err_m": {
+      "value": 0.02268396138428882,
+      "rule": "rms_radial_err_m <= 0.05",
+      "passed": true
+    },
+    "max_radial_err_m": {
+      "value": 0.07168020439013201,
+      "rule": "max_radial_err_m <= 0.1",
+      "passed": true
+    },
+    "final_pos_err_m": {
+      "value": 0.06718623319739948,
+      "rule": "final_pos_err_m <= 0.1",
+      "passed": true
+    }
+  },
+  "command": "python3 run.py 8.07",
+  "outputs": [
+    "figures/s8_07.png"
+  ],
+  "wall_s": 55.7
+}

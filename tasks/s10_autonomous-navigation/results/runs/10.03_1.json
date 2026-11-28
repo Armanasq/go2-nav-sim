@@ -1,0 +1,30 @@
+{
+ "mode": "goto",
+ "world": "obstacles",
+ "localise": [
+  "RESULT SUCCEEDED  sim_time 1.7 s  ground-truth final error 0.04 m  final pos (-4.46, -3.49)"
+ ],
+ "legs": [
+  {
+   "result": "FAILED",
+   "status": 6,
+   "status_name": "ABORTED",
+   "sim_time_s": 159.38,
+   "t_start": 21.765,
+   "t_end": 181.145,
+   "goal": [
+    -0.5,
+    -0.5,
+    0.6435
+   ],
+   "final_error_m": 1.022,
+   "path_m": 10.3,
+   "straight_m": 4.96,
+   "min_clearance_m": 0.555,
+   "max_displacement_m": 5.311,
+   "amcl_rmse_m": 0.441,
+   "amcl_max_m": 1.542
+  }
+ ],
+ "after_end_walked_m": 0.009
+}

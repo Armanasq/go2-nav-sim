@@ -1,0 +1,27 @@
+[amcl-2] [WARN] [1795847345.626151189] [amcl]: Failed to transform initial pose in time (Lookup would require extrapolation into the future.  Requested time 30.170000 but the latest data is at time 30.153000, when looking up transform from frame [base_footprint] to frame [odom])
+[controller_server-4] [WARN] [1795847348.527471896] [controller_server]: No goal checker was specified in parameter 'current_goal_checker'. Server will use only plugin loaded general_goal_checker . This warning will appear once.
+[bt_navigator-8] [WARN] [1795847403.104282433] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[bt_navigator-8] [WARN] [1795847403.192708450] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[bt_navigator-8] [WARN] [1795847416.332759742] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[bt_navigator-8] [WARN] [1795847416.553166875] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[bt_navigator-8] [WARN] [1795847456.009578160] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[bt_navigator-8] [WARN] [1795847456.012039621] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[bt_navigator-8] [WARN] [1795847503.013677393] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[bt_navigator-8] [WARN] [1795847514.722521019] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[amcl-2] [WARN] [1795847795.553301677] [amcl]: Failed to transform initial pose in time (Lookup would require extrapolation into the future.  Requested time 342.215000 but the latest data is at time 342.213000, when looking up transform from frame [base_footprint] to frame [odom])
+[controller_server-4] [WARN] [1795847856.061027436] [controller_server]: Resulting plan has 0 poses in it.
+[controller_server-4] [WARN] [1795847856.126825807] [controller_server]: Resulting plan has 0 poses in it.
+[controller_server-4] [WARN] [1795847856.193445765] [controller_server]: Resulting plan has 0 poses in it.
+[controller_server-4] [WARN] [1795847856.260104759] [controller_server]: Resulting plan has 0 poses in it.
+[controller_server-4] [WARN] [1795847856.326849643] [controller_server]: Resulting plan has 0 poses in it.
+[controller_server-4] [WARN] [1795847856.393449631] [controller_server]: Resulting plan has 0 poses in it.
+[controller_server-4] [ERROR] [1795847856.393521294] [controller_server]: Controller patience exceeded
+[controller_server-4] [WARN] [1795847856.394401013] [controller_server]: [follow_path] [ActionServer] Aborting handle.
+[planner_server-6] [WARN] [1795847856.412585691] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795847856.412717843] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (0.50, -3.50)
+[planner_server-6] [WARN] [1795847856.412737143] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[planner_server-6] [WARN] [1795847856.438481128] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795847856.438547400] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (0.50, -3.50)
+[planner_server-6] [WARN] [1795847856.438563538] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[bt_navigator-8] [WARN] [1795847856.468377195] [bt_navigator]: [navigate_to_pose] [ActionServer] Aborting handle.
+[bt_navigator-8] [ERROR] [1795847856.468605810] [bt_navigator]: Goal failed

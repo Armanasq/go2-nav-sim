@@ -1,0 +1,106 @@
+{
+  "id": "3.12",
+  "title": "Return to the original posture",
+  "status": "verified",
+  "checks": {
+    "max_base_position_error_m": {
+      "value": 0.0001296496466482846,
+      "rule": "max 0.005",
+      "passed": true
+    },
+    "max_attitude_error_deg": {
+      "value": 0.0434296416303856,
+      "rule": "max 0.5",
+      "passed": true
+    },
+    "max_foot_position_error_m": {
+      "value": 0.0004456845742802242,
+      "rule": "max 0.005",
+      "passed": true
+    },
+    "max_joint_error_rad": {
+      "value": 0.0009551390158826223,
+      "rule": "max 0.02",
+      "passed": true
+    },
+    "n_cycles_completed": {
+      "value": 3,
+      "rule": "equals 3",
+      "passed": true
+    }
+  },
+  "measured": {
+    "cycles": [
+      {
+        "base_position_error_m": 0.0001136178355817327,
+        "base_position_error_xyz_m": [
+          -5.381081323965276e-05,
+          -9.881321777681102e-05,
+          -1.5791039654100558e-05
+        ],
+        "attitude_error_deg": 0.02145219927290102,
+        "foot_position_error_m": 0.00031367534667543095,
+        "joint_error_rad": 0.0008445376367794966,
+        "t_end": 16.599999999999234
+      },
+      {
+        "base_position_error_m": 0.00012184226632416252,
+        "base_position_error_xyz_m": [
+          -7.018658991865892e-05,
+          -9.763637198674516e-05,
+          -1.96600947063863e-05
+        ],
+        "attitude_error_deg": 0.03173675973801175,
+        "foot_position_error_m": 0.00039989092992880694,
+        "joint_error_rad": 0.0009411831738364018,
+        "t_end": 33.20000000000105
+      },
+      {
+        "base_position_error_m": 0.0001296496466482846,
+        "base_position_error_xyz_m": [
+          -9.59951433388128e-05,
+          -8.470987723771773e-05,
+          -2.0449939602762424e-05
+        ],
+        "attitude_error_deg": 0.0434296416303856,
+        "foot_position_error_m": 0.0004456845742802242,
+        "joint_error_rad": 0.0009551390158826223,
+        "t_end": 49.800000000021335
+      }
+    ],
+    "n_cycles_completed": 3,
+    "max_base_position_error_m": 0.0001296496466482846,
+    "max_attitude_error_deg": 0.0434296416303856,
+    "max_foot_position_error_m": 0.0004456845742802242,
+    "max_joint_error_rad": 0.0009551390158826223,
+    "foot_force_end_N": {
+      "FL": [
+        -0.31,
+        -0.09,
+        37.13
+      ],
+      "FR": [
+        0.28,
+        -0.47,
+        36.94
+      ],
+      "RL": [
+        -0.45,
+        0.3,
+        37.4
+      ],
+      "RR": [
+        0.47,
+        0.26,
+        37.71
+      ]
+    }
+  },
+  "outputs": [
+    "figures/3-12_repeat.png"
+  ],
+  "command": "python run.py 3.12",
+  "mujoco": "3.17.0",
+  "wall_s": 189.3,
+  "load_avg_1min": 53.6
+}

@@ -1,0 +1,98 @@
+{
+  "id": "3.08",
+  "title": "Roll the body",
+  "status": "verified",
+  "checks": {
+    "sine_rms_error_deg": {
+      "value": 0.1386406990429065,
+      "rule": "max 1.0",
+      "passed": true
+    },
+    "max_error_deg": {
+      "value": 0.18079632746179022,
+      "rule": "max 2.0",
+      "passed": true
+    },
+    "max_steady_error_deg": {
+      "value": 0.03136498809129108,
+      "rule": "max 0.5",
+      "passed": true
+    },
+    "max_height_deviation_m": {
+      "value": 6.505863356015551e-05,
+      "rule": "max 0.005",
+      "passed": true
+    },
+    "contact_fraction": {
+      "value": 1.0,
+      "rule": "min 1.0",
+      "passed": true
+    }
+  },
+  "measured": {
+    "holds": [
+      {
+        "target_deg": 10.0,
+        "steady_error_deg": 0.02636880301812212
+      },
+      {
+        "target_deg": -10.0,
+        "steady_error_deg": 0.03136498809129108
+      },
+      {
+        "target_deg": 0.0,
+        "steady_error_deg": 0.0018528507561102203
+      }
+    ],
+    "max_steady_error_deg": 0.03136498809129108,
+    "sine_amplitude_deg": 8.0,
+    "sine_hz": 0.5,
+    "sine_rms_error_deg": 0.1386406990429065,
+    "sine_lag_s": 0.006,
+    "max_error_deg": 0.18079632746179022,
+    "max_other_axis_deg": 0.002421128486559167,
+    "max_height_deviation_m": 6.505863356015551e-05,
+    "contact_fraction": 1.0,
+    "max_torque_fraction": 0.20833955927946926,
+    "wall_sine_s": 16.3,
+    "foot_force_end_N": {
+      "FL": [
+        0.02,
+        -0.26,
+        37.05
+      ],
+      "FR": [
+        -0.02,
+        0.27,
+        37.02
+      ],
+      "RL": [
+        0.01,
+        -0.28,
+        37.56
+      ],
+      "RR": [
+        -0.02,
+        0.28,
+        37.55
+      ]
+    },
+    "sweep_duration_s": 14.7,
+    "sweep_rms_height_error_m": 0.00022728868210851314,
+    "sweep_rms_attitude_error_deg": {
+      "roll": 0.0810843334936437,
+      "pitch": 0.07039260423175488,
+      "yaw": 0.28150491004972217
+    },
+    "sweep_contact_fraction": 1.0
+  },
+  "outputs": [
+    "figures/3-08_roll.png",
+    "media/3-08_pose_sweep.mp4",
+    "media/3-08_pose_sweep.png"
+  ],
+  "command": "python run.py 3.08",
+  "mujoco": "3.17.0",
+  "wall_s": 141.1,
+  "load_avg_1min": 48.3
+}

@@ -1,0 +1,43 @@
+{
+  "id": "1.07",
+  "title": "Add a sensor link and check TF",
+  "status": "verified",
+  "metrics": {
+    "copy": "urdf/go2_extra.xacro",
+    "copy_n_links": 25,
+    "parent_is_base_link": true,
+    "translation_tf": [
+      -0.25,
+      0.0,
+      0.06
+    ],
+    "translation_error_m": 0.0,
+    "rotation_error_rad": 0.0
+  },
+  "acceptance": "copy_n_links equals 25; parent_is_base_link equals True; translation_error_m max 1e-06; rotation_error_rad max 1e-06",
+  "checks": {
+    "copy_n_links": {
+      "value": 25,
+      "rule": "equals 25",
+      "passed": true
+    },
+    "parent_is_base_link": {
+      "value": true,
+      "rule": "equals True",
+      "passed": true
+    },
+    "translation_error_m": {
+      "value": 0.0,
+      "rule": "max 1e-06",
+      "passed": true
+    },
+    "rotation_error_rad": {
+      "value": 0.0,
+      "rule": "max 1e-06",
+      "passed": true
+    }
+  },
+  "command": "python run.py 1.07",
+  "outputs": [],
+  "date": "2026-11-28 11:27"
+}

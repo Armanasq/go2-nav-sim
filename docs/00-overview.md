@@ -44,6 +44,10 @@ Check: `goal_error_m` (0.21) is smaller than `goal_tolerance_m` (0.25).
 
 *The room, from `site/data/runs/w2/run.json`: start A at (-4.5, -3.5), goal B at (4.0, 3.0), six obstacles, and the path the robot walked in run w2.*
 
+![Pipeline after a run: record_bag.sh writes one MCAP bag; bag_metrics.py, render_dashboard.py and export_run.py read it into the metrics file, the dashboard video and the website data](img/c00-00-scoring-pipeline.png)
+
+*How a run becomes numbers, a video and website data, from the usage lines of the three scripts and the topic list in `scripts/record_bag.sh`. `/odom_gt` is in the bag only so that it can be scored.*
+
 ### 1.2 Read the stack
 
 Objective: know which parts you will run unmodified and which were written for this course.
@@ -83,10 +87,46 @@ Objective: decide how far to go and in which order.
 
 ```bash
 ls -d docs/[0-9]*.md projects/p*/
+ls projects/*/README.md
 ```
 
-The list shows chapters 00 to 12 and the project folders. Work through them in this order. Hours are estimates for a beginner
-from `research/gap-plan.md`; two marked * were not in that plan and are my estimates by comparison with p03 and p13.
+```
+docs/00-overview.md
+docs/01-legged-robot-foundations.md
+docs/02-prerequisites.md
+docs/03-install-and-first-run.md
+docs/04-ros2-from-scratch.md
+docs/05-frames-and-tf2.md
+docs/06-import-the-go2.md
+docs/07-make-it-walk.md
+docs/08-robot-and-sensors.md
+docs/09-state-estimation.md
+docs/10-mapping-and-navigation.md
+docs/11-record-and-visualise.md
+docs/12-troubleshooting.md
+projects/p01_first-steps/
+projects/p02_teleop-and-safety/
+projects/p03_move-in-shapes/
+projects/p04_go-to-pose/
+projects/p05_sense-and-stop/
+projects/p11_command-arbitration/
+projects/p12_tune-nav2/
+projects/p13_behaviour-trees/
+projects/p14_test-the-stack/
+projects/p01_first-steps/README.md
+projects/p02_teleop-and-safety/README.md
+projects/p03_move-in-shapes/README.md
+projects/p04_go-to-pose/README.md
+projects/p05_sense-and-stop/README.md
+projects/p12_tune-nav2/README.md
+projects/p13_behaviour-trees/README.md
+projects/p14_test-the-stack/README.md
+```
+
+Thirteen chapters and nine project folders. p01 to p05 and p11 to p14 have a `README.md`; the other folders hold code and results
+without instructions yet, so the table marks them as not yet published. Work through the steps in this
+order. Hours are estimates for a beginner from `research/gap-plan.md`; two marked * were not in that plan and are my estimates:
+p04 by comparison with p03, p11 from its measured runs (about 9 min of wall-clock time in my session) plus reading and typing.
 
 | Step | Chapter or project | You end with | Hours | Total |
 |---|---|---|---|---|
@@ -100,35 +140,60 @@ from `research/gap-plan.md`; two marked * were not in that plan and are my estim
 | 8 | [7. Make it walk](07-make-it-walk.md) | velocity limits and gait parameters measured | 2 | 16.5 |
 | 9 | [p02 Teleop and safety](../projects/p02_teleop-and-safety/README.md) | a dead-man timeout of your own, measured | 3 | 19.5 |
 | 10 | [p03 Move in shapes](../projects/p03_move-in-shapes/README.md) | open loop vs closed loop, scored | 2 | 21.5 |
-| 11 | p04 Go to pose (`projects/p04_go-to-pose`) | a polar-coordinate pose controller | 2* | 23.5 |
+| 11 | [p04 Go to pose](../projects/p04_go-to-pose/README.md) | a polar-coordinate pose controller | 2* | 23.5 |
 | 12 | [8. Robot and sensors](08-robot-and-sensors.md) | lidar, RGB-D and IMU checked in their frames | 2 | 25.5 |
-| 13 | p05 Sense and stop (`projects/p05_sense-and-stop`) | a stop in front of an obstacle from `/scan` | 2 | 27.5 |
+| 13 | p05 Sense and stop (`projects/p05_sense-and-stop`): not yet published | a stop in front of an obstacle from `/scan` | 2 | 27.5 |
 | 14 | [9. State estimation](09-state-estimation.md) and [11. Record and visualise](11-record-and-visualise.md) | odometry scored against ground truth; a bag and its dashboard | 4 | 31.5 |
 | 15 | [10. Mapping and navigation](10-mapping-and-navigation.md) | Nav2 driving A to B, a map built alongside | 4.5 | 36 |
-| 16 | p06 to p10 | not yet published | | |
-| 17 | p11 Command arbitration (`projects/p11_command-arbitration`) | teleop above Nav2 through `twist_mux`, a Collision Monitor and an e-stop lock | 1.5* | 37.5 |
-| 18 | p12 Tune Nav2 (`projects/p12_tune-nav2`) | Nav2 settings justified by measured runs | 2.5 | 40 |
-| 19 | p13 Behaviour trees (`projects/p13_behaviour-trees`) | a recovery reordered in Nav2's tree, and a waypoint patrol | 1.5 | 41.5 |
-| 20 | p14 Test the stack (`projects/p14_test-the-stack`) | a ROS-level smoke test | 1.5 | 43 |
+| 16 | p06 to p10 | no such folders yet | | |
+| 17 | [p11 Command arbitration](../projects/p11_command-arbitration/README.md) | teleop above Nav2 through `twist_mux`, a Collision Monitor and an e-stop lock | 2* | 38 |
+| 18 | p12 Tune Nav2 (`projects/p12_tune-nav2`): not yet published | Nav2 settings justified by measured runs | 2.5 | 40.5 |
+| 19 | [p13 Behaviour trees](../projects/p13_behaviour-trees/README.md) | a recovery reordered in Nav2's tree, and a waypoint patrol | 1.5 | 42 |
+| 20 | [p14 Test the stack](../projects/p14_test-the-stack/README.md) | a ROS-level smoke test | 1.5 | 43.5 |
+| 21 | [13. Toward the real Go2](13-toward-the-real-go2.md) | the network recipe, the safety page and a `cmd_vel` bridge whose clamp and timeout logic is tested with pure-Python unit tests (`unitree_mujoco` has no sport-mode service, so it cannot test the bridge); no hardware needed | 2.5 | 46 |
+| 22 | Capstone: not yet published | three goals reached while mapping, with a moved obstacle and a new start, over 3 runs | 3 | 49 |
 | any | [12. Troubleshooting](12-troubleshooting.md) | a lookup table, not read front to back | | |
+
+The plan's 45 h are steps 1 to 22 without the two starred projects; with them the route is 49 h. Steps 13, 18 and 22, 7.5 h, have
+no instructions yet.
+
+![The core path as bars on a cumulative-hours axis, chapters in blue and projects in amber, the first 10 h shaded, the steps without instructions pale](img/c00-00-route.png)
+
+*The table above on one time axis. Hatched: the two estimates marked \*. Pale: not yet published.*
 
 Deep dives are outside these hours and no core chapter depends on them. Each [module](../modules/README.md) solves one problem
 on the Go2 model in MuJoCo and checks the result against an established library: [m00 maths](../modules/m00_math/README.md),
 [m01 anatomy](../modules/m01_anatomy/README.md), [m04 kinematics](../modules/m04_kinematics/README.md). The derivations the
 chapters skip live there.
 
-Check: the core path is 43 h, without p06 to p10. Steps 1 to 5 (10 h) already give you a running stack that you can inspect
-and drive.
+Check: `ls projects/*/README.md` lists the four projects that the table links; the route adds up to 49 h. Steps 1 to 5
+(10 h) already give you a running stack that you can inspect and drive.
 
 ### 2.2 Check the hardware
 
 Objective: know before installing whether your machine can run the stack.
 
-You need about 5 GB of disk plus about 0.5 GB per minute of recording (the bag grows at about 8 MB/s), 8 or more CPU threads,
-and a GPU for the cameras and the GPU lidar. [Chapter 2](02-prerequisites.md), task 1, has the commands that check this.
+You need about 5 GB of disk, 8 or more CPU threads, and a GPU for the cameras and the GPU lidar. A recording
+needs about 10.5 MiB per simulated second, about 0.6 GiB per simulated minute. One run of `scripts/run_mission.sh`
+([chapter 3](03-install-and-first-run.md), task 3) wrote a 710.2 MiB bag (`ros2 bag info`) for 67.7 s of simulated time
+(`duration_s` of `bag_metrics.py`) and 112.7 s of wall-clock time, a real-time factor of 0.60. Per wall-clock second that is
+6.3 MiB/s, and that rate falls when the machine is slower.
 
-Check: if you have fewer than 8 threads, expect the simulator to run slower than real time. Every rate and time in this course
-is in simulated time, so results stay comparable; only the wall-clock wait grows.
+```bash
+nproc; df -h . | tail -1
+```
+
+On the test machine:
+
+```
+32
+/dev/nvme1n1p2  1.9T  1.5T  288G  84% /
+```
+
+Check: `nproc` prints 8 or more, and the fourth column of `df` (free space) is above 5 GB plus 0.6 GB for each simulated minute
+you plan to record. With fewer than 8 threads the simulator runs slower than real time. Every rate and time in this course is
+in simulated time, so results stay comparable; only the wall-clock wait grows. [Chapter 2](02-prerequisites.md), task 1,
+checks the operating system and the GPU.
 
 ## Exercise
 
@@ -153,6 +218,10 @@ results/run_w3.json 0.34 0.25 18.7
 Run w3 stopped 0.34 m from B, outside the 0.25 m tolerance, and it has the largest AMCL error (18.7 cm RMSE). Nav2 stops when
 its own estimate, which comes from AMCL, is inside the tolerance, so an AMCL error moves the real stopping point. Nav2 still
 reported success in all three runs.
+
+![Close-up of goal B for runs w1, w2 and w3: ground-truth path, AMCL path, the 0.25 m tolerance circle, and the final points](img/c00-00-final-approach.png)
+
+*The last metres of each run (`site/data/runs/wN/run.json`). The last `/amcl_pose` of every run lies inside the circle; the true stop of w3 lies 0.34 m from B.*
 
 ## Further reading
 

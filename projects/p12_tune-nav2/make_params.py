@@ -48,6 +48,8 @@ SETTINGS = {
     'scale_10':   (None, 10.0, None, None, None),
     'polygon':    (None, None, POLYGON, None, None),
     'smac_mppi':  (None, None, POLYGON, SMAC_HYBRID, MPPI),
+    # Task 4: NavFn + RPP with the polygon, but RPP never turns on the spot (keys merged into the stack's RPP block)
+    'polygon_norot': (None, None, POLYGON, None, dict(use_rotate_to_heading=False)),
 }
 
 
@@ -64,7 +66,8 @@ def make(base, radius, scale, footprint, planner, controller):
     if planner is not None:
         P['planner_server']['ros__parameters']['GridBased'] = planner
     if controller is not None:
-        P['controller_server']['ros__parameters']['FollowPath'] = controller
+        fp = P['controller_server']['ros__parameters']['FollowPath']
+        P['controller_server']['ros__parameters']['FollowPath'] = controller if 'plugin' in controller else {**fp, **controller}
     return P
 
 
@@ -73,5 +76,5 @@ if __name__ == '__main__':
     for name, s in SETTINGS.items():
         (HERE / 'params' / f'{name}.yaml').write_text(yaml.safe_dump(make(base, *s), sort_keys=False))
         changes = [f'{k}={v}' for k, v in zip(('inflation_radius', 'cost_scaling_factor', 'footprint'), s[:3]) if v is not None]
-        changes += [d['plugin'] for d in s[3:] if d is not None]
+        changes += [d.get('plugin', str(d)) for d in s[3:] if d is not None]
         print(f'params/{name}.yaml: {", ".join(changes) or "unchanged"}')

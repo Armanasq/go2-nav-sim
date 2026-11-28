@@ -1,0 +1,30 @@
+{
+ "mode": "goto",
+ "world": "room",
+ "localise": [
+  "RESULT SUCCEEDED  sim_time 1.6 s  ground-truth final error 0.09 m  final pos (-4.41, -3.48)"
+ ],
+ "legs": [
+  {
+   "result": "SUCCEEDED",
+   "status": 4,
+   "status_name": "SUCCEEDED",
+   "sim_time_s": 23.49,
+   "t_start": 23.470000000000002,
+   "t_end": 46.955000000000005,
+   "goal": [
+    -0.5,
+    -0.5,
+    0.6435
+   ],
+   "final_error_m": 0.246,
+   "path_m": 4.69,
+   "straight_m": 4.92,
+   "min_clearance_m": 1.417,
+   "max_displacement_m": 4.681,
+   "amcl_rmse_m": 0.083,
+   "amcl_max_m": 0.14
+  }
+ ],
+ "after_end_walked_m": 0.007
+}

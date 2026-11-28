@@ -1,0 +1,48 @@
+{
+  "id": "6.02",
+  "title": "Rotate and measure angular rate",
+  "status": "failed",
+  "metrics": {
+    "windows": [
+      {
+        "commanded": 0.5,
+        "gt_mean": 0.49635352574502745,
+        "gyro_mean": 0.49497971069756913,
+        "rel_error": 0.0027678156318044016,
+        "rms_diff": 0.02002229914867069
+      },
+      {
+        "commanded": -0.5,
+        "gt_mean": -0.48728993591397635,
+        "gyro_mean": -0.4866421156629739,
+        "rel_error": 0.0013294349077564882,
+        "rms_diff": 0.017043978627831996
+      }
+    ],
+    "mean_rate_rel_error": 0.0027678156318044016,
+    "rms_rate_diff_rads": 0.02002229914867069,
+    "achieved_over_commanded": [
+      0.9927070514900549,
+      0.9745798718279527
+    ]
+  },
+  "acceptance": "mean_rate_rel_error <= 0.01; rms_rate_diff_rads <= 0.02. Basis: turn in place at a commanded 0.5 rad/s for 8 s; gyro z against the /odom_gt angular rate, steady window = last 5 s of the turn, gyro interpolated to the 50 Hz ground-truth stamps",
+  "checks": {
+    "mean_rate_rel_error": {
+      "value": 0.0027678156318044016,
+      "rule": "<= 0.01",
+      "passed": true
+    },
+    "rms_rate_diff_rads": {
+      "value": 0.02002229914867069,
+      "rule": "<= 0.02",
+      "passed": false
+    }
+  },
+  "outputs": [
+    "figures/6.02_turn_rate.png"
+  ],
+  "command": "python3 tasks/s06_sensors-and-perception/run.py 6.02",
+  "world": "arena",
+  "wall_s": 35.6
+}

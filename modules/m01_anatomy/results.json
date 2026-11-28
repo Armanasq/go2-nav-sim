@@ -757,7 +757,7 @@
   "media_bytes": {
     "turntable.mp4": 2270794,
     "joint_sweep.mp4": 980903,
-    "flight.mp4": 135725,
+    "flight.mp4": 134936,
     "reorientation.mp4": 238366
   },
   "checks": {
@@ -954,6 +954,7 @@
       "passed": true
     }
   },
-  "wall_time_s": 161.1,
-  "load_average_1min_at_end": 122.0
+  "skipped_checks": [],
+  "wall_time_s": 118.3,
+  "load_average_1min_at_end": 66.7
 }

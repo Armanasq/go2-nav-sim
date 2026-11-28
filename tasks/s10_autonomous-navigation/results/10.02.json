@@ -1,0 +1,47 @@
+{
+ "id": "10.02",
+ "status": "verified",
+ "metrics": {
+  "runs": [
+   {
+    "status_name": "SUCCEEDED",
+    "sim_time_s": 44.82,
+    "final_error_m": 0.268,
+    "path_m": 5.87,
+    "straight_m": 4.96,
+    "min_clearance_m": 0.774,
+    "amcl_rmse_m": 0.067
+   },
+   {
+    "status_name": "SUCCEEDED",
+    "sim_time_s": 27.27,
+    "final_error_m": 0.226,
+    "path_m": 5.61,
+    "straight_m": 4.89,
+    "min_clearance_m": 0.783,
+    "amcl_rmse_m": 0.072
+   },
+   {
+    "status_name": "SUCCEEDED",
+    "sim_time_s": 27.61,
+    "final_error_m": 0.269,
+    "path_m": 5.68,
+    "straight_m": 4.95,
+    "min_clearance_m": 0.783,
+    "amcl_rmse_m": 0.069
+   }
+  ],
+  "n_runs": 3,
+  "success_rate": 1.0,
+  "max_final_error_m": 0.269,
+  "min_clearance_m": 0.774,
+  "mean_sim_time_s": 33.2
+ },
+ "acceptance": "success_rate >= 1.0; max_final_error_m <= 0.5; min_clearance_m >= 0.25",
+ "checks": {
+  "success_rate": true,
+  "max_final_error_m": true,
+  "min_clearance_m": true
+ },
+ "command": "python3 run.py 10.02  (up.sh one_obstacle ; nav.py goto -0.5 -0.5 0.6435) x 3"
+}

@@ -1,0 +1,112 @@
+{
+  "id": "6.17",
+  "title": "Estimate platform height and edges",
+  "status": "failed",
+  "metrics": {
+    "height_m": 0.11815881683570711,
+    "true_height_m": 0.12,
+    "height_error_m": 0.001841183164292881,
+    "edges_est_m": {
+      "near_x": -2.700586265448031,
+      "far_x": -1.716857640488704,
+      "right_y": -4.084322437293131,
+      "left_y": -2.908721553805685
+    },
+    "edges_true_m": {
+      "near_x": -2.7,
+      "far_x": -1.7000000000000002,
+      "right_y": -4.1,
+      "left_y": -2.9
+    },
+    "edge_errors_m": {
+      "near_x": -0.0005862654480308649,
+      "far_x": -0.01685764048870375,
+      "right_y": 0.01567756270686882,
+      "left_y": -0.00872155380568529
+    },
+    "max_edge_error_m": 0.01685764048870375,
+    "far_x_error_m": -0.01685764048870375,
+    "far_row_spacing_m": 0.08639585531503191,
+    "far_row_points": 116,
+    "floor_camera_height_m": 0.24905252839252662,
+    "camera_height_gt_m": 0.24651526834421675
+  },
+  "acceptance": "height_error_m <= 0.01; max_edge_error_m <= 0.05; in each of 5 runs, each on a fresh simulator. Basis: height = top plane minus floor plane along the floor normal; edges = 1st and 99th percentiles of the top inliers in world x and y (horizontal pose from /odom_gt); true edges x -2.7, -1.7, y -4.1, -2.9",
+  "checks": {
+    "height_error_m": {
+      "value": 0.001841183164292881,
+      "rule": "<= 0.01",
+      "passed": true
+    },
+    "max_edge_error_m": {
+      "value": 0.01685764048870375,
+      "rule": "<= 0.05",
+      "passed": true
+    }
+  },
+  "runs_passed": 3,
+  "runs_total": 5,
+  "per_run": [
+    {
+      "height_m": 0.11825474992619306,
+      "true_height_m": 0.12,
+      "height_error_m": 0.0017452500738069365,
+      "max_edge_error_m": 0.03343223752880564,
+      "far_x_error_m": -0.03343223752880564,
+      "far_row_spacing_m": 0.09399269945827249,
+      "far_row_points": 233,
+      "floor_camera_height_m": 0.24856965843666515,
+      "camera_height_gt_m": 0.24592399037245888
+    },
+    {
+      "height_m": 0.11836607209593569,
+      "true_height_m": 0.12,
+      "height_error_m": 0.0016339279040643029,
+      "max_edge_error_m": 0.06864120482252511,
+      "far_x_error_m": -0.06864120482252511,
+      "far_row_spacing_m": 0.09452816302985356,
+      "far_row_points": 233,
+      "floor_camera_height_m": 0.24685768089083504,
+      "camera_height_gt_m": 0.24519022145879718
+    },
+    {
+      "height_m": 0.1183744973622084,
+      "true_height_m": 0.12,
+      "height_error_m": 0.0016255026377915982,
+      "max_edge_error_m": 0.0654055658410706,
+      "far_x_error_m": -0.0654055658410706,
+      "far_row_spacing_m": 0.094352890365202,
+      "far_row_points": 232,
+      "floor_camera_height_m": 0.24849200234211172,
+      "camera_height_gt_m": 0.2464874119058251
+    },
+    {
+      "height_m": 0.11825336426900696,
+      "true_height_m": 0.12,
+      "height_error_m": 0.0017466357309930403,
+      "max_edge_error_m": 0.029869182620694268,
+      "far_x_error_m": -0.029869182620694268,
+      "far_row_spacing_m": 0.09723241062371168,
+      "far_row_points": 230,
+      "floor_camera_height_m": 0.24722228189537604,
+      "camera_height_gt_m": 0.2456064187232631
+    },
+    {
+      "height_m": 0.11815881683570711,
+      "true_height_m": 0.12,
+      "height_error_m": 0.001841183164292881,
+      "max_edge_error_m": 0.01685764048870375,
+      "far_x_error_m": -0.01685764048870375,
+      "far_row_spacing_m": 0.08639585531503191,
+      "far_row_points": 116,
+      "floor_camera_height_m": 0.24905252839252662,
+      "camera_height_gt_m": 0.24651526834421675
+    }
+  ],
+  "outputs": [
+    "figures/6.17_platform_edges.png"
+  ],
+  "command": "python3 tasks/s06_sensors-and-perception/run.py 6.17",
+  "world": "platform",
+  "wall_s": 94.6
+}

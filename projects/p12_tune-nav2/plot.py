@@ -10,9 +10,10 @@ from matplotlib.patches import Polygon
 from tuning import inflation_cost
 
 HERE = pathlib.Path(__file__).resolve().parent
-ORDER = ['infl_r045', 'base', 'infl_r150', 'scale_1', 'scale_10', 'polygon', 'smac_mppi']
+ORDER = ['infl_r045', 'base', 'infl_r150', 'scale_1', 'scale_10', 'polygon', 'smac_mppi', 'polygon_norot']
 LABEL = dict(base='r 0.75, scale 4 (stack)', infl_r045='r 0.45, scale 4', infl_r150='r 1.50, scale 4', scale_1='r 0.75, scale 1',
-             scale_10='r 0.75, scale 10', polygon='polygon footprint', smac_mppi='Smac Hybrid-A* + MPPI, polygon')
+             scale_10='r 0.75, scale 10', polygon='polygon footprint', smac_mppi='Smac Hybrid-A* + MPPI, polygon',
+             polygon_norot='polygon, RPP without rotate-to-heading')
 PLAN, TRUE = '#d97706', '#333333'
 BODY = np.array([[0.325, 0.15], [0.325, -0.15], [-0.325, -0.15], [-0.325, 0.15]])
 
@@ -23,15 +24,17 @@ def span(v, f='{:.1f}'):
 
 
 def table(runs):
-    print('| Setting | Reached B | Nav time, s | True path, m | First plan, m | Min centre clearance, m | Min body clearance, m '
-          '| Recoveries | AMCL RMSE, cm |')
-    print('|---|---|---|---|---|---|---|---|---|')
+    print('| Setting | Reached B | Nav time, s | Leaving A, s | Rest of the way, s | True path, m | First plan, m '
+          '| Min centre clearance, m | Min body clearance, m | Recoveries | AMCL RMSE, cm |')
+    print('|---|---|---|---|---|---|---|---|---|---|---|')
     for s in ORDER:
         R = runs.get(s)
         if not R:
             continue
         ok = sum(r['result'] == 'SUCCEEDED' for r in R)
-        print(f"| {LABEL[s]} | {ok}/{len(R)} | {span([r['nav_time_s'] for r in R])} | {span([r.get('path_m') for r in R], '{:.2f}')} "
+        rest = [r['nav_time_s'] - r['leave_A_s'] if r['nav_time_s'] and r.get('leave_A_s') else None for r in R]
+        print(f"| {LABEL[s]} | {ok}/{len(R)} | {span([r['nav_time_s'] for r in R])} | {span([r.get('leave_A_s') for r in R])} "
+              f"| {span(rest)} | {span([r.get('path_m') for r in R], '{:.2f}')} "
               f"| {span([r['first_plan_m'] for r in R], '{:.2f}')} | {span([r['min_centre_clearance_m'] for r in R], '{:.2f}')} "
               f"| {span([r['min_body_clearance_m'] for r in R], '{:.2f}')} | {sum(r['recoveries'] for r in R)} "
               f"| {span([r.get('amcl_rmse_cm') for r in R])} |")
@@ -70,23 +73,42 @@ def figures(npz, out):
         g = np.load(npz[s][0])['gt']
         for x, y, th in g[::150]:                                         # the body every 3 s of run 1
             R = np.array([[np.cos(th), -np.sin(th)], [np.sin(th), np.cos(th)]])
-            ax.add_patch(Polygon(BODY @ R.T + (x, y), closed=True, fill=False, ec='#2563eb', lw=0.7))
+            ax.add_patch(Polygon(BODY @ R.T + (x, y), closed=True, fill=False, ec='#0f766e', lw=0.7))
     axs[0].legend(fontsize=7, loc='upper left')
-    fig.suptitle('Footprint and planner/controller: body outline (blue) every 3 s of run 1', fontsize=10)
+    fig.suptitle('Footprint and planner/controller: body outline (teal) every 3 s of run 1', fontsize=10)
     fig.savefig(out / 'footprint_planners.png', dpi=110); plt.close(fig)
 
 
 def profile(out):
     d = np.linspace(0, 1.6, 641)
     fig, ax = plt.subplots(figsize=(6.4, 3.4), constrained_layout=True)
+    # no blue, amber or violet: docs/WRITING.md keeps those for odometry, plan and AMCL
+    cols = iter(['#6b7280', '#111111', '#0f766e', '#15803d', '#78350f', '#be185d'])
     for (r, k, ins), lab, st in [((0.45, 4, 0.33), 'r 0.45, scale 4', ':'), ((0.75, 4, 0.33), 'r 0.75, scale 4 (stack)', '-'),
                                  ((1.5, 4, 0.33), 'r 1.50, scale 4', '--'), ((0.75, 1, 0.33), 'r 0.75, scale 1', '-.'),
                                  ((0.75, 10, 0.33), 'r 0.75, scale 10', (0, (5, 1, 1, 1))),
-                                 ((0.75, 4, 0.15), 'polygon (inscribed 0.15), r 0.75, scale 4', (0, (1, 2)))]:
-        ax.plot(d, [inflation_cost(x, ins, r, k) for x in d], ls=st, lw=1.4, label=lab)
+                                 ((0.75, 4, 0.16), 'polygon (inscribed 0.16 incl. padding), r 0.75, scale 4', (0, (1, 2)))]:
+        ax.plot(d, [inflation_cost(x, ins, r, k) for x in d], ls=st, lw=1.4, color=next(cols), label=lab)
     ax.axhline(253, color='#b91c1c', lw=0.6); ax.text(1.58, 240, '253: centre in collision', ha='right', fontsize=7, color='#b91c1c')
     ax.set_xlabel('distance from the nearest obstacle cell, m'); ax.set_ylabel('cost'); ax.legend(fontsize=7)
     fig.savefig(out / 'inflation_profile.png', dpi=110); plt.close(fig)
+
+
+def start(npz, out):
+    """Heading and distance from A over the first 30 s after the first plan: where the NavFn + RPP runs lose time."""
+    fig, axs = plt.subplots(1, 2, figsize=(10, 3.4), constrained_layout=True)
+    # all three are ground truth, so all are grey/black (docs/WRITING.md); line style tells the settings apart
+    for s, col, ls in [('base', '#9ca3af', '-'), ('polygon', '#111111', '--'), ('smac_mppi', '#111111', ':')]:
+        for k, f in enumerate(npz.get(s, [])):
+            d = np.load(f); t, g = d['t'], d['gt']; m = (t >= 0) & (t <= 30)
+            lab = LABEL[s] if k == 0 else None
+            axs[0].plot(t[m], np.degrees(np.unwrap(g[m, 2])), color=col, ls=ls, lw=1.2, label=lab)
+            axs[1].plot(t[m], np.hypot(g[m, 0] + 4.5, g[m, 1] + 3.5), color=col, ls=ls, lw=1.2, label=lab)
+    axs[0].set_ylabel('heading, deg'); axs[1].set_ylabel('distance from A, m'); axs[1].axhline(1.0, color='#999', lw=0.6)
+    for ax in axs:
+        ax.set_xlabel('s since the first plan'); ax.tick_params(labelsize=8)
+    axs[1].legend(fontsize=7)
+    fig.savefig(out / 'start.png', dpi=100); plt.close(fig)
 
 
 def main():
@@ -99,7 +121,7 @@ def main():
             npz[r['setting']].append(f.with_suffix('.npz'))
     table(runs)
     out = HERE / 'figures' if src == HERE / 'results' else src
-    figures(npz, out); profile(out)
+    figures(npz, out); profile(out); start(npz, out)
     print(f'figures in {out}')
 
 

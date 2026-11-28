@@ -1,0 +1,31 @@
+{
+  "id": "8.04",
+  "title": "Reach a target pose",
+  "status": "verified",
+  "metrics": {
+    "final_pos_err_m": 0.04197676159611762,
+    "final_heading_err_deg": -5.168176270609096,
+    "odom_final_err_m": 0.046750335002457594,
+    "odom_gap_m": 0.0050333278231723105,
+    "time_s": 11.000000000000002,
+    "timeouts": 0
+  },
+  "acceptance": "final_pos_err_m <= 0.1; |final_heading_err_deg| <= 6.0",
+  "checks": {
+    "final_pos_err_m": {
+      "value": 0.04197676159611762,
+      "rule": "final_pos_err_m <= 0.1",
+      "passed": true
+    },
+    "final_heading_err_deg": {
+      "value": -5.168176270609096,
+      "rule": "|final_heading_err_deg| <= 6.0",
+      "passed": true
+    }
+  },
+  "command": "python3 run.py 8.04",
+  "outputs": [
+    "figures/s8_04.png"
+  ],
+  "wall_s": 40.1
+}

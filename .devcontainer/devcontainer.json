@@ -1,0 +1,15 @@
+{
+  "name": "go2-nav-sim",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "args": { "USER_UID": "1000", "USER_GID": "1000" }
+  },
+  "runArgs": ["--net=host", "--device=/dev/dri", "-e", "DISPLAY=${localEnv:DISPLAY}", "-e", "XAUTHORITY=/tmp/.Xauthority"],
+  "mounts": [
+    "source=/tmp/.X11-unix,target=/tmp/.X11-unix,type=bind",
+    "source=${localEnv:XAUTHORITY},target=/tmp/.Xauthority,type=bind,readonly"
+  ],
+  "workspaceMount": "source=${localWorkspaceFolder},target=/home/dev/go2-nav-sim,type=bind",
+  "workspaceFolder": "/home/dev/go2-nav-sim",
+  "remoteUser": "dev"
+}

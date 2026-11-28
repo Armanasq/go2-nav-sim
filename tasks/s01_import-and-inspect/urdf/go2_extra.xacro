@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<!-- Task 1.07, a copy of src/go2_nav_sim/urdf/go2_nav.xacro with one extra sensor frame, rear_cam_link (docs/06 Task 4).
+     The simulator still loads go2_nav.xacro; this copy is only read by robot_state_publisher in run.py 1.07. -->
+<robot name="go2" xmlns:xacro="http://www.ros.org/wiki/xacro">
+  <xacro:include filename="$(find go2_description)/xacro/robot.xacro"/>
+  <xacro:include filename="$(find go2_nav_sim)/urdf/sensors.xacro"/>
+  <xacro:arg name="start_x" default="0"/><xacro:arg name="start_y" default="0"/>
+  <xacro:property name="sx" value="$(arg start_x)"/><xacro:property name="sy" value="$(arg start_y)"/>
+
+  <xacro:lidar3d parent="base_link" xyz="0 0 0.10"/>
+  <xacro:rgbd_camera parent="base_link" xyz="0.28 0 0.03"/>
+  <xacro:chase_camera parent="base_link" xyz="-0.9 0 0.6" rpy="0 0.5 0"/>
+  <xacro:ground_truth sx="${sx}" sy="${sy}"/>
+
+  <link name="rear_cam_link">
+    <visual><geometry><box size="0.02 0.06 0.03"/></geometry></visual>
+  </link>
+  <joint name="rear_cam_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="rear_cam_link"/>
+    <origin xyz="-0.25 0 0.06" rpy="0 0 3.14159"/>
+  </joint>
+</robot>

@@ -1,0 +1,39 @@
+<!--
+  p13 patrol, FIRST TRY (W2 at (-3.0, -1.0), 0.72 m from the orange pillar; see README "If it goes wrong"): A -> W1 -> W2 -> A, twice, with a 2 s stop at each waypoint. Only nodes that ship with Nav2 Humble and
+  BehaviorTree.CPP v3 (Repeat, Sequence, RecoveryNode, ComputePathToPose, FollowPath, ClearEntireCostmap, Wait).
+  The goal of the NavigateToPose action ({goal}) is ignored: the waypoints are written here as PoseStamped strings,
+  "stamp;frame;x;y;z;qx;qy;qz;qw" (nav2_behavior_tree/bt_conversions.hpp). Yaw at each waypoint = direction of the leg
+  that arrives there, so the robot does not turn on the spot before stopping.
+-->
+<root main_tree_to_execute="MainTree">
+  <BehaviorTree ID="MainTree">
+    <Repeat num_cycles="2">
+      <Sequence name="Patrol">
+        <RecoveryNode number_of_retries="2" name="LegW1">
+          <Sequence>
+            <ComputePathToPose goal="0;map;0.5;-3.5;0;0;0;0.0;1.0" path="{path}" planner_id="GridBased"/>
+            <FollowPath path="{path}" controller_id="FollowPath"/>
+          </Sequence>
+          <ClearEntireCostmap name="ClearLocalW1" service_name="local_costmap/clear_entirely_local_costmap"/>
+        </RecoveryNode>
+        <Wait name="AtW1" wait_duration="2"/>
+        <RecoveryNode number_of_retries="2" name="LegW2">
+          <Sequence>
+            <ComputePathToPose goal="0;map;-3.0;-1.0;0;0;0;0.952;0.305" path="{path}" planner_id="GridBased"/>
+            <FollowPath path="{path}" controller_id="FollowPath"/>
+          </Sequence>
+          <ClearEntireCostmap name="ClearLocalW2" service_name="local_costmap/clear_entirely_local_costmap"/>
+        </RecoveryNode>
+        <Wait name="AtW2" wait_duration="2"/>
+        <RecoveryNode number_of_retries="2" name="LegHome">
+          <Sequence>
+            <ComputePathToPose goal="0;map;-4.5;-3.5;0;0;0;-0.871;0.491" path="{path}" planner_id="GridBased"/>
+            <FollowPath path="{path}" controller_id="FollowPath"/>
+          </Sequence>
+          <ClearEntireCostmap name="ClearLocalHome" service_name="local_costmap/clear_entirely_local_costmap"/>
+        </RecoveryNode>
+        <Wait name="AtHome" wait_duration="2"/>
+      </Sequence>
+    </Repeat>
+  </BehaviorTree>
+</root>

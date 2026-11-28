@@ -1,4 +1,4 @@
-/* Lidar sweep viewer (static/js/cloud.js). Theme tokens from base.css; only the 3D scene internals hard-code colour. */
+/* Lidar sweep viewer (static/js/cloud.js). Theme tokens from site.css; only the 3D scene internals hard-code colour. */
 .cloud { container-type: inline-size; }
 .cloud-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; align-items: start; }
 .cloud-grid > * { min-width: 0; }

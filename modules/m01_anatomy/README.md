@@ -33,9 +33,12 @@ rigid body. Python with NumPy; MuJoCo and Pinocchio are used only to check this 
 
 ## Theory
 
-Notation: world frame $W$ with $z$ up; base frame $B$ with $x$ forward, $y$ left. $R_i, p_i$ are the orientation and origin of
-body $i$ in $W$; $m_i$, $c_i$ and $I_i$ its mass, centre of mass (world) and rotational inertia about $c_i$ (body frame).
-$M = \sum_i m_i$ is the total mass and $c = \sum_i m_i c_i / M$ the centre of mass of the robot.
+Notation: world frame $W$ with $z$ up; base frame $\mathcal B$ with $x$ forward, $y$ left (subscript $\mathcal B$ marks base
+quantities). $R_i, p_i$ are the orientation and origin of body $i$ in $W$; $m_i$, $c_i$ and $I_i$ its mass, centre of mass (world)
+and rotational inertia about $c_i$ (body frame). Body 0 is the base and body $i \ge 1$ carries hinge $i$. $m_{\text{tot}} = \sum_i m_i$ is the
+total mass and $c = \sum_i m_i c_i / m_{\text{tot}}$ the centre of mass of the robot. $M(q)$ is the joint-space mass matrix and $B$ the
+actuation matrix; neither is a frame. Indices: $i$ runs over bodies and hinges, $a$ over actuators, $j$ over foot contacts, and a
+superscript $(n)$ marks time step $n$. $\mathrm{Id}_{12}$ is the $12 \times 12$ identity; every $I$ with a subscript is an inertia.
 
 ### Fundamental level
 
@@ -67,13 +70,13 @@ $6.5 \times 10^{-8}$ without the normalisation (`centroidal_momentum_vs_pinocchi
 
 The configuration of a floating-base robot is the base pose plus the joint angles:
 
-$$q = (p_B,\; \mathbf{q}_B,\; q_1, \dots, q_{12}) \in \mathbb{R}^3 \times S^3 \times \mathbb{R}^{12}, \qquad n_q = 3 + 4 + 12 = 19,$$
+$$q = (p_{\mathcal B},\; \mathbf{q}_{\mathcal B},\; \mathbf q) \in \mathbb{R}^3 \times S^3 \times \mathbb{R}^{12}, \qquad \mathbf q = (q_1, \dots, q_{12}), \qquad n_q = 3 + 4 + 12 = 19,$$
 
-$$v = (v_B,\; \omega_B,\; \dot q_1, \dots, \dot q_{12}) \in \mathbb{R}^{18}, \qquad n_v = 3 + 3 + 12 = 18 .$$
+$$v = (v_{\mathcal B},\; \omega_{\mathcal B},\; \dot{\mathbf q}) \in \mathbb{R}^{18}, \qquad n_v = 3 + 3 + 12 = 18 .$$
 
 The base orientation is stored as a unit quaternion (4 numbers, 1 constraint) but moves with 3 angular velocities, so
 $n_q - n_v = 1$. Each MJCF joint type contributes $(n_q, n_v)$: free $(7, 6)$, ball $(4, 3)$, hinge and slide $(1, 1)$. MuJoCo's
-velocity convention for the free joint is $v_B$ in the world frame and $\omega_B$ in the base frame (`sim.py` docstring).
+velocity convention for the free joint is $v_{\mathcal B}$ in the world frame and $\omega_{\mathcal B}$ in the base frame (`sim.py` docstring).
 
 For the Go2: 13 bodies, 1 free joint, 12 hinges and 12 motors.
 
@@ -85,7 +88,7 @@ For the Go2: 13 bodies, 1 free joint, 12 hinges and 12 motors.
 | RL/RR_thigh | hip | 1.152 | hip flexion | $y$ | $[-0.5236, 4.5379]$ | $[-30, 260]$ |
 | FL/FR/RL/RR_calf | thigh | 0.241352 | knee | $y$ | $[-2.7227, -0.83776]$ | $[-156, -48]$ |
 
-Total mass $M = 6.921 + 4\,(0.678 + 1.152 + 0.241352) = 15.2064$ kg (`total_mass_kg`); the legs carry 54.5% of it. Every hinge
+Total mass $m_{\text{tot}} = 6.921 + 4\,(0.678 + 1.152 + 0.241352) = 15.2064$ kg (`total_mass_kg`); the legs carry 54.5% of it. Every hinge
 has damping 2 N m s/rad, armature 0.01 kg m² and friction loss 0.2 N m (`tables.joints` in results.json).
 
 | Actuator | Type | Transmission | Gear | Torque range [N m] |
@@ -105,12 +108,13 @@ radius 0.022 m. All joints sit at their body origin ($\text{pos} = 0$).
 #### Camera model for the annotated views
 
 To draw joint axes onto a render, a world point $P$ has to be mapped to a pixel. MuJoCo's camera has origin $o$, unit vectors
-$f$ (forward) and $u$ (up); image right is $r = f \times u$. With camera coordinates $X = r \cdot (P - o)$, $Y = u \cdot (P - o)$,
-$Z = f \cdot (P - o)$, the pixel is
+$e_f$ (forward) and $e_u$ (up); image right is $e_r = e_f \times e_u$. With camera coordinates $X = e_r \cdot (P - o)$,
+$Y = e_u \cdot (P - o)$, $Z = e_f \cdot (P - o)$, the pixel in an image of $L_x \times L_y$ pixels is
 
-$$(x_{px}, y_{px}) = \left(\frac{X' - (c - w)}{2w}\,W,\;\; \frac{t - Y'}{t - b}\,H\right),\qquad (X', Y') = \begin{cases}(X, Y) & \text{orthographic}\\ (X, Y)\,n/Z & \text{perspective}\end{cases}$$
+$$(x_{px}, y_{px}) = \left(\frac{X' - (x_0 - x_w)}{2x_w}\,L_x,\;\; \frac{y_t - Y'}{y_t - y_b}\,L_y\right),\qquad (X', Y') = \begin{cases}(X, Y) & \text{orthographic}\\ (X, Y)\,z_n/Z & \text{perspective}\end{cases}$$
 
-with frustum centre $c$, half-width $w$ (from the aspect ratio when MuJoCo stores 0), top $t$, bottom $b$ and near plane $n$.
+with frustum centre $x_0$, half-width $x_w$ (from the aspect ratio when MuJoCo stores 0), top $y_t$, bottom $y_b$ and near-plane
+distance $z_n$.
 MuJoCo renders a mono image from the average of its two eye cameras, which sit $\pm \text{ipd}/2 = \pm 0.034$ m apart. Taking
 only `scene.camera[0]` instead of the average shifts every projected point by 31.4 px in each of the three views, against a
 0.45 px bounding-box error with the average (`camera_eye0_only_shift_px`, `camera_projection_bbox_px`). The views here are
@@ -121,45 +125,47 @@ orthographic, so the shift is the same for every point and one scale bar holds f
 #### Forward kinematics of the tree
 
 Bodies are stored parents first. For body $i$ with parent $\pi(i)$, fixed offset $(\bar p_i, \bar R_i)$ and hinge axis $s_i$
-(body frame) through the anchor $a_i$ (body frame):
+(body frame) through the anchor $\rho_i$ (body frame):
 
-$$R_i = R_{\pi(i)} \bar R_i\, \mathrm{Rot}(s_i, q_i), \qquad p_i = p_{\pi(i)} + R_{\pi(i)} \bar p_i + R'_i a_i - R_i a_i,\quad R'_i = R_{\pi(i)}\bar R_i .$$
+$$R_i = R_{\pi(i)} \bar R_i\, \mathrm{Rot}(s_i, q_i), \qquad p_i = p_{\pi(i)} + R_{\pi(i)} \bar p_i + R'_i \rho_i - R_i \rho_i,\quad R'_i = R_{\pi(i)}\bar R_i .$$
 
-The joint's world anchor is $p_{\pi(i)} + R_{\pi(i)}\bar p_i + R'_i a_i$ and its world axis $\hat s_i = R'_i s_i$. For the base,
-$p_B$ and $R(\mathbf q_B)$ come straight from $q$. This is the product of exponentials of Lynch and Park, ch. 4, written body by body.
+The joint's world anchor is $\hat\rho_i = p_{\pi(i)} + R_{\pi(i)}\bar p_i + R'_i \rho_i$ and its world axis $\hat s_i = R'_i s_i$. For the base,
+$p_{\mathcal B}$ and $R(\mathbf q_{\mathcal B})$ come straight from $q$. This is the product of exponentials (Lynch and Park, sec. 4.1), written body by body.
 
 #### Velocities down the tree
 
 Differentiate $p_i$ and $R_i$. A hinge adds angular velocity $\hat s_i \dot q_i$, and a point $x$ on body $i$ gains velocity
-$\hat s_i \dot q_i \times (x - \hat a_i)$ from it, with $\hat a_i$ the world anchor:
+$\hat s_i \dot q_i \times (x - \hat\rho_i)$ from it:
 
-$$\omega_i = \omega_{\pi(i)} + \hat s_i \dot q_i, \qquad v_i = v_{\pi(i)} + \omega_{\pi(i)} \times (p_i - p_{\pi(i)}) + \hat s_i \dot q_i \times (p_i - \hat a_i),$$
+$$\omega_i = \omega_{\pi(i)} + \hat s_i \dot q_i, \qquad v_i = v_{\pi(i)} + \omega_{\pi(i)} \times (p_i - p_{\pi(i)}) + \hat s_i \dot q_i \times (p_i - \hat\rho_i),$$
 
-starting from $v_B$ and $\omega_B^W = R_B\,\omega_B$. This is the outward velocity pass of Featherstone's recursive algorithms,
-in 3-vectors instead of spatial vectors.
+starting from $v_{\mathcal B}$ and $\omega_{\mathcal B}^W = R_{\mathcal B}\,\omega_{\mathcal B}$. This is the forward iteration of Newton-Euler inverse
+dynamics (Lynch and Park, sec. 8.3), written with 3-vectors instead of twists.
 
 #### Centre of mass and centroidal momentum
 
 With $c_i = p_i + R_i\,\bar c_i$ and $\dot c_i = v_i + \omega_i \times (c_i - p_i)$:
 
-$$l = \sum_i m_i \dot c_i = M \dot c, \qquad k = \sum_i \left[ m_i (c_i - c) \times \dot c_i + R_i I_i R_i^T \omega_i \right].$$
+$$l = \sum_i m_i \dot c_i = m_{\text{tot}} \dot c, \qquad k = \sum_i \left[ m_i (c_i - c) \times \dot c_i + R_i I_i R_i^T \omega_i \right].$$
 
-$h_G = (l, k)$ is the centroidal momentum of Orin, Goswami and Lee (2013). It is linear in $v$: $h_G = A_G(q)\,v$.
+$h_G = (l, k)$ is the centroidal momentum. It is linear in $v$: $h_G = A_G(q)\,v$, with $A_G$ the centroidal momentum matrix
+(Lee and Goswami 2012, eq. 31, who order the blocks $(k, l)$).
 
 #### Transmission and armature
 
-A joint-transmission motor with gear $g_k$ on joint $j(k)$ produces the generalised force
+A joint-transmission motor $a$ with gear $\gamma_a$, on the joint whose velocity has index $\text{dof}(a)$ in $v$, produces the
+generalised force (MuJoCo Computation, "Actuation model", "Transmission")
 
-$$\tau = B u, \qquad B_{n,k} = \begin{cases} g_k & n = \text{dof}(j(k)) \\ 0 & \text{otherwise}\end{cases},\qquad u_k \leftarrow \mathrm{clip}(u_k, u_k^{\min}, u_k^{\max}) .$$
+$$\tau = B u, \qquad B_{\text{dof}(a),\,a} = \gamma_a, \text{ all other entries of } B \text{ zero},\qquad u_a \leftarrow \mathrm{clip}(u_a, u_a^{\min}, u_a^{\max}) .$$
 
-For the Go2, $g_k = 1$ and actuator $k$ drives joint $k$, so $B = \begin{bmatrix} 0_{6 \times 12} \\ I_{12} \end{bmatrix}$: the
-model's torques are joint-side torques and the gearbox is not modelled. Its only trace is the armature. A rotor of inertia $I_r$
-turning at $N \dot q$ behind an $N{:}1$ reduction stores $\tfrac12 I_r (N \dot q)^2 = \tfrac12 (N^2 I_r)\,\dot q^2$, so it adds
-$N^2 I_r$ to the joint's diagonal of the mass matrix:
+For the Go2, $\gamma_a = 1$ and actuator $a$ drives hinge $a$, so $B = \begin{bmatrix} 0_{6 \times 12} \\ \mathrm{Id}_{12} \end{bmatrix}$: the
+model's torques are joint-side torques and the gearbox is not modelled. Its only trace is the armature. A rotor of inertia
+$I_{\text{rot}}$ turning at $N \dot q_i$ behind an $N{:}1$ reduction stores $\tfrac12 I_{\text{rot}} (N \dot q_i)^2 = \tfrac12 (N^2 I_{\text{rot}})\,\dot q_i^2$,
+so it adds $N^2 I_{\text{rot}}$ to the joint's diagonal of the mass matrix (Lynch and Park, sec. 8.9):
 
-$$M(q) = M_{\text{links}}(q) + \mathrm{diag}(0_6,\; I_a \mathbf 1_{12}), \qquad I_a = N^2 I_r = 0.01 \text{ kg m}^2 .$$
+$$M(q) = M_{\text{links}}(q) + \mathrm{diag}(0_6,\; I_{\text{arm}} \mathbf 1_{12}), \qquad I_{\text{arm}} = N^2 I_{\text{rot}} = 0.01 \text{ kg m}^2 .$$
 
-go2.xml gives $I_a$ but neither $N$ nor $I_r$. The knee limit is $45.43 / 23.7 = 1.92$ times the hip limit (my inference: an
+go2.xml gives $I_{\text{arm}}$ but neither $N$ nor $I_{\text{rot}}$. The knee limit is $45.43 / 23.7 = 1.92$ times the hip limit (my inference: an
 extra reduction on the knee, not checked against a Unitree document).
 
 Worked example at the stand pose ($q = (0, 0.9, -1.8)$ per leg, `stand_M_diag_*`): the link-only diagonal is 0.0236, 0.0204
@@ -169,7 +175,7 @@ inertia the motor sees.
 #### Torque budget at the stand pose
 
 Standing still under joint PD (`sim.stand`, 1.5 s settle, base height 0.256 m), the feet carry 33.4 N (front) and 41.2 N (rear),
-which sum to $Mg = 149.2$ N. The motors hold this with (results.json `stand_torque_Nm`):
+which sum to $m_{\text{tot}} g = 149.2$ N. The motors hold this with (results.json `stand_torque_Nm`):
 
 | Joint | Front legs [N m] | Rear legs [N m] | Limit [N m] | Largest share |
 |---|---|---|---|---|
@@ -177,10 +183,10 @@ which sum to $Mg = 149.2$ N. The motors hold this with (results.json `stand_torq
 | hip flexion | 1.33 | 0.82 | 23.7 | 5.6% |
 | knee | 5.94 | 7.06 | 45.43 | 15.5% |
 
-From $\tau = J^T f$ with $f = (0, 0, f_z)$ (module 04's foot Jacobian $J$, base frame), the largest vertical force one foot can
-hold at this pose before some joint saturates is
+From $u_{\text{leg}} = J_{\text{leg}}^T f_j$ with $f_j = (0, 0, f_z)$ the force on foot $j$ (module 04's foot Jacobian $J_{\text{leg}}$, base
+frame), the largest vertical force one foot can hold at this pose before one of its three actuators saturates is
 
-$$f_{z,\max} = \min_i \frac{\tau_{i,\max}}{|J_{zi}|} = 245.5 \text{ N (front)},\; 245.3 \text{ N (rear)} .$$
+$$f_{z,\max} = \min_{a \in \text{leg}} \frac{u_a^{\max}}{|(J_{\text{leg}})_{z a}|} = 245.5 \text{ N (front)},\; 245.3 \text{ N (rear)} .$$
 
 That is a static upper bound of 100 kg on all four feet, or 84.9 kg beyond the robot's own mass (`static_payload_kg`). It
 ignores acceleration, motor heating, velocity limits (the model has none) and every other pose; it is a property of this model
@@ -200,13 +206,16 @@ thigh through the body), then the knee over its full range.
 
 #### Equations of motion, split into base and joint rows
 
-With contact forces $f_c$ at points with Jacobian $J_c$ (stacked, $3n_c \times 18$):
+Foot contact $j$ ($j = 1, \dots, n_f$) acts at the point $r_j$ with force $f_j$ and, for MuJoCo's condim-6 feet, a torsional and
+rolling moment $\mu_j$. Stack the contact wrenches into $\lambda = (f_1, \mu_1, \dots, f_{n_f}, \mu_{n_f})$ with Jacobian $J_\lambda$
+($6n_f \times 18$). With the bias force $C(q, v)$ (gravity, Coriolis and centrifugal terms, joint damping), the equations of
+motion are (MuJoCo Computation, "General framework", eq. 1, whose $c$ is $C$ here)
 
-$$M(q)\,\dot v + h(q, v) = B u + J_c^T f_c .$$
+$$M(q)\,\dot v + C(q, v) = B u + J_\lambda^T \lambda .$$
 
-Split $v = (v_b, \dot{\mathbf q})$ with $v_b \in \mathbb R^6$:
+Split $v = (v_b, \dot{\mathbf q})$ with $v_b = (v_{\mathcal B}, \omega_{\mathcal B}) \in \mathbb R^6$; subscript $b$ marks base rows and $q$ joint rows:
 
-$$\begin{bmatrix} M_{bb} & M_{bj} \\ M_{jb} & M_{jj} \end{bmatrix}\begin{bmatrix}\dot v_b \\ \ddot{\mathbf q}\end{bmatrix} + \begin{bmatrix} h_b \\ h_j\end{bmatrix} = \begin{bmatrix} 0 \\ u \end{bmatrix} + \begin{bmatrix} J_{c,b}^T \\ J_{c,j}^T\end{bmatrix} f_c .$$
+$$\begin{bmatrix} M_{bb} & M_{bq} \\ M_{qb} & M_{qq} \end{bmatrix}\begin{bmatrix}\dot v_b \\ \ddot{\mathbf q}\end{bmatrix} + \begin{bmatrix} C_b \\ C_q\end{bmatrix} = \begin{bmatrix} 0 \\ u \end{bmatrix} + \begin{bmatrix} J_{\lambda,b}^T \\ J_{\lambda,q}^T\end{bmatrix} \lambda .$$
 
 $B$ has rank 12 and 18 rows, so six directions of $\dot v$ receive no actuator force. Those six rows are the base rows, and $u$
 does not appear in them.
@@ -217,17 +226,17 @@ does not appear in them.
 
 Write Newton's law for every body and add them up. Joint torques, joint damping, friction loss and joint-limit forces each act
 on a parent and a child with equal and opposite force and moment (Newton's third law), so they cancel in the sum. Gravity acts at
-each $c_i$ and contacts with the world act at the contact points $p_k$ with force $f_k$ and, for MuJoCo's condim-6 feet,
-torsional and rolling moments $\tau_k$:
+each $c_i$, and the feet push on the world with $f_j$ and $\mu_j$ at $r_j$ (Lee and Goswami 2012, eqs. 1 and 2, for one contact):
 
-$$\dot l = M g + \sum_k f_k, \qquad \dot k = \sum_k \left[(p_k - c) \times f_k + \tau_k\right] .$$
+$$\dot l = m_{\text{tot}}\, g + \sum_j f_j, \qquad \dot k = \sum_j \left[(r_j - c) \times f_j + \mu_j\right] .$$
 
 Gravity contributes no moment about $c$ because $\sum_i m_i (c_i - c) \times g = 0$ by the definition of $c$. The base rows of the
-equations of motion carry exactly this information, expressed at the base instead of at $c$ (Orin, Goswami and Lee 2013).
+equations of motion carry exactly this information, expressed at the base instead of at $c$ (checked numerically below:
+`stance_momentum_rate_vs_wrench`).
 Two consequences:
 
-1. In flight ($f_c = 0$), $\ddot c = g$ and $k$ is constant whatever the motors do. The motors can still rotate and shift the
-   base, because $M_{bj} \ddot{\mathbf q} \neq 0$: the base moves so that the total momentum does not.
+1. In flight ($\lambda = 0$), $\ddot c = g$ and $k$ is constant whatever the motors do. The motors can still rotate and shift the
+   base, because $M_{bq} \ddot{\mathbf q} \neq 0$: the base moves so that the total momentum does not.
 2. To accelerate the centre of mass or change $k$, the robot must push on the ground. Locomotion is the problem of choosing joint
    torques so that the resulting contact forces produce the wanted $\dot h_G$, inside the friction cones.
 
@@ -235,36 +244,39 @@ Two consequences:
 
 #### Discrete time does not conserve momentum exactly
 
-Semi-implicit Euler updates $v_{k+1} = v_k + \Delta t\,\dot v_k$, then $q_{k+1} = q_k \oplus \Delta t\, v_{k+1}$. MuJoCo's
-`mjINT_EULER` treats joint damping implicitly: it solves $(M + \Delta t\,D)\,\dot v_k = f(q_k, v_k)$, so that
-$M\dot v_k = f_{\text{other}} - D\,v_{k+1}$, with $D$ = diag(0, ..., 0, 2, ..., 2) N m s/rad (zero on the six base rows, 2 on every
+Semi-implicit Euler updates $v^{(n+1)} = v^{(n)} + \Delta t\,\dot v^{(n)}$, then $q^{(n+1)} = q^{(n)} \oplus \Delta t\, v^{(n+1)}$. MuJoCo's
+`mjINT_EULER` treats joint damping implicitly (MuJoCo Computation, "Numerical integration"): it solves
+$(M + \Delta t\,D)\,\dot v^{(n)} = F^{(n)} - D\,v^{(n)}$, with $F^{(n)}$ every generalised force except damping, so that
+$M\dot v^{(n)} = F^{(n)} - D\,v^{(n+1)}$, with $D$ = diag(0, ..., 0, 2, ..., 2) N m s/rad (zero on the six base rows, 2 on every
 hinge). The base rows of the equations of motion, which alone fix $\dot h_G$, are therefore the same as without the implicit
 term, and the argument below is unchanged. Differentiating
 $h_G = A_G(q)\,v$ gives the continuous balance $A_G(q)\,\dot v + \dot A_G(q, v)\,v = w$, with $w$ the external wrench
-($(Mg, 0)$ in flight). Suppose the integrator's $\dot v_k$ satisfies it exactly at step $k$:
-$A_G(q_k)\dot v_k + \dot A_G(q_k, v_k)\,v_k = w_k$. With $h_k = A_G(q_k)\,v_k$ the momentum changes per step by
+($(m_{\text{tot}} g, 0)$ in flight). Suppose the integrator's $\dot v^{(n)}$ satisfies it exactly at step $n$:
+$A_G(q^{(n)})\dot v^{(n)} + \dot A_G(q^{(n)}, v^{(n)})\,v^{(n)} = w^{(n)}$. With $h_G^{(n)} = A_G(q^{(n)})\,v^{(n)}$ the momentum changes per step by
 
-$$h_{k+1} - h_k = \Delta t\, A_G(q_k)\dot v_k + \big(A_G(q_{k+1}) - A_G(q_k)\big)\, v_{k+1} = \Delta t\, w_k + \underbrace{\big(A_G(q_{k+1}) - A_G(q_k)\big)\, v_{k+1} - \Delta t\,\dot A_G(q_k, v_k)\, v_k}_{\text{residual}} .$$
+$$h_G^{(n+1)} - h_G^{(n)} = \Delta t\, A_G(q^{(n)})\dot v^{(n)} + \big(A_G(q^{(n+1)}) - A_G(q^{(n)})\big)\, v^{(n+1)} = \Delta t\, w^{(n)} + \underbrace{\big(A_G(q^{(n+1)}) - A_G(q^{(n)})\big)\, v^{(n+1)} - \Delta t\,\dot A_G(q^{(n)}, v^{(n)})\, v^{(n)}}_{\text{residual}} .$$
 
-$\dot A_G(q, v) = \sum_n \frac{\partial A_G}{\partial q_n} v_n$ is linear in $v$, and a Taylor expansion of $A_G$ about $q_k$ gives
-$A_G(q_{k+1}) - A_G(q_k) = \Delta t\,\dot A_G(q_k, v_{k+1}) + O(\Delta t^2)$. The residual is therefore
+$\dot A_G(q, v)$, the rate of change of $A_G$ along a motion that passes $q$ with velocity $v$, is linear in $v$, and a Taylor
+expansion of $A_G$ about $q^{(n)}$ gives $A_G(q^{(n+1)}) - A_G(q^{(n)}) = \Delta t\,\dot A_G(q^{(n)}, v^{(n+1)}) + O(\Delta t^2)$. The residual is therefore
 
-$$\Delta t\,\big[\dot A_G(q_k, v_{k+1})\,v_{k+1} - \dot A_G(q_k, v_k)\,v_k\big] + O(\Delta t^2) = O(\Delta t^2),$$
+$$\Delta t\,\big[\dot A_G(q^{(n)}, v^{(n+1)})\,v^{(n+1)} - \dot A_G(q^{(n)}, v^{(n)})\,v^{(n)}\big] + O(\Delta t^2) = O(\Delta t^2),$$
 
-because $v_{k+1} - v_k = \Delta t\,\dot v_k$. Over a fixed time $T$ the $T/\Delta t$ residuals add up to $O(\Delta t)$, so halving
+because $v^{(n+1)} - v^{(n)} = \Delta t\,\dot v^{(n)}$. Over a fixed time $T$ the $T/\Delta t$ residuals add up to $O(\Delta t)$, so halving
 $\Delta t$ should halve Euler's drift.
 
 #### Reorientation with zero angular momentum
 
-With $k = 0$ the base angular velocity is fixed by the joint velocities: $k = I_c(q)\,\omega_B + A_{kq}(q)\,\dot{\mathbf q} = 0$
-gives $\omega_B = -I_c^{-1} A_{kq}\,\dot{\mathbf q}$. For a motion confined to the sagittal plane (all legs alike), only pitch
-$\theta$ changes and this reduces to $\dot\theta = a(\mathbf q)^T \dot{\mathbf q}$ with $\mathbf q = (q_{\text{thigh}}, q_{\text{knee}})$.
-Over a closed loop $\gamma$ in joint space, Stokes' theorem gives
+With $k = 0$ the base angular velocity is fixed by the joint velocities. The base's linear velocity does not enter $k$, so
+$k = I_G(q)\,\omega_{\mathcal B} + A_{kq}(q)\,\dot{\mathbf q} = 0$, with $I_G$ the inertia of the whole robot about $c$ and $A_{kq}$ the
+block of $A_G$ that maps $\dot{\mathbf q}$ to $k$, gives $\omega_{\mathcal B} = -I_G^{-1} A_{kq}\,\dot{\mathbf q}$. For a motion confined to the
+sagittal plane (all legs alike), only pitch $\theta$ changes and this reduces to $\dot\theta = \alpha(\phi)^T \dot\phi$ with
+$\phi = (q_{\text{thigh}}, q_{\text{knee}})$, the same on every leg. Over a closed loop $\Gamma$ in this plane, Stokes' theorem gives
 
-$$\Delta\theta = \oint_\gamma a(\mathbf q)\cdot d\mathbf q = \iint_{\text{inside }\gamma} \left(\frac{\partial a_2}{\partial q_1} - \frac{\partial a_1}{\partial q_2}\right) dq_1\,dq_2 \neq 0 \text{ in general.}$$
+$$\Delta\theta = \oint_\Gamma \alpha(\phi)\cdot d\phi = \iint_{\text{inside }\Gamma} \left(\frac{\partial \alpha_2}{\partial \phi_1} - \frac{\partial \alpha_1}{\partial \phi_2}\right) d\phi_1\,d\phi_2 \neq 0 \text{ in general.}$$
 
 Three predictions follow: the net rotation does not depend on how fast the loop is run; running the loop backwards reverses it;
-a loop around a different region gives a different rotation. This is the falling-cat mechanism (Kane and Scher 1969).
+a loop around a different region gives a different rotation. A falling cat turns over the same way; the classic model of it,
+Kane and Scher (1969), was not read for this module and is not used in the derivation.
 
 ## Implementation
 
@@ -273,7 +285,7 @@ a loop around a different region gives a different rotation. This is the falling
 | default-class resolution, inertia tensor, quaternion normalisation | `anatomy.parse()` | ElementTree only; asserts joint transmissions and hinge gears with zero tail |
 | $n_q$, $n_v$, rank of $B$ | `anatomy.dof()` | |
 | $\tau = Bu$ with clipping | `anatomy.selection()`, `anatomy.actuator_force()` | |
-| forward kinematics, anchors, axes | `anatomy.fk()` | general anchor $a_i$, not assumed zero |
+| forward kinematics, anchors, axes | `anatomy.fk()` | general anchor $\rho_i$, not assumed zero |
 | velocity propagation | `anatomy.velocities()` | |
 | $M$, $c$, $l$, $k$ | `anatomy.centroidal()` | |
 | $\dot h_G$ along the motion | `anatomy.momentum_rate()` | central difference in time, $\epsilon = 10^{-6}$ s: moves $q$ with `anatomy.integrate()` and $v$ by $\epsilon\dot v$ |
@@ -286,10 +298,10 @@ Design choices:
   `mj_objectVelocity`, `qfrc_actuator`, `mj_fullM` and with Pinocchio's `computeCentroidalMomentum`,
   `computeCentroidalMomentumTimeVariation` and model limits.
 - $\dot h_G$ is a finite difference of $h_G$ rather than an analytic derivative. The analytic one needs the bias accelerations of
-  every body; the difference reuses `centroidal()` and is accurate to about $10^{-8}$, enough to separate "equals $Mg$" from
+  every body; the difference reuses `centroidal()` and is accurate to about $10^{-8}$, enough to separate "equals $m_{\text{tot}} g$" from
   "differs by newtons". Pinocchio's analytic $\dot h_G$ is the tighter check ($2.8 \times 10^{-11}$).
 - The momentum checks set MuJoCo's constraint solver to tolerance 0 and 1000 iterations. At the default tolerance
-  ($10^{-8}$, 100 iterations) the solver stops before $M\dot v = \tau + J^T f$ holds to machine precision (Failure analysis).
+  ($10^{-8}$, 100 iterations) the solver stops before the equations of motion hold to machine precision (Failure analysis).
 - Flight and reorientation use RK4. The flight experiment launches the robot with $v = (1.2, 0, 4.5)$ m/s from 0.6 m and stops
   after 0.9 s, before it lands: no floor contact in any run (`*_floor_contacts = 0`).
 - `validate.Rec` extends `sim.Recorder` with slow motion and marker spheres, using the same encoder settings and limits.
@@ -297,9 +309,13 @@ Design choices:
 ## Experiment
 
 ```bash
-DISPLAY=:1 .venv-modules/bin/python modules/m01_anatomy/validate.py      # wall time depends on machine load: 174 s at load 127 (wall_time_s)
+DISPLAY=:0 .venv-modules/bin/python modules/m01_anatomy/validate.py      # any X display works; wall time depends on load: 118 s at load 67 (wall_time_s)
 .venv-modules/bin/python -m pytest -q modules/m01_anatomy
 ```
+
+Without a live X display `validate.can_render()` fails, and the run warns and skips the two checks that need rendering
+(`camera_projection_bbox_px`, `media_mp4_under_6MB`), `views_annotated.png` and the videos. The other 28 checks still run and
+results.json lists the skipped keys under `skipped_checks`; `--no-media` skips only the videos and `media_mp4_under_6MB`.
 
 | Experiment | Inputs | Measured |
 |---|---|---|
@@ -308,13 +324,13 @@ DISPLAY=:1 .venv-modules/bin/python modules/m01_anatomy/validate.py      # wall 
 | kinematics, momentum, transmission | 1000 random states, seed 0: base pose $\mathcal N(0,1)$, joints $U(-\pi, \pi)$, $v \sim \mathcal N(0, 1)$, $u \sim U(-1.5, 1.5)\,u_{\max}$ | max abs error vs MuJoCo and Pinocchio |
 | armature | 50 random configurations, model with armature set to 0 | $M - M_0 - \mathrm{diag}(0_6, 0.01\cdot\mathbf 1_{12})$ |
 | stand | `sim.stand`, 1.5 s | actuator torques, foot forces |
-| flight identity | 1000 random states (seed 1) and torques $u \sim U(-1, 1)\,u_{\max}$, no floor | $\dot h_G - (Mg, 0)$ |
+| flight identity | 1000 random states (seed 1) and torques $u \sim U(-1, 1)\,u_{\max}$, no floor | $\dot h_G - (m_{\text{tot}} g, 0)$ |
 | stance identity | squat: min-jerk PD (kp 80, kd 2) from (0, 0.9, -1.8) to (0, 1.25, -2.5) and back, 1.8 s, sampled every 10 ms (180 samples) | $\dot h_G -$ (gravity + contact wrenches) |
-| drift | flight 0.9 s, torques $15 \sin(2\pi f_k t + k)$ N m, $f_k \in [0.5, 1.7]$ Hz; Euler and RK4 at 2 and 1 ms | $\max_t |k(t) - k(0)|$, $\max_t |l - l_0 - Mgt|$ |
+| drift | flight 0.9 s, torque $15 \sin(2\pi \nu_a t + a - 1)$ N m on actuator $a$, $\nu_a \in [0.5, 1.7]$ Hz; Euler and RK4 at 2 and 1 ms | $\max_t |k(t) - k(0)|$, $\max_t |l - l_0 - m_{\text{tot}} g t|$ |
 | reorientation | zero gravity, RK4, PD kp 400, kd 6 on the loop below, 5 cycles at 1 Hz, reversed, at 0.5 Hz, and over a second region of the same area | base pitch, $|k|$, $|l|$ |
 
-The reorientation loop for every leg is $q_{\text{thigh}} = 0.9 + s\,0.45 \sin \omega t$, $q_{\text{knee}} = -1.8 + 0.45(\cos\omega t - 1)$:
-a circle of radius 0.45 rad through the stand pose, with $s = -1$ for the reversed run.
+The reorientation loop for every leg is $q_{\text{thigh}} = 0.9 + \sigma\,0.45 \sin \omega t$, $q_{\text{knee}} = -1.8 + 0.45(\cos\omega t - 1)$:
+a circle of radius 0.45 rad through the stand pose, with $\sigma = -1$ for the reversed run.
 
 ## Validation
 
@@ -335,13 +351,13 @@ Thresholds were fixed in `validate.ACCEPT` before the first full run; `test_anat
 | body angular and linear velocity vs `mj_objectVelocity` | 2.7e-15 | < 1e-12 | `body_velocity_vs_mujoco` |
 | centre of mass vs Pinocchio | 8.9e-16 m | < 1e-12 | `com_vs_pinocchio_m` |
 | centroidal momentum vs Pinocchio | 4.3e-14 | < 1e-12 | `centroidal_momentum_vs_pinocchio` |
-| $B\,\mathrm{clip}(u)$ vs `qfrc_actuator`, half the commands beyond the range | 0 N m | < 1e-12 | `actuator_force_vs_mujoco` |
+| $B\,\mathrm{clip}(u)$ vs `qfrc_actuator`, a third of the commands beyond the range | 0 N m | < 1e-12 | `actuator_force_vs_mujoco` |
 | $M - M_0$ equals diag(armature), 50 configurations | 1.7e-18 | < 1e-12 | `armature_in_mass_matrix` |
 | largest standing torque / limit | 0.155 (rear knee) | < 0.5 | `stand_torque_utilisation_max` |
 | base rows of $B$ | 0 | ≤ 0 | `B_base_rows_max_abs` |
 | base rows of MuJoCo's actuator force, 1000 random commands | 0 | ≤ 0 | `qfrc_actuator_base_rows_max_abs` |
 | rank of $B$ | 12 | = 12 | `rank_B` |
-| flight: $\dot h_G - (Mg, 0)$, finite difference, max | 1.8e-8 | < 1e-6 | `flight_momentum_rate_vs_Mg_fd` |
+| flight: $\dot h_G - (m_{\text{tot}} g, 0)$, finite difference, max | 1.8e-8 | < 1e-6 | `flight_momentum_rate_vs_Mg_fd` |
 | flight: same, Pinocchio's $\dot h_G$ | 2.8e-11 | < 1e-8 | `flight_momentum_rate_vs_Mg_pinocchio` |
 | stance: $\dot h_G -$ (gravity + contact wrenches), 180 samples | 1.3e-9 | < 1e-5 | `stance_momentum_rate_vs_wrench` |
 | Euler angular-momentum drift, 2 ms / 1 ms | 2.00 | 1.6 to 2.4 | `flight_drift_order_euler` |
@@ -367,14 +383,14 @@ $1.1 \times 10^{-9}$ m/s² (`flight_com_acc_minus_g_max`). In the 0.9 s flight w
 ![Flight: COM on the parabola, base attitude moving, momentum change](figures/flight_momentum.png)
 
 [Flight video](media/flight.mp4) (3.6 s, quarter speed): the robot is drawn semi-transparent so that the centre of mass, the
-blue sphere inside the base (the colour of the simulated COM in the figure above), can be seen through it; the amber dots are
+near-black sphere inside the base (the colour of the simulated COM in the figure above), can be seen through it; the amber dots are
 the parabola it has to follow.
 
 ![Flight still at t = 0.45 s](media/flight.png)
 
 ### Stance: the contacts carry the weight and the accelerations
 
-During the squat the summed vertical contact force ranges from 132.7 to 168.7 N around $Mg = 149.2$ N. The momentum rate equals
+During the squat the summed vertical contact force ranges from 132.7 to 168.7 N around $m_{\text{tot}} g = 149.2$ N. The momentum rate equals
 gravity plus the contact wrenches to $1.3 \times 10^{-9}$; leaving the contacts out gives an error of at least 132.7 N at every
 sample (`stance_error_without_contacts_min_N`).
 
@@ -390,7 +406,7 @@ through the stand pose, $q_{\text{thigh}} = 0.9 - 0.45 \sin \omega t$, $q_{\text
 same area and direction but covers the region where the knee is bent less (measured knee range -1.80 to -0.90 rad,
 `reorient_other_region_knee_range_rad`, inside the limit of -0.83776 rad). It turns the base by -14.84°, ratio 1.194 to the
 first loop (`reorient_other_region_ratio`), with a tracking error of 0.057 rad, the same as the first loop's. Area alone does
-not set the rotation; the integrand $\partial a_2/\partial q_1 - \partial a_1/\partial q_2$ varies over joint space. $|k|$ stays below $1.5 \times 10^{-7}$ kg m²/s.
+not set the rotation; the integrand $\partial \alpha_2/\partial \phi_1 - \partial \alpha_1/\partial \phi_2$ varies over joint space. $|k|$ stays below $1.5 \times 10^{-7}$ kg m²/s.
 Within each 1 Hz cycle the pitch swings over a peak-to-peak range of 4.94° and ends 2.05° to 2.85° below where the cycle
 started (`reorient_pitch_swing_per_cycle_deg`, `reorient_pitch_net_per_cycle_deg`).
 
@@ -417,11 +433,12 @@ or controller module that reads momentum from simulation should use RK4 or a 1 m
 
 ### The momentum identity holds only to the solver tolerance
 
-At MuJoCo's default solver settings (tolerance $10^{-8}$, 100 iterations) the flight identity $\dot h_G = Mg$ is off by
+At MuJoCo's default solver settings (tolerance $10^{-8}$, 100 iterations) the flight identity $\dot h_G = m_{\text{tot}} g$ is off by
 $7.2 \times 10^{-5}$ (`flight_momentum_rate_default_solver_tol`); with tolerance 0 and 1000 iterations by $1.8 \times 10^{-8}$. The
 cause: MuJoCo computes $\dot v$ inside its constraint solver (friction loss, joint limits and self-contacts are all constraints,
-even in flight), and stops when the cost improvement falls below the tolerance, so $M\dot v = \tau + J^T f$ is only approximately
-met. The residual $M\dot v - \tau_{\text{smooth}} - J^T f$ over the same 1000 states is at most $7.2 \times 10^{-5}$ in the base
+even in flight), and stops when the cost improvement falls below the tolerance, so the equations of motion are only approximately
+met (MuJoCo Computation, "Constraint solver"). The residual of the equations of motion, with the forces of all active constraints included,
+over the same 1000 states is at most $7.2 \times 10^{-5}$ in the base
 rows, which is the momentum error above, and 0.134 N m in the joint rows; with tolerance 0 it drops to $2.7 \times 10^{-11}$ and
 $1.8 \times 10^{-10}$ (`flight_eom_residual_*`). The joint-row residual does not enter $\dot h_G$, which is fixed by the base
 rows of the equations of motion alone.
@@ -460,13 +477,24 @@ cylinders and spheres (turntable, second turn), so self-collision during the joi
 
 ## References
 
-- MuJoCo documentation, XML reference: `default` and `childclass`, `joint` (`armature`, `damping`, `frictionloss`, `range`),
-  `freejoint`, `motor`; Computation chapter: constraint solver and integrators. mujoco.readthedocs.io, version 3.x.
-- E. Todorov, T. Erez, Y. Tassa, "MuJoCo: A physics engine for model-based control", IROS 2012.
-- K. Zakka et al., MuJoCo Menagerie, github.com/google-deepmind/mujoco_menagerie (unitree_go2 model).
-- J. Carpentier et al., "The Pinocchio C++ library", IEEE/SICE SII 2019.
-- R. Featherstone, *Rigid Body Dynamics Algorithms*, Springer 2008: kinematic trees stored as parent arrays, outward velocity
-  recursion.
-- K. M. Lynch, F. C. Park, *Modern Robotics*, Cambridge University Press 2017: ch. 4 (product-of-exponentials forward kinematics).
-- D. E. Orin, A. Goswami, S.-H. Lee, "Centroidal dynamics of a humanoid robot", Autonomous Robots 35, 2013.
-- T. R. Kane, M. P. Scher, "A dynamical explanation of the falling cat phenomenon", Int. J. Solids and Structures 5, 1969.
+- MuJoCo documentation, mujoco.readthedocs.io (stable, read for MuJoCo 3.x). XML reference: `default` and `childclass`, `joint`
+  (`armature`, `damping`, `frictionloss`, `range`), `freejoint`, `motor`. Computation chapter: "General framework" eq. (1)
+  (equations of motion); "Actuation model", "Transmission"; "Numerical integration", "Integrators" (Euler's $D$ holds only
+  the joint-damping derivatives); "Constraint model", "Friction loss", "Limit", "Contact" (`condim`); "Constraint solver".
+- K. Zakka et al., MuJoCo Menagerie, github.com/google-deepmind/mujoco_menagerie, `unitree_go2/go2.xml` and `scene.xml`.
+- Pinocchio 4.1 Python API, the functions compared against: `buildModelFromMJCF`, `computeCentroidalMomentum`,
+  `computeCentroidalMomentumTimeVariation`, `model.effortLimit`.
+- K. M. Lynch, F. C. Park, *Modern Robotics*, Cambridge University Press 2017: sec. 4.1 (product of exponentials formula),
+  sec. 8.3 (Newton-Euler inverse dynamics, whose forward iteration is the velocity recursion here), sec. 8.9 (actuation,
+  gearing and friction).
+- S.-H. Lee, A. Goswami, "A momentum-based balance controller for humanoid robots on non-level and non-stationary ground",
+  Autonomous Robots, 2012, doi:10.1007/s10514-012-9294-z: sec. 1, eqs. (1) and (2) (rate of angular momentum about the CoM and of
+  linear momentum equal the external moment and force); sec. 3.5, eqs. (31) and (32) (in their notation $h = A\dot q$ with the
+  centroidal momentum matrix $A$, and $\dot h = A\ddot q + \dot A\dot q$).
+
+Section titles of Lynch and Park were checked against the book's companion video list (hades.mech.northwestern.edu,
+"Modern Robotics Videos"), whose titles carry the book's section numbers; the book text itself was not opened. The MuJoCo
+section names were checked on the Computation page. Lee and Goswami was read from a full-text copy at the sections and
+equations cited. Featherstone (2008), Orin, Goswami and Lee (2013) and Kane and Scher (1969) were cited by an earlier
+version of this README; none could be opened (publisher login), so they are no longer listed; the equations they were cited
+for now cite the sources above.

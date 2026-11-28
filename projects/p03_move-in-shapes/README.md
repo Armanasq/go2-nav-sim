@@ -38,8 +38,9 @@ scripts/up.sh
 
 Run each shape right after `scripts/up.sh`. The restart puts the robot back on marker A facing +x and resets `/odom`, which
 drifts while the robot stands (see [If it goes wrong](#if-it-goes-wrong)). Each shape starts from wherever the robot is, so
-from A there is room: the square needs 1.5 m ahead and to the left, the figure-eight 0.9 m to each side; from A the
-trunk centre stayed 0.49 m from the inner face of the south wall on the figure-eight's lower lobe.
+from A there is room: the square needs 1.5 m ahead and to the left, the figure-eight 0.9 m to each side. In my eight
+closed-loop figure-eights from A, the trunk centre came no closer than 0.45 m to the inner face of the south wall, on the
+lower lobe.
 
 The scripts are plain Python files and need no build:
 
@@ -136,8 +137,8 @@ python3 projects/p03_move-in-shapes/drive.py figure8 closed
 Closed loop, the figure-eight is 24 points, one every 30 degrees on each circle. The robot walks from point to point at
 0.18 m/s without stopping and only turns on the spot at the start (0.85 s of `turn0`).
 
-There is no turn at the end: the robot stops on the last leg, heading 2 to 12 degrees left of where it started ([Results](#results)
-explains why).
+There is no turn at the end: the robot stops on the last leg, heading 2 to 11 degrees left of where it started in my eight runs
+([Results](#results) explains why).
 
 Check: about 40 s, and `cut -d, -f2 projects/p03_move-in-shapes/results/figure8_closed.csv | uniq | tr '\n' ' '` shows
 `turn0` once, then `walk0` to `walk23`, then `stop`.
@@ -149,7 +150,7 @@ python3 projects/p03_move-in-shapes/analyze.py
 ```
 
 It writes `figures/shapes.png` and `figures/commanded_vs_achieved.png` and prints several tables. The first one scores your
-four runs. With my logs it starts:
+four runs, one row each. With my logs it is:
 
 ```
 | Run | Corner (square) or crossing (figure-eight) errors, m | The same on /odom, m | Final position error, m | Final heading error, deg | /odom end heading, deg | /odom displacement error at end, m | /odom yaw drift in run, deg | Time, s |
@@ -169,13 +170,16 @@ The table in [Results](#results) is columns 1, 2, 4, 5 and 9 of this one. The ot
 - "/odom yaw drift in run": `/odom`'s heading change minus the true heading change. The final heading error is the
   `/odom` end heading minus this drift (square, open loop: -0.6 - 4.1 = -4.7).
 
-Below it come the tables for the [Try this](#try-this) runs, the repeat runs in `results/repeats/`, the spread over all runs
-of each kind, and the commanded vs achieved speeds. All of it, for my logs, is in `results/analyze_output.txt`.
+Below it come a table for the [Try this](#try-this) runs 1 and 2 (`square_open_calibrated`, `square_closed_on_odom_gt`),
+the repeat runs in `results/repeats/`, the spread over all runs of each kind, and the commanded vs achieved speeds. The repo
+ships my logs for all of these, so you see the Try this table before you have made those runs yourself; your own runs replace
+those two rows. All of it, for my logs, is in `results/analyze_output.txt`.
 
 `drive.py` overwrites `results/<shape>_<mode>.csv` on every run. To keep a run as a repeat, copy it to
 `results/repeats/<shape>_<mode>_N.csv` with an unused N, and `analyze.py` adds it to the repeat and spread tables.
 
-Check: four rows, `square_open`, `square_closed`, `figure8_open`, `figure8_closed`, and the two PNG files.
+Check: the first table has four rows, `square_open`, `square_closed`, `figure8_open`, `figure8_closed`; the next one,
+headed `Try this runs`, has the two rows that come with the repo; and the two PNG files are written.
 
 ### 7. Record a video of a run
 
@@ -337,8 +341,8 @@ Every decision uses `/odom`. If `/odom` is wrong, the robot ends exactly where t
 
 ## Results
 
-All runs on one machine with other simulations running (Gazebo at 0.57 to 0.90 of real time), each right after a fresh
-`scripts/up.sh`. Produced by `python3 projects/p03_move-in-shapes/analyze.py`; the full output is in
+All runs on one machine with other simulations running (Gazebo at 0.57 to 0.90 of real time in the runs where I measured
+it), each right after a fresh `scripts/up.sh`. Produced by `python3 projects/p03_move-in-shapes/analyze.py`; the full output is in
 `results/analyze_output.txt` and the logs in `results/*.csv`, so you can re-score them without the simulator.
 
 ![Square and figure-eight, open and closed loop: ground truth grey, /odom blue, intended shape dashed, corners as crosses](figures/shapes.png)
@@ -370,23 +374,29 @@ Read the open-loop square row carefully: its fourth corner is 1 cm from the star
 that; the corners show it.
 
 The closed-loop square's corners are within 5 cm, but its final error is 0.12 m: the last corner is 2 cm from the start, and
-the turn on the spot back to the start heading then moved the trunk 0.12 m. Every 90-degree turn on the spot moved the trunk
-0.17 to 0.18 m along a small arc in the open-loop run (table below). The gait turns about a point that is not the trunk origin.
+the turn on the spot back to the start heading then moved the trunk 0.13 m (from the first to the last `final_turn` row of
+`/odom_gt`; 0.125 to 0.137 m in all seven closed-loop squares, on `/odom` and on ground truth). The two errors are not the
+same thing: the final error adds that arc to whatever was left at the last corner, so it was 0.12 to 0.17 m. Every 90-degree
+turn on the spot moved the trunk 0.17 to 0.18 m along a small arc in the open-loop run (table below). The gait turns about a
+point that is not the trunk origin.
 
-`/odom` itself was good over these short runs: over all 22 runs that steered on `/odom` or on nothing (the table above plus
+`/odom` itself was good over these short runs: over all 29 runs that steered on `/odom` or on nothing (the table above plus
 `results/repeats/`), its displacement from the start differed from the truth by 0.00 to 0.07 m at the end, and its heading
-drifted -3.0 to +9.1 degrees relative to the truth (`analyze_output.txt`, last columns). In the open-loop squares the drift
+drifted -4.6 to +9.1 degrees relative to the truth (`analyze_output.txt`, last columns). In the open-loop squares the drift
 was +2.8 to +9.1 degrees in all five runs, and it made the final heading error larger than what `/odom` reported.
 
-The closed-loop figure-eight's final heading error (3.9 degrees here, 2.2 to 11.2 over six runs) comes from the controller.
+The closed-loop figure-eight's final heading error (3.9 degrees here, 2.2 to 11.2 over eight runs) comes from the controller.
 The figure-eight has no final turn. Its last leg is the chord from the 330-degree point of the right lobe back to the start,
-and a chord across 30 degrees of a circle points 15 degrees off the circle's tangent at either end: here 15 degrees left of the
-start heading. The robot follows that chord, not the circle. It enters the leg still turned along the previous chord (the
-`yaw` of the first `walk23` row in `results/figure8_closed.csv` is 41 degrees left of the start), the leg is 0.23 m long, and
-it stops 5 cm before the end (`reach_tol`) while the carrot is still swinging it onto the line. `/odom` put the end heading at
-+3.3 to +12.3 degrees in six runs (column "/odom end heading"). The drift then adds or removes a few degrees: in this run
-6.4 - 2.5 = 3.9, in `repeats/figure8_closed_2` 12.3 - 1.1 = 11.2. To end on the start heading, the figure-eight's `Follower`
-in `drive.py` would need `final_yaw=a0`, as the square has; I did not run that.
+and a chord across 30 degrees of a circle points 15 degrees off the circle's tangent at either end: here 15 degrees left of
+the start heading. The robot follows that chord, not the circle. It enters the leg still turned along the previous chord (the
+`yaw` of the first `walk23` row in `results/figure8_closed.csv` is 41 degrees left of the start, 36 to 43 in the other runs),
+the leg is 0.23 m long, and it stops 5 cm before the end (`reach_tol`) while the carrot is still swinging it onto the line.
+`/odom` put the end heading at +3.3 to +12.3 degrees in eight runs (column "/odom end heading"). The drift then adds or
+removes some: in this run 6.4 - 2.5 = 3.9, in `repeats/figure8_closed_2` 12.3 - 1.1 = 11.2. In my eight figure-eights the
+drift was -2.1 to +4.0 degrees, but that is a sample, not a limit: in one 52 s open-loop square (`repeats/square_open_3`) it
+reached +9.1 degrees, so a figure-eight's final heading can be off by that much more or less than its "/odom end heading"
+while the controller does the same thing. To end on the start heading, the figure-eight's `Follower` in `drive.py` would need
+`final_yaw=a0`, as the square has; I did not run that.
 
 ### How much one run differs from the next
 
@@ -397,13 +407,19 @@ The table above is one run of each. I repeated the runs that vary most, each aft
 |---|---|---|---|---|
 | Square, open loop, 5 runs | 0.07 (0.05 to 0.08); 0.18 (0.16 to 0.20); 0.18 (0.15 to 0.21); 0.07 (0.01 to 0.15) | 0.17 (0.13 to 0.26) | -9.2 (-14.4 to -4.7) | 5.5 (2.8 to 9.1) |
 | Square, open loop calibrated (Try this 1), 5 runs | 0.04 (0.02 to 0.07); 0.10 (0.05 to 0.14); 0.15 (0.08 to 0.21); 0.09 (0.06 to 0.16) | 0.08 (0.05 to 0.13) | -4.8 (-7.1 to -3.5) | 3.3 (2.7 to 4.0) |
-| Square, closed loop, 2 runs | 0.01 (0.01 to 0.01); 0.02 (0.01 to 0.02); 0.05 (0.04 to 0.05); 0.02 (0.02 to 0.03) | 0.14 (0.12 to 0.15) | 0.6 (0.1 to 1.1) | -1.9 (-2.6 to -1.2) |
-| Figure-eight, open loop, 4 runs | 0.05 (0.02 to 0.08) | 0.16 (0.13 to 0.19) | 1.0 (-0.8 to 4.6) | -0.6 (-3.0 to 2.2) |
-| Figure-eight, closed loop, 6 runs | 0.07 (0.05 to 0.10) | 0.05 (0.03 to 0.08) | 6.2 (2.2 to 11.2) | 0.9 (-2.1 to 4.0) |
+| Square, closed loop, 5 runs | 0.01 (0.01 to 0.03); 0.02 (0.01 to 0.03); 0.03 (0.01 to 0.05); 0.02 (0.01 to 0.04) | 0.15 (0.12 to 0.17) | 2.2 (0.1 to 4.3) | -2.8 (-4.6 to -1.2) |
+| Figure-eight, open loop, 6 runs | 0.05 (0.02 to 0.08) | 0.18 (0.13 to 0.21) | -0.5 (-6.5 to 4.6) | -0.5 (-3.0 to 2.2) |
+| Figure-eight, closed loop, 8 runs | 0.07 (0.05 to 0.10) | 0.06 (0.03 to 0.09) | 6.7 (2.2 to 11.2) | 1.2 (-2.1 to 4.0) |
 
-If your numbers fall inside these ranges, your run behaved like mine. The open-loop square's first three corners vary by 3 to
-6 cm between runs. Its fourth corner (0.01 to 0.15 m) and its final heading (-4.7 to -14.4 degrees) vary much more: they
-collect the veer of all four sides and the shortfall of all four turns. The run in the table above has the smallest final heading error of the five, so it is not a
+Read the ranges as what my runs did, not as limits. Each is the smallest and largest of five to eight runs, and the next run
+often lands a little outside. When I added three closed-loop squares and two open-loop figure-eights to the earlier two and
+four, new values fell outside the old ranges: closed-loop square final heading 2.1, 3.3 and 4.3 degrees against 0.1 to 1.1, a
+corner of 0.01 m against 0.04 to 0.05, open-loop figure-eight final error 0.20 and 0.21 m against 0.13 to 0.19, and final
+heading -6.5 degrees against -0.8 to 4.6. A few centimetres or degrees outside is normal. Far outside, for example a
+closed-loop corner several times the largest here, means something else went wrong (see [If it goes
+wrong](#if-it-goes-wrong)). The open-loop square's first three corners vary by 3 to 6 cm between runs. Its fourth corner
+(0.01 to 0.15 m) and its final heading (-4.7 to -14.4 degrees) vary much more: they collect the veer of all four sides and
+the shortfall of all four turns. The run in the table above has the smallest final heading error of the five, so it is not a
 typical run. The closed-loop corners stay within 5 cm in every run.
 
 ### Where the open-loop error comes from
@@ -505,8 +521,8 @@ The closed-loop square, 2.5× speed (22 s):
    Answer: radius 0.153 / 0.409 = 0.374 m, so each lobe is 0.75 m tall instead of 0.90 m. Each lobe turns
    0.409 × 15.7 = 6.42 rad = 368 degrees, so the robot crosses the start heading 8 degrees left of where it began. Measured in
    my `results/figure8_open.csv`: lobes 0.765 and 0.770 m tall, heading at the crossing +7.5 degrees. The lobe heights repeat
-   well, the crossing heading does not: in the three runs in `results/repeats/figure8_open_*.csv` the lobes were 0.746 to
-   0.786 m tall and the crossing heading was +2.5, +6.4 and +12.7 degrees. A yaw rate that is 0.01 rad/s off for 15.7 s
+   well, the crossing heading does not: in the five runs in `results/repeats/figure8_open_*.csv` the lobes were 0.746 to
+   0.786 m tall and the crossing heading was +2.5, +6.4, +12.7, +7.7 and +5.3 degrees. A yaw rate that is 0.01 rad/s off for 15.7 s
    already moves the heading by 9 degrees.
 
 ## If it goes wrong
@@ -516,7 +532,7 @@ The closed-loop square, 2.5× speed (22 s):
 | `projects/common/record_cam.py` writes a video of 1 or 2 frames | It subscribes best effort. A 960 × 540 image is 1.5 MB and goes out in many UDP fragments; on a loaded machine one lost fragment loses the image and best effort does not resend it. With it, 25 s of recording gave 17 frames and 60 s gave 2; with `record.py`, 25 s gave 222 frames, one per 0.1 s of simulated time | Use `record.py` from this project, which swaps in a reliable QoS profile and otherwise runs `record_cam.py` unchanged |
 | Closed loop: the robot swerves just before each corner and arrives at an angle | Steering at the corner point itself: near the point a small sideways offset becomes a large bearing error. My first version arrived at the first corner 31.8 degrees off the side's heading (on `/odom`) and took 9.6 s for a 1.5 m side, creeping at the minimum speed while it turned | Steer at a carrot on the leg's line, ahead of the robot's projection (`Follower.leg`). After the change the side took 7.7 s and the heading at the corner was 3.1 degrees off |
 | The closed-loop shape comes out rotated, or `drive.py` reports a start heading far from 0 right after a restart was minutes ago | `/odom` drifts while the robot stands. In one session where I left the robot standing for 5 to 6 minutes of wall-clock time after `up.sh`, `/odom` gave a heading of -18.7 degrees while the true heading was -0.9 degrees ([chapter 4](../../docs/04-ros2-from-scratch.md#check-it-against-ground-truth) measures the gyro drift behind this) | Run `scripts/up.sh` just before each shape. Closed-loop runs start from the robot's own pose, so a constant offset does no harm; drift during the run does |
-| Closed-loop square: corners within a few cm, final error over 0.1 m | The final turn on the spot moved the trunk 0.12 m in both closed-loop squares I ran | Judge the square by its corners, or see Try this 2 |
-| Ctrl-C on the recorder prints a traceback ending in `RCLError: failed to initialize wait set: the given context is not valid` | `record_cam.py` catches `KeyboardInterrupt`, but rclpy's own Ctrl-C handler shuts the context down first, so the exit is not clean | Harmless: ffmpeg still closes the file. My recorder exited this way and the MP4 played back at its full 58.2 s. `kill -TERM <pid>` exits cleanly and prints the frame count |
+| Closed-loop square: corners within a few cm, final error over 0.1 m | The final turn on the spot moves the trunk: 0.125 to 0.137 m in all seven closed-loop squares I ran | Judge the square by its corners, or see Try this 2 |
+| Ctrl-C on the recorder prints a traceback ending in `RCLError: failed to initialize wait set: the given context is not valid` or in `rclpy.executors.ExternalShutdownException` | `record_cam.py` catches `KeyboardInterrupt`, but rclpy's own Ctrl-C handler shuts the context down first, so the exit is not clean. Both endings have turned up | Harmless: ffmpeg still closes the file. My recorder exited the first way once and the MP4 played back at its full 58.2 s. `kill -INT <pid>` or `kill -TERM <pid>` from another terminal exits cleanly and prints the frame count: my last figure-eight recording ended with `484 frames` this way |
 | Your open-loop corner or heading errors are twice mine | Single open-loop runs vary: over five open-loop squares the fourth corner was 0.01 to 0.15 m off and the final heading -4.7 to -14.4 degrees | Compare with the spread in [How much one run differs from the next](#how-much-one-run-differs-from-the-next), not with the single run in the first table. Outside that range, check that you ran `scripts/up.sh` right before the shape |
 | `drive.py` prints its usage and exits | Wrong arguments: shape is `square` or `figure8`, mode `open` or `closed`, and the two calibration speeds go only after `square open` | `python3 projects/p03_move-in-shapes/drive.py square open` |

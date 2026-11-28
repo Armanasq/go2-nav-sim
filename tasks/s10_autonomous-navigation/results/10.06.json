@@ -1,0 +1,47 @@
+{
+ "id": "10.06",
+ "status": "failed",
+ "metrics": {
+  "runs": [
+   {
+    "status_name": "ABORTED",
+    "sim_time_s": 51.11,
+    "final_error_m": 0.929,
+    "path_m": 7.11,
+    "straight_m": 5.81,
+    "min_clearance_m": 0.432,
+    "amcl_rmse_m": 1.154
+   },
+   {
+    "status_name": "ABORTED",
+    "sim_time_s": 37.01,
+    "final_error_m": 4.257,
+    "path_m": 4.53,
+    "straight_m": 5.83,
+    "min_clearance_m": 0.436,
+    "amcl_rmse_m": 1.775
+   },
+   {
+    "status_name": "SUCCEEDED",
+    "sim_time_s": 33.7,
+    "final_error_m": 0.261,
+    "path_m": 7.54,
+    "straight_m": 5.84,
+    "min_clearance_m": 0.633,
+    "amcl_rmse_m": 0.077
+   }
+  ],
+  "n_runs": 3,
+  "success_rate": 0.333,
+  "max_final_error_m": 4.257,
+  "min_clearance_m": 0.432,
+  "mean_sim_time_s": 40.6
+ },
+ "acceptance": "success_rate >= 1.0; max_final_error_m <= 0.5; min_clearance_m >= 0.25",
+ "checks": {
+  "success_rate": false,
+  "max_final_error_m": false,
+  "min_clearance_m": true
+ },
+ "command": "python3 run.py 10.06  (up.sh corner ; nav.py goto -0.75 1.0 1.5708) x 3"
+}

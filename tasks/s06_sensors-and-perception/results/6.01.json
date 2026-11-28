@@ -1,0 +1,97 @@
+{
+  "id": "6.01",
+  "title": "Stationary IMU",
+  "status": "failed",
+  "metrics": {
+    "n_samples": 2020,
+    "imu_rate_hz_sim": 99.61515689757252,
+    "accel_mean_ms2": [
+      0.0331,
+      -0.0064,
+      9.8004
+    ],
+    "accel_std_ms2": [
+      0.344,
+      0.2735,
+      0.8993
+    ],
+    "accel_norm_ms2": 9.800502263844312,
+    "accel_norm_error_ms2": 0.0005022638443108463,
+    "gyro_mean_rads": [
+      0.0007064295488895994,
+      -0.010317898508101922,
+      -0.0003383572165167992
+    ],
+    "gyro_mean_abs_max_rads": 0.010317898508101922,
+    "roll_pitch_from_accel_deg": [
+      -0.03726139447887025,
+      -0.19376919384822197
+    ],
+    "roll_pitch_gt_deg": [
+      -0.030551238329256058,
+      -0.19033440650985348
+    ],
+    "tilt_vs_gt_deg": 0.006710156149614194
+  },
+  "acceptance": "accel_norm_error_ms2 <= 0.1; gyro_mean_abs_max_rads <= 0.005; tilt_vs_gt_deg <= 0.5; imu_rate_hz_sim >= 95; in each of 5 runs, each on a fresh simulator. Basis: 20 s standing at A. |mean a| should be g = 9.8 (world gravity); roll and pitch from the mean accelerometer vector compared with /odom_gt; nominal IMU rate 100 Hz",
+  "checks": {
+    "accel_norm_error_ms2": {
+      "value": 0.0005022638443108463,
+      "rule": "<= 0.1",
+      "passed": true
+    },
+    "gyro_mean_abs_max_rads": {
+      "value": 0.010317898508101922,
+      "rule": "<= 0.005",
+      "passed": false
+    },
+    "tilt_vs_gt_deg": {
+      "value": 0.006710156149614194,
+      "rule": "<= 0.5",
+      "passed": true
+    },
+    "imu_rate_hz_sim": {
+      "value": 99.61515689757252,
+      "rule": ">= 95",
+      "passed": true
+    }
+  },
+  "runs_passed": 3,
+  "runs_total": 5,
+  "per_run": [
+    {
+      "accel_norm_error_ms2": 0.0032733100044346486,
+      "gyro_mean_abs_max_rads": 0.0044192903569370435,
+      "tilt_vs_gt_deg": 0.007035322494758381,
+      "imu_rate_hz_sim": 99.00941304026414
+    },
+    {
+      "accel_norm_error_ms2": 0.005174724177200218,
+      "gyro_mean_abs_max_rads": 0.00852216930803546,
+      "tilt_vs_gt_deg": 0.009171050220539646,
+      "imu_rate_hz_sim": 98.88751545117428
+    },
+    {
+      "accel_norm_error_ms2": 0.0007036795011092778,
+      "gyro_mean_abs_max_rads": 0.0036621784208660866,
+      "tilt_vs_gt_deg": 0.004214098771870631,
+      "imu_rate_hz_sim": 99.04121775229811
+    },
+    {
+      "accel_norm_error_ms2": 4.149874965087008e-05,
+      "gyro_mean_abs_max_rads": 0.0009441871582789388,
+      "tilt_vs_gt_deg": 0.006806367334767172,
+      "imu_rate_hz_sim": 98.78307138986057
+    },
+    {
+      "accel_norm_error_ms2": 0.0005022638443108463,
+      "gyro_mean_abs_max_rads": 0.010317898508101922,
+      "tilt_vs_gt_deg": 0.006710156149614194,
+      "imu_rate_hz_sim": 99.61515689757252
+    }
+  ],
+  "outputs": [],
+  "command": "python3 tasks/s06_sensors-and-perception/run.py 6.01",
+  "world": "arena",
+  "wall_s": 227.3
+}

@@ -1,0 +1,65 @@
+{
+ "name": "box_1",
+ "box": true,
+ "waypoints": [
+  [
+   4.0,
+   -3.8,
+   -0.03527947359359125
+  ],
+  [
+   4.0,
+   1.5,
+   1.5707963267948966
+  ],
+  [
+   0.0,
+   -3.5,
+   -2.2455372690184494
+  ],
+  [
+   -4.5,
+   -3.5,
+   3.141592653589793
+  ]
+ ],
+ "localised": true,
+ "result": "SUCCEEDED",
+ "missed_waypoints": [],
+ "time_s": 158.2,
+ "leg_times_s": [
+  37.1,
+  44.9,
+  43.7,
+  32.5
+ ],
+ "path_m": 28.66,
+ "final_error_m": 0.39,
+ "amcl_rmse_m": 0.134,
+ "amcl_max_m": 0.358,
+ "plans": 172,
+ "t_start": 16.195,
+ "arrivals": [
+  53.290000000000006,
+  98.17,
+  141.87
+ ],
+ "t_end": 174.405,
+ "box_run": {
+  "x": 3.85,
+  "y": -0.37,
+  "t": 65.34,
+  "ok": true,
+  "robot": [
+   3.97,
+   -2.37
+  ],
+  "plan_before_clear_m": 0.0,
+  "plan_before_len_m": 4.08,
+  "replan_after_s": 1.0,
+  "plan_after_clear_m": 0.46,
+  "plan_after_len_m": 4.42,
+  "t_replan": 66.3,
+  "robot_clear_m": 0.74
+ }
+}

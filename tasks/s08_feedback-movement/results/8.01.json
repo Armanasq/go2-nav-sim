@@ -1,0 +1,27 @@
+{
+  "id": "8.01",
+  "title": "Reach a point with timed commands",
+  "status": "verified",
+  "metrics": {
+    "final_pos_err_m": 0.22815399152156202,
+    "odom_final_err_m": 0.23814405422857196,
+    "heading_after_turn_deg": 15.573398690506277,
+    "commanded_heading_deg": 18.43494882292201,
+    "achieved_speed_m_s": 0.23351500536746336,
+    "commanded_speed_m_s": 0.25,
+    "time_s": 8.65
+  },
+  "acceptance": "final_pos_err_m <= 0.3",
+  "checks": {
+    "final_pos_err_m": {
+      "value": 0.22815399152156202,
+      "rule": "final_pos_err_m <= 0.3",
+      "passed": true
+    }
+  },
+  "command": "python3 run.py 8.01",
+  "outputs": [
+    "figures/s8_01.png"
+  ],
+  "wall_s": 32.7
+}

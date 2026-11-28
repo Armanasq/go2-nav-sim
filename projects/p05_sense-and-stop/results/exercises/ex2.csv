@@ -1,0 +1,2 @@
+tag,run,speed_cmd,v_true,scan_age,gap_sensed,gap_true_at_trigger,gap_final,coast,t_to_still,y_end,yaw_end_deg
+ex2,0.3_1,0.3,0.31,0.223,0.486,0.422,0.368,0.053,0.65,-2.506,-0.4

@@ -1,0 +1,31 @@
+{
+  "id": "8.06",
+  "title": "Walk a square",
+  "status": "verified",
+  "metrics": {
+    "corner_errs_m": [
+      0.021112189178084818,
+      0.0067928160740106545,
+      0.023265497130190497,
+      0.01067027777809374
+    ],
+    "n_reached": 4,
+    "max_corner_err_m": 0.023265497130190497,
+    "odom_gap_m": 0.07860690682048135,
+    "time_s": 51.0,
+    "final_heading_err_deg": 6.146479937243214
+  },
+  "acceptance": "max_corner_err_m <= 0.1",
+  "checks": {
+    "max_corner_err_m": {
+      "value": 0.023265497130190497,
+      "rule": "max_corner_err_m <= 0.1",
+      "passed": true
+    }
+  },
+  "command": "python3 run.py 8.06",
+  "outputs": [
+    "figures/s8_06.png"
+  ],
+  "wall_s": 83.0
+}

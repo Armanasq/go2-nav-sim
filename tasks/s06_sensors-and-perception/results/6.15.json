@@ -1,0 +1,46 @@
+{
+  "id": "6.15",
+  "title": "Handle missing measurements",
+  "status": "verified",
+  "metrics": {
+    "walked_without_readings_m": 0.0003326185466316212,
+    "nonzero_cmds_without_readings": 0,
+    "timeout_line": true,
+    "node_output": [
+      "[INFO] [1795852175.791982987] [stop_at_obstacle]: /front_range: walk at 0.2 m/s, stop at a 0.5 m gap (front 0.28 m ahead of the sensor frame, lead 0.0 m)",
+      "TIMEOUT t=301.40: no reading for 0.56 s, stopping"
+    ],
+    "zero_after_last_reading_s": 0.56,
+    "zero_after_last_scan_stamp_s": 0.6509999999999536,
+    "walked_after_last_reading_m": 0.15897606164366468
+  },
+  "acceptance": "walked_without_readings_m <= 0.02; timeout_line == True; zero_after_last_reading_s <= 0.65; walked_after_last_reading_m <= 0.25. Basis: p05 stop_at_obstacle.py, timeout 0.5 s, 10 Hz timer: (a) started with no /front_range for 3 s must not walk; (b) walking at 0.2 m/s, sense.py stopped: a zero within timeout + one tick + 0.05 s",
+  "checks": {
+    "walked_without_readings_m": {
+      "value": 0.0003326185466316212,
+      "rule": "<= 0.02",
+      "passed": true
+    },
+    "timeout_line": {
+      "value": true,
+      "rule": "== True",
+      "passed": true
+    },
+    "zero_after_last_reading_s": {
+      "value": 0.56,
+      "rule": "<= 0.65",
+      "passed": true
+    },
+    "walked_after_last_reading_m": {
+      "value": 0.15897606164366468,
+      "rule": "<= 0.25",
+      "passed": true
+    }
+  },
+  "outputs": [
+    "figures/6.15_missing.png"
+  ],
+  "command": "python3 tasks/s06_sensors-and-perception/run.py 6.15",
+  "world": "arena",
+  "wall_s": 24.3
+}

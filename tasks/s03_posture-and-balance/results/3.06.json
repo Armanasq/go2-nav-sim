@@ -1,0 +1,99 @@
+{
+  "id": "3.06",
+  "title": "Lower the body",
+  "status": "verified",
+  "checks": {
+    "max_steady_height_error_m": {
+      "value": 6.183473643697757e-05,
+      "rule": "max 0.004",
+      "passed": true
+    },
+    "min_trunk_clearance_m": {
+      "value": 0.04352187031448691,
+      "rule": "min 0.02",
+      "passed": true
+    },
+    "clearance_prediction_error_m": {
+      "value": 0.0,
+      "rule": "max 0.003",
+      "passed": true
+    },
+    "low_request_rejected": {
+      "value": true,
+      "rule": "equals True",
+      "passed": true
+    },
+    "n_other_contacts_max": {
+      "value": 0,
+      "rule": "equals 0",
+      "passed": true
+    }
+  },
+  "measured": {
+    "start_height_m": 0.274635178240642,
+    "steps": [
+      {
+        "target_m": 0.22,
+        "measured_m": 0.22002745120524703,
+        "error_m": 2.745120524702549e-05,
+        "trunk_clearance_mujoco_m": 0.11352405892108862,
+        "trunk_clearance_predicted_m": 0.11352405892108862,
+        "legs_clearance_mujoco_m": 0.03361969522908174
+      },
+      {
+        "target_m": 0.18,
+        "measured_m": 0.18004889660478765,
+        "error_m": 4.8896604787657116e-05,
+        "trunk_clearance_mujoco_m": 0.07351893113081857,
+        "trunk_clearance_predicted_m": 0.07351893113081857,
+        "legs_clearance_mujoco_m": 0.030975756583491658
+      },
+      {
+        "target_m": 0.15,
+        "measured_m": 0.15006183473643697,
+        "error_m": 6.183473643697757e-05,
+        "trunk_clearance_mujoco_m": 0.04352187031448691,
+        "trunk_clearance_predicted_m": 0.04352187031448691,
+        "legs_clearance_mujoco_m": 0.02893743597307028
+      }
+    ],
+    "max_steady_height_error_m": 6.183473643697757e-05,
+    "min_trunk_clearance_m": 0.04352187031448691,
+    "clearance_prediction_error_m": 0.0,
+    "low_request_m": 0.12,
+    "low_request_predicted_clearance_m": 0.012999999999999998,
+    "low_request_rejected": true,
+    "n_other_contacts_max": 0,
+    "contact_fraction": 1.0,
+    "max_torque_fraction": 0.21006466892102008,
+    "foot_force_end_N": {
+      "FL": [
+        -0.07,
+        0.11,
+        37.03
+      ],
+      "FR": [
+        -0.07,
+        -0.11,
+        37.03
+      ],
+      "RL": [
+        0.07,
+        0.38,
+        37.55
+      ],
+      "RR": [
+        0.07,
+        -0.38,
+        37.55
+      ]
+    }
+  },
+  "outputs": [
+    "figures/3-06_lower.png"
+  ],
+  "command": "python run.py 3.06",
+  "mujoco": "3.17.0",
+  "wall_s": 43.9,
+  "load_avg_1min": 62.6
+}

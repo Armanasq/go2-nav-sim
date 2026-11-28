@@ -1,0 +1,90 @@
+{
+  "id": "1.09",
+  "title": "Floor and obstacles with collision geometry",
+  "status": "verified",
+  "metrics": {
+    "geometry": {
+      "box": {
+        "kind": "box",
+        "world_file": {
+          "size": [
+            0.4,
+            1.2,
+            0.5
+          ]
+        },
+        "gazebo": {
+          "size": [
+            0.4,
+            1.2,
+            0.5
+          ]
+        },
+        "match": true
+      },
+      "cylinder": {
+        "kind": "cylinder",
+        "world_file": {
+          "radius": [
+            0.15
+          ],
+          "length": [
+            0.6
+          ]
+        },
+        "gazebo": {
+          "radius": [
+            0.15
+          ],
+          "length": [
+            0.6
+          ]
+        },
+        "match": true
+      }
+    },
+    "collision_geometry_match": true,
+    "speed_before_contact_m_s": 0.2997018887471036,
+    "stop_gap_m": 0.24046200787006478,
+    "predicted_gap_m": 0.2394,
+    "stop_gap_error_m": 0.001062007870064774,
+    "box_moved_m": 0.0,
+    "base_height_error_m": 0.02887310754160244,
+    "max_tilt_walk_rad": 0.07872146076537874,
+    "final_y_m": 0.06136925873456622
+  },
+  "acceptance": "collision_geometry_match equals True; speed_before_contact_m_s min 0.15; stop_gap_error_m max 0.05; box_moved_m max 0.001; base_height_error_m max 0.03",
+  "checks": {
+    "collision_geometry_match": {
+      "value": true,
+      "rule": "equals True",
+      "passed": true
+    },
+    "speed_before_contact_m_s": {
+      "value": 0.2997018887471036,
+      "rule": "min 0.15",
+      "passed": true
+    },
+    "stop_gap_error_m": {
+      "value": 0.001062007870064774,
+      "rule": "max 0.05",
+      "passed": true
+    },
+    "box_moved_m": {
+      "value": 0.0,
+      "rule": "max 0.001",
+      "passed": true
+    },
+    "base_height_error_m": {
+      "value": 0.02887310754160244,
+      "rule": "max 0.03",
+      "passed": true
+    }
+  },
+  "command": "python run.py 1.09",
+  "outputs": [
+    "figures/1-09_gap.png",
+    "media/1-09_walk_into_box.mp4"
+  ],
+  "date": "2026-11-28 11:28"
+}

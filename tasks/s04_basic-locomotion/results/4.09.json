@@ -1,0 +1,29 @@
+{
+  "id": "4.09",
+  "title": "Turn 45 deg",
+  "status": "failed",
+  "metrics": {
+    "final_heading_deg": 38.802441160769135,
+    "heading_error_deg": -6.197558839230865,
+    "position_drift_m": 0.060151104909129616
+  },
+  "acceptance": "|heading_error_deg| <= 5.0; position_drift_m <= 0.15",
+  "checks": {
+    "heading_error_deg": {
+      "value": -6.197558839230865,
+      "rule": "|heading_error_deg| <= 5.0",
+      "passed": false
+    },
+    "position_drift_m": {
+      "value": 0.060151104909129616,
+      "rule": "position_drift_m <= 0.15",
+      "passed": true
+    }
+  },
+  "command": "python3 run.py 4.09",
+  "outputs": [
+    "figures/4-09_turns.png"
+  ],
+  "gait": "default",
+  "wall_s": 4.4
+}

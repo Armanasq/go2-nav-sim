@@ -1,0 +1,53 @@
+{
+  "id": "8.10",
+  "title": "Correct after a disturbance",
+  "status": "verified",
+  "metrics": {
+    "push_force_n": 50.0,
+    "push_duration_s": 0.3,
+    "push_peak_dev_m": 0.14673050821082978,
+    "recovery_time_s": 3.6499999999999986,
+    "final_cross_track_m": 0.011653029489476663,
+    "final_along_err_m": -0.033726878515053293,
+    "fell": false,
+    "max_odom_gap_after_push_m": 0.08186149947311398,
+    "open_loop_peak_dev_m": 0.3791269160932121,
+    "open_loop_final_cross_track_m": 0.3763260906334814,
+    "time_s": 15.115000000000002,
+    "video_speedup": 1.08
+  },
+  "acceptance": "push_peak_dev_m >= 0.1; recovery_time_s <= 6.0; final_cross_track_m <= 0.05; fell == False; open_loop_final_cross_track_m >= 0.1",
+  "checks": {
+    "push_peak_dev_m": {
+      "value": 0.14673050821082978,
+      "rule": "push_peak_dev_m >= 0.1",
+      "passed": true
+    },
+    "recovery_time_s": {
+      "value": 3.6499999999999986,
+      "rule": "recovery_time_s <= 6.0",
+      "passed": true
+    },
+    "final_cross_track_m": {
+      "value": 0.011653029489476663,
+      "rule": "final_cross_track_m <= 0.05",
+      "passed": true
+    },
+    "fell": {
+      "value": false,
+      "rule": "fell == False",
+      "passed": true
+    },
+    "open_loop_final_cross_track_m": {
+      "value": 0.3763260906334814,
+      "rule": "open_loop_final_cross_track_m >= 0.1",
+      "passed": true
+    }
+  },
+  "command": "python3 run.py 8.10",
+  "outputs": [
+    "figures/s8_10.png",
+    "media/8.10_push.mp4"
+  ],
+  "wall_s": 288.1
+}

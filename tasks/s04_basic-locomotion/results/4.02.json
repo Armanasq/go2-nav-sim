@@ -1,0 +1,52 @@
+{
+  "id": "4.02",
+  "title": "One gait cycle",
+  "status": "failed",
+  "metrics": {
+    "stride_period_s": 0.5,
+    "duty_factor": 0.629999999999999,
+    "phase_rf": 0.504007598174994,
+    "phase_lh": 0.5080102214068036,
+    "phase_rh_wrapped": 0.009999999999999232,
+    "n_lifts": {
+      "lf": 6,
+      "rf": 6,
+      "lh": 6,
+      "rh": 6
+    }
+  },
+  "acceptance": "0.47 <= stride_period_s <= 0.53; 0.42 <= duty_factor <= 0.58; 0.45 <= phase_rf <= 0.55; 0.45 <= phase_lh <= 0.55; |phase_rh_wrapped| <= 0.05",
+  "checks": {
+    "stride_period_s": {
+      "value": 0.5,
+      "rule": "0.47 <= stride_period_s <= 0.53",
+      "passed": true
+    },
+    "duty_factor": {
+      "value": 0.629999999999999,
+      "rule": "0.42 <= duty_factor <= 0.58",
+      "passed": false
+    },
+    "phase_rf": {
+      "value": 0.504007598174994,
+      "rule": "0.45 <= phase_rf <= 0.55",
+      "passed": true
+    },
+    "phase_lh": {
+      "value": 0.5080102214068036,
+      "rule": "0.45 <= phase_lh <= 0.55",
+      "passed": true
+    },
+    "phase_rh_wrapped": {
+      "value": 0.009999999999999232,
+      "rule": "|phase_rh_wrapped| <= 0.05",
+      "passed": true
+    }
+  },
+  "command": "python3 run.py 4.02",
+  "outputs": [
+    "figures/4-02_gait_cycle.png"
+  ],
+  "gait": "default",
+  "wall_s": 7.7
+}

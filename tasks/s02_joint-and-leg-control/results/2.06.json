@@ -1,0 +1,129 @@
+{
+  "id": "2.06",
+  "title": "Change gains and compare tracking",
+  "status": "verified",
+  "checks": {
+    "max_overshoot_error_pp": {
+      "value": 0.46765036643534597,
+      "rule": "max 5.0",
+      "passed": true
+    },
+    "rise_time_decreases_with_kp": {
+      "value": true,
+      "rule": "equals True",
+      "passed": true
+    },
+    "kd_overshoot_drop_pp": {
+      "value": 21.03526240913862,
+      "rule": "min 10.0",
+      "passed": true
+    },
+    "sine_rms_decreases_with_kp": {
+      "value": true,
+      "rule": "equals True",
+      "passed": true
+    }
+  },
+  "measured": {
+    "sets": [
+      {
+        "kp": 40.0,
+        "kd": 0.0,
+        "J_kgm2": 0.033571731451046485,
+        "zeta_pred": 0.8629450345496916,
+        "wn_pred_rad_s": 34.51780138198767,
+        "zeta_meas": null,
+        "measured": {
+          "rise_s": 0.08600000000000005,
+          "overshoot_pct": 0.0,
+          "settling_s": 0.12400000000000008,
+          "final_error_rad": 0.00238896190408569
+        },
+        "predicted": {
+          "rise_s": 0.07800000000000004,
+          "overshoot_pct": 0.46765036643534597,
+          "settling_s": 0.11000000000000007,
+          "final_error_rad": 1.2501555346489113e-11
+        },
+        "max_abs_torque_nm": 7.06478412820352,
+        "sine_rms_error_rad": 0.004707522653359168
+      },
+      {
+        "kp": 80.0,
+        "kd": 0.0,
+        "J_kgm2": 0.033571731451046485,
+        "zeta_pred": 0.6101942857213466,
+        "wn_pred_rad_s": 48.81554285770772,
+        "zeta_meas": 0.6185667741387326,
+        "measured": {
+          "rise_s": 0.04000000000000001,
+          "overshoot_pct": 8.431334650066336,
+          "settling_s": 0.11600000000000008,
+          "final_error_rad": 0.0005351381181101511
+        },
+        "predicted": {
+          "rise_s": 0.038000000000000006,
+          "overshoot_pct": 8.88901248419829,
+          "settling_s": 0.10800000000000007,
+          "final_error_rad": 3.5942360199214818e-12
+        },
+        "max_abs_torque_nm": 13.064784128197601,
+        "sine_rms_error_rad": 0.0021260633153833606
+      },
+      {
+        "kp": 150.0,
+        "kd": 0.0,
+        "J_kgm2": 0.033571731451046485,
+        "zeta_pred": 0.445622899667112,
+        "wn_pred_rad_s": 66.8434349500668,
+        "zeta_meas": 0.44451389858687435,
+        "measured": {
+          "rise_s": 0.02400000000000002,
+          "overshoot_pct": 21.03526240913862,
+          "settling_s": 0.08200000000000005,
+          "final_error_rad": 1.538431060446599e-05
+        },
+        "predicted": {
+          "rise_s": 0.02400000000000002,
+          "overshoot_pct": 20.92163684222985,
+          "settling_s": 0.08000000000000004,
+          "final_error_rad": 7.196271356590955e-12
+        },
+        "max_abs_torque_nm": 23.564784128330203,
+        "sine_rms_error_rad": 0.0010682976021398787
+      },
+      {
+        "kp": 150.0,
+        "kd": 2.0,
+        "J_kgm2": 0.033571731451046485,
+        "zeta_pred": 0.891245799334224,
+        "wn_pred_rad_s": 66.8434349500668,
+        "zeta_meas": null,
+        "measured": {
+          "rise_s": 0.04400000000000001,
+          "overshoot_pct": 0.0,
+          "settling_s": 0.06200000000000003,
+          "final_error_rad": 0.00012038947361800445
+        },
+        "predicted": {
+          "rise_s": 0.04400000000000001,
+          "overshoot_pct": 0.2082748451175176,
+          "settling_s": 0.060000000000000026,
+          "final_error_rad": 0.0
+        },
+        "max_abs_torque_nm": 23.564784128197417,
+        "sine_rms_error_rad": 0.000870689438714934
+      }
+    ],
+    "max_overshoot_error_pp": 0.46765036643534597,
+    "rise_time_decreases_with_kp": true,
+    "kd_overshoot_drop_pp": 21.03526240913862,
+    "sine_rms_decreases_with_kp": true
+  },
+  "outputs": [
+    "figures/2-06_gains.png"
+  ],
+  "command": "python run.py 2.06",
+  "mujoco": "3.17.0",
+  "wall_s": 37.1
+}

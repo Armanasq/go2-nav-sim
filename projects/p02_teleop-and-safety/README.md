@@ -121,7 +121,8 @@ The last command counts the publishers on `/cmd_vel` named `cmd_safety`; it must
 `ros2 topic info /cmd_vel -v` lists more: with the stack from `scripts/up.sh` it printed `Publisher count: 7` (`cmd_safety`,
 `velocity_smoother` and five `behavior_server` entries, all from Nav2, which publish only while Nav2 has a goal) and
 `Subscription count: 1` (`quadruped_controller_node`, CHAMP). Seven is normal here; only `cmd_safety` appearing twice is a
-problem (see [If it goes wrong](#if-it-goes-wrong)).
+problem (see [If it goes wrong](#if-it-goes-wrong)). [Project 11](../p11_command-arbitration/README.md) puts `twist_mux` in front
+of CHAMP so that one node, `cmd_safety`, is the only publisher on `/cmd_vel`.
 
 The node reads its parameters once, at start-up. To change one, stop the node and start it again with
 `--ros-args -p timeout:=0.3`. Give floats as floats: `-p "a_max:=[1, 1, 2]"` stops the node with

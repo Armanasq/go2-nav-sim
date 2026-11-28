@@ -1,0 +1,84 @@
+{
+  "id": "3.11",
+  "title": "Place the lifted foot",
+  "status": "verified",
+  "checks": {
+    "placement_error_m": {
+      "value": 0.001972598569826639,
+      "rule": "max 0.005",
+      "passed": true
+    },
+    "min_margin_m": {
+      "value": 0.037365283115785124,
+      "rule": "min 0.025",
+      "passed": true
+    },
+    "max_stance_slip_m": {
+      "value": 0.00031494811232030264,
+      "rule": "max 0.003",
+      "passed": true
+    },
+    "n_feet_in_contact_end": {
+      "value": 4,
+      "rule": "equals 4",
+      "passed": true
+    },
+    "max_attitude_change_deg": {
+      "value": 0.5032045236214308,
+      "rule": "max 1.5",
+      "passed": true
+    }
+  },
+  "measured": {
+    "min_margin_m": 0.037365283115785124,
+    "stance_contact_fraction": 1.0,
+    "max_stance_slip_m": 0.00031494811232030264,
+    "max_attitude_change_deg": 0.5032045236214308,
+    "max_height_change_m": 0.000632617413699077,
+    "target_xy": [
+      0.25589525980659605,
+      0.1439902732472611
+    ],
+    "contact_xy": [
+      0.25538209677825796,
+      0.14208559248030067
+    ],
+    "placement_error_m": 0.001972598569826639,
+    "placement_error_vs_foot_centre_m": 0.001972598569826639,
+    "n_feet_in_contact_end": 4,
+    "fl_fz_end_N": 37.26999704764062,
+    "max_torque_fraction": 0.2746968743473669,
+    "duration_s": 8.30000000000144,
+    "foot_force_end_N": {
+      "FL": [
+        -0.77,
+        -0.17,
+        37.27
+      ],
+      "FR": [
+        0.33,
+        -0.32,
+        36.77
+      ],
+      "RL": [
+        0.07,
+        0.24,
+        37.26
+      ],
+      "RR": [
+        0.37,
+        0.25,
+        37.87
+      ]
+    }
+  },
+  "outputs": [
+    "figures/3-11_place.png",
+    "media/3-11_three_leg_step.mp4",
+    "media/3-11_three_leg_step.png"
+  ],
+  "command": "python run.py 3.11",
+  "mujoco": "3.17.0",
+  "wall_s": 63.1,
+  "load_avg_1min": 64.7
+}

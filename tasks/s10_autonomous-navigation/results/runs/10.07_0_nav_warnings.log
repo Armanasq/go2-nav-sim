@@ -1,0 +1,78 @@
+[amcl-2] [WARN] [1795853689.728239816] [amcl]: Failed to transform initial pose in time (Lookup would require extrapolation into the future.  Requested time 19.340000 but the latest data is at time 19.312000, when looking up transform from frame [base_footprint] to frame [odom])
+[controller_server-4] [WARN] [1795853692.590864489] [controller_server]: No goal checker was specified in parameter 'current_goal_checker'. Server will use only plugin loaded general_goal_checker . This warning will appear once.
+[planner_server-6] [ERROR] [1795853698.934111505] [planner_server]: Failed to create a plan from potential when a legal potential was found. This shouldn't happen.
+[planner_server-6] [WARN] [1795853698.934256949] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795853698.934275699] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (0.00, 2.00)
+[planner_server-6] [WARN] [1795853698.934294172] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[planner_server-6] [WARN] [1795853699.093177512] [planner_server]: Planner loop missed its desired rate of 20.0000 Hz. Current loop rate is 8.6957 Hz
+[planner_server-6] [ERROR] [1795853701.163880083] [planner_server]: Failed to create a plan from potential when a legal potential was found. This shouldn't happen.
+[planner_server-6] [WARN] [1795853701.164016439] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795853701.164037962] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (0.00, 2.00)
+[planner_server-6] [WARN] [1795853701.164054632] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[planner_server-6] [WARN] [1795853701.289275091] [planner_server]: Planner loop missed its desired rate of 20.0000 Hz. Current loop rate is 13.3333 Hz
+[planner_server-6] [ERROR] [1795853704.375871215] [planner_server]: Failed to create a plan from potential when a legal potential was found. This shouldn't happen.
+[planner_server-6] [WARN] [1795853704.375984603] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795853704.376002912] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (0.00, 2.00)
+[planner_server-6] [WARN] [1795853704.376017549] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[planner_server-6] [ERROR] [1795853704.490031081] [planner_server]: Failed to create a plan from potential when a legal potential was found. This shouldn't happen.
+[planner_server-6] [WARN] [1795853704.490183339] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795853704.490211960] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (0.00, 2.00)
+[planner_server-6] [WARN] [1795853704.490237965] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[bt_navigator-8] [ERROR] [1795853704.523281612] [bt_navigator_navigate_to_pose_rclcpp_node]: Failed to get result for follow_path in node halt!
+[bt_navigator-8] [WARN] [1795853704.528535776] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[planner_server-6] [ERROR] [1795853704.691369970] [planner_server]: Failed to create a plan from potential when a legal potential was found. This shouldn't happen.
+[planner_server-6] [WARN] [1795853704.691520355] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795853704.691549376] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (0.00, 2.00)
+[planner_server-6] [WARN] [1795853704.691574080] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[planner_server-6] [WARN] [1795853704.897578833] [planner_server]: Planner loop missed its desired rate of 20.0000 Hz. Current loop rate is 8.0000 Hz
+[planner_server-6] [ERROR] [1795853705.931887969] [planner_server]: Failed to create a plan from potential when a legal potential was found. This shouldn't happen.
+[planner_server-6] [WARN] [1795853705.932029128] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795853705.932048965] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (0.00, 2.00)
+[planner_server-6] [WARN] [1795853705.932068641] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[planner_server-6] [ERROR] [1795853706.091424314] [planner_server]: Failed to create a plan from potential when a legal potential was found. This shouldn't happen.
+[planner_server-6] [WARN] [1795853706.091566201] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795853706.091586265] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (0.00, 2.00)
+[planner_server-6] [WARN] [1795853706.091607507] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[bt_navigator-8] [WARN] [1795853706.125844568] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[planner_server-6] [ERROR] [1795853711.251895112] [planner_server]: Failed to create a plan from potential when a legal potential was found. This shouldn't happen.
+[planner_server-6] [WARN] [1795853711.252012606] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795853711.252028250] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (0.00, 2.00)
+[planner_server-6] [WARN] [1795853711.252042540] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[planner_server-6] [ERROR] [1795853714.381287405] [planner_server]: Failed to create a plan from potential when a legal potential was found. This shouldn't happen.
+[planner_server-6] [WARN] [1795853714.381436948] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795853714.381456807] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (0.00, 2.00)
+[planner_server-6] [WARN] [1795853714.381471320] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[planner_server-6] [WARN] [1795853714.492549175] [planner_server]: Planner loop missed its desired rate of 20.0000 Hz. Current loop rate is 13.3333 Hz
+[planner_server-6] [ERROR] [1795853715.512252328] [planner_server]: Failed to create a plan from potential when a legal potential was found. This shouldn't happen.
+[planner_server-6] [WARN] [1795853715.512452031] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795853715.512493656] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (0.00, 2.00)
+[planner_server-6] [WARN] [1795853715.512525398] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[planner_server-6] [ERROR] [1795853715.694797133] [planner_server]: Failed to create a plan from potential when a legal potential was found. This shouldn't happen.
+[planner_server-6] [WARN] [1795853715.694911228] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795853715.694938957] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (0.00, 2.00)
+[planner_server-6] [WARN] [1795853715.694963655] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[planner_server-6] [ERROR] [1795853722.243783634] [planner_server]: Failed to create a plan from potential when a legal potential was found. This shouldn't happen.
+[planner_server-6] [WARN] [1795853722.243864091] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795853722.243878532] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (0.00, 2.00)
+[planner_server-6] [WARN] [1795853722.243891777] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[planner_server-6] [ERROR] [1795853722.287496158] [planner_server]: Failed to create a plan from potential when a legal potential was found. This shouldn't happen.
+[planner_server-6] [WARN] [1795853722.287606125] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795853722.287628077] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (0.00, 2.00)
+[planner_server-6] [WARN] [1795853722.287649800] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[planner_server-6] [ERROR] [1795853746.633487731] [planner_server]: Failed to create a plan from potential when a legal potential was found. This shouldn't happen.
+[planner_server-6] [WARN] [1795853746.633597159] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795853746.633619082] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (0.00, 2.00)
+[planner_server-6] [WARN] [1795853746.633636058] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[planner_server-6] [ERROR] [1795853746.685814616] [planner_server]: Failed to create a plan from potential when a legal potential was found. This shouldn't happen.
+[planner_server-6] [WARN] [1795853746.685938573] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795853746.685958535] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (0.00, 2.00)
+[planner_server-6] [WARN] [1795853746.685977869] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[bt_navigator-8] [ERROR] [1795853746.721439748] [bt_navigator_navigate_to_pose_rclcpp_node]: Failed to get result for follow_path in node halt!
+[bt_navigator-8] [WARN] [1795853746.724762407] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[planner_server-6] [WARN] [1795853746.888095596] [planner_server]: Planner loop missed its desired rate of 20.0000 Hz. Current loop rate is 8.3333 Hz
+[bt_navigator-8] [WARN] [1795853756.145778784] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[controller_server-4] [ERROR] [1795853817.643636826] [controller_server]: Failed to make progress
+[controller_server-4] [WARN] [1795853817.643847921] [controller_server]: [follow_path] [ActionServer] Aborting handle.
+[controller_server-4] [WARN] [1795853817.819514427] [controller_server]: Control loop missed its desired rate of 15.0000Hz
+[controller_server-4] [ERROR] [1795853842.287610603] [controller_server]: Failed to make progress
+[controller_server-4] [WARN] [1795853842.287778264] [controller_server]: [follow_path] [ActionServer] Aborting handle.

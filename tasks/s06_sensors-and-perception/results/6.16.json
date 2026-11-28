@@ -1,0 +1,37 @@
+{
+  "id": "6.16",
+  "title": "Detect a raised platform from depth",
+  "status": "verified",
+  "metrics": {
+    "detected": true,
+    "top_inliers": 7389,
+    "floor_inliers": 76804,
+    "height_m": 0.11843071761023685,
+    "top_normal_angle_deg": 0.48359077626643593,
+    "n_points": 134404
+  },
+  "acceptance": "detected == True; top_inliers >= 1000; top_normal_angle_deg <= 2.0. Basis: worlds/platform.world: box 1.0 x 1.2 x 0.12 m centred at (-2.2, -3.5), near edge 1.5 m ahead of the camera at A",
+  "checks": {
+    "detected": {
+      "value": true,
+      "rule": "== True",
+      "passed": true
+    },
+    "top_inliers": {
+      "value": 7389,
+      "rule": ">= 1000",
+      "passed": true
+    },
+    "top_normal_angle_deg": {
+      "value": 0.48359077626643593,
+      "rule": "<= 2.0",
+      "passed": true
+    }
+  },
+  "outputs": [
+    "figures/6.16_platform_depth.png"
+  ],
+  "command": "python3 tasks/s06_sensors-and-perception/run.py 6.16",
+  "world": "platform",
+  "wall_s": 2.2
+}

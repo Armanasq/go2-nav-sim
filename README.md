@@ -26,8 +26,8 @@ Distance to B is not an accuracy figure: Nav2 stops once its own estimate is ins
 `nav2_params.yaml`). In w3 the robot stopped 0.34 m from B because AMCL was about 10 cm off at the end; localisation, not
 odometry, is the weakest part of this stack. Three runs is a small sample. Earlier versions of the estimator failed about one run in three; what went wrong is in
 [chapter 9](docs/09-state-estimation.md#failures-worth-knowing-about). Time and distance to B come from the mission log
-(`site/evidence/missions.txt`), the other columns from `results/run_w*.json` (computed by `bag_metrics.py`, every estimate paired with ground truth at its own timestamp). The evidence page on the website shows the test
-and mission logs.
+(`site/evidence/missions.txt`), the other columns from `results/run_w*.json` (computed by `bag_metrics.py`, every estimate paired with ground truth at its own timestamp). Chapter 11 on the website shows the same
+table and how each column is scored.
 
 ## Quick start
 
@@ -43,29 +43,29 @@ Install the dependencies first: [chapter 2](docs/02-prerequisites.md). Unit test
 
 ## Tutorial
 
-Website: **https://armanasq.github.io/go2-nav-sim/** (built by `site/build.py`, checked by `tools/check_site.py`, published with `scripts/publish_site.sh`) (the same chapters, plus a run replay, a 3D lidar viewer and the evidence).
+Website: **https://armanasq.github.io/go2-nav-sim/**, built from this repository by `site/build.py`, checked by
+`tools/check_site.py` and published with `scripts/publish_site.sh`. It has four sections:
 
-Foundations
+- Learn: one path through chapters, projects and practical-task stages, in the order you do them. The run replay, the 3D
+  lidar viewer and the architecture explorer sit in the chapters that use them (10, 8 and 0), and the measured runs in chapter 11.
+- Tasks: every practical task of [the specification](curriculum/spec.md), with its status read from `tasks/sNN_*/results/`.
+- Deep dives: the first-principles [modules](modules/README.md), in dependency order.
+- Reference: topics, frames, parameters, commands and [troubleshooting](docs/12-troubleshooting.md).
 
-0. [What you will build](docs/00-overview.md)
-1. [Legged robot foundations](docs/01-legged-robot-foundations.md)
-2. [Prerequisites](docs/02-prerequisites.md)
-3. [Install and first run](docs/03-install-and-first-run.md)
-4. [ROS 2 from scratch](docs/04-ros2-from-scratch.md)
-5. [Frames and TF2](docs/05-frames-and-tf2.md)
-6. [Import the Go2](docs/06-import-the-go2.md)
-7. [Make it walk](docs/07-make-it-walk.md)
+The path, in order:
 
-Tasks
+| Part | Chapters, projects and task stages |
+|---|---|
+| Start | [0 What you will build](docs/00-overview.md), [1 Legged robot foundations](docs/01-legged-robot-foundations.md), [2 Prerequisites](docs/02-prerequisites.md), [3 Install and first run](docs/03-install-and-first-run.md), [4 ROS 2 from scratch](docs/04-ros2-from-scratch.md), [project 1](projects/p01_first-steps/README.md) |
+| The robot | [5 Frames and TF2](docs/05-frames-and-tf2.md), [6 Import the Go2](docs/06-import-the-go2.md), [stage 1](tasks/s01_import-and-inspect/README.md), [stage 2](tasks/s02_joint-and-leg-control/README.md), [7 Make it walk](docs/07-make-it-walk.md) |
+| Move it | [project 2](projects/p02_teleop-and-safety/README.md), [project 3](projects/p03_move-in-shapes/README.md), [project 4](projects/p04_go-to-pose/README.md) |
+| Sense and avoid | [8 Robot and sensors](docs/08-robot-and-sensors.md), [project 5](projects/p05_sense-and-stop/README.md) |
+| Estimate and map | [9 State estimation](docs/09-state-estimation.md), [11 Record and visualise](docs/11-record-and-visualise.md), [10 Mapping and navigation](docs/10-mapping-and-navigation.md) |
+| Navigate | [project 11](projects/p11_command-arbitration/README.md), [project 12](projects/p12_tune-nav2/README.md), [project 13](projects/p13_behaviour-trees/README.md) |
+| Beyond simulation | [project 14](projects/p14_test-the-stack/README.md), [13 Toward the real Go2](docs/13-toward-the-real-go2.md) |
 
-8. [Robot and sensors](docs/08-robot-and-sensors.md)
-9. [State estimation](docs/09-state-estimation.md)
-10. [Mapping and navigation](docs/10-mapping-and-navigation.md)
-11. [Record and visualise](docs/11-record-and-visualise.md)
-
-Help
-
-12. [Troubleshooting](docs/12-troubleshooting.md)
+Stages and projects that are still being written join the path on the website as soon as their `README.md` exists; the
+order is the `PATH` list in `site/build.py`.
 
 ## How it fits together
 
@@ -103,7 +103,7 @@ Limits you should know about:
 
 - Simulation only. Nothing here talks to a real Go2.
 - Navigation uses a known map. Reaching a goal in unexplored space needs exploration, which is not included
-  ([why](docs/10-mapping-and-navigation.md#two-stages-on-purpose)).
+  ([why](docs/10-mapping-and-navigation.md#part-b-localise-and-navigate-without-ground-truth)).
 - The odometry is planar and has no loop closure. The centimetre-level figures come from a small room; expect more drift elsewhere.
 - AMCL is started from the true pose, as a simulation shortcut.
 - Tested on one machine. The dependency list is not verified on a clean install.

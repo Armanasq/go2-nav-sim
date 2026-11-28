@@ -1,0 +1,30 @@
+{
+  "id": "8.08",
+  "title": "Walk a figure-eight",
+  "status": "verified",
+  "metrics": {
+    "crossing_err_m": 0.06044670776974803,
+    "final_pos_err_m": 0.05588524949910059,
+    "final_heading_err_deg": 6.075748246509741,
+    "odom_gap_m": 0.021102650650096852,
+    "time_s": 40.3
+  },
+  "acceptance": "crossing_err_m <= 0.1; final_pos_err_m <= 0.1",
+  "checks": {
+    "crossing_err_m": {
+      "value": 0.06044670776974803,
+      "rule": "crossing_err_m <= 0.1",
+      "passed": true
+    },
+    "final_pos_err_m": {
+      "value": 0.05588524949910059,
+      "rule": "final_pos_err_m <= 0.1",
+      "passed": true
+    }
+  },
+  "command": "python3 run.py 8.08",
+  "outputs": [
+    "figures/s8_08.png"
+  ],
+  "wall_s": 82.5
+}

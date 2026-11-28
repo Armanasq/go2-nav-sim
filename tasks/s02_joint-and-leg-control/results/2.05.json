@@ -1,0 +1,64 @@
+{
+  "id": "2.05",
+  "title": "PD controller step response",
+  "status": "verified",
+  "checks": {
+    "zeta_rel_error": {
+      "value": 0.002798698413636019,
+      "rule": "max 0.15",
+      "passed": true
+    },
+    "overshoot_error_pp": {
+      "value": 0.11507537360464326,
+      "rule": "max 5.0",
+      "passed": true
+    },
+    "rise_rel_error": {
+      "value": 0.0,
+      "rule": "max 0.15",
+      "passed": true
+    },
+    "settling_rel_error": {
+      "value": 0.040816326530612256,
+      "rule": "max 0.3",
+      "passed": true
+    },
+    "final_error_rad": {
+      "value": 0.0006069496653089979,
+      "rule": "max 0.004",
+      "passed": true
+    }
+  },
+  "measured": {
+    "kp": 100.0,
+    "kd": 0.0,
+    "J_kgm2": 0.033571731451046485,
+    "zeta_pred": 0.5457743609419441,
+    "wn_pred_rad_s": 54.57743609419441,
+    "zeta_meas": 0.5442469031037727,
+    "measured": {
+      "rise_s": 0.03200000000000003,
+      "overshoot_pct": 13.02777326387885,
+      "settling_s": 0.10200000000000006,
+      "final_error_rad": 0.0006069496653089979
+    },
+    "predicted": {
+      "rise_s": 0.03200000000000003,
+      "overshoot_pct": 12.912697890274206,
+      "settling_s": 0.09800000000000006,
+      "final_error_rad": 1.2777834346167083e-12
+    },
+    "max_abs_torque_nm": 21.06478412815561,
+    "zeta_rel_error": 0.002798698413636019,
+    "overshoot_error_pp": 0.11507537360464326,
+    "rise_rel_error": 0.0,
+    "settling_rel_error": 0.040816326530612256,
+    "final_error_rad": 0.0006069496653089979
+  },
+  "outputs": [
+    "figures/2-05_pd_step.png"
+  ],
+  "command": "python run.py 2.05",
+  "mujoco": "3.17.0",
+  "wall_s": 3.9
+}

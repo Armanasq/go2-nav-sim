@@ -1,0 +1,23 @@
+    0.00  Repeat                       IDLE     -> RUNNING
+    0.00  Patrol                       IDLE     -> RUNNING
+    0.00  LegW1                        IDLE     -> RUNNING
+    0.00  Sequence                     IDLE     -> RUNNING
+    0.00  ComputePathToPose            IDLE     -> RUNNING
+    0.02  ComputePathToPose            RUNNING  -> SUCCESS
+    0.02  FollowPath                   IDLE     -> RUNNING
+   43.58  FollowPath                   RUNNING  -> FAILURE
+   43.58  Sequence                     RUNNING  -> FAILURE
+   43.58  ClearLocalW1                 IDLE     -> SUCCESS
+   43.58  Sequence                     IDLE     -> RUNNING
+   43.58  ComputePathToPose            IDLE     -> RUNNING
+   43.59  ComputePathToPose            RUNNING  -> FAILURE
+   43.59  Sequence                     RUNNING  -> FAILURE
+   43.59  ClearLocalW1                 IDLE     -> SUCCESS
+   43.59  Sequence                     IDLE     -> RUNNING
+   43.59  ComputePathToPose            IDLE     -> RUNNING
+   43.59  ComputePathToPose            RUNNING  -> FAILURE
+   43.59  Sequence                     RUNNING  -> FAILURE
+   43.59  LegW1                        RUNNING  -> FAILURE
+   43.59  Patrol                       RUNNING  -> FAILURE
+   43.59  Repeat                       RUNNING  -> FAILURE
+bt_log: stopped

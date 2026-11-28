@@ -1,0 +1,82 @@
+{
+  "id": "3.03",
+  "title": "Hold standing",
+  "status": "verified",
+  "checks": {
+    "max_height_deviation_m": {
+      "value": 7.228301133754833e-07,
+      "rule": "max 0.003",
+      "passed": true
+    },
+    "max_abs_roll_pitch_deg": {
+      "value": 0.10282486806344837,
+      "rule": "max 0.5",
+      "passed": true
+    },
+    "contact_fraction": {
+      "value": 1.0,
+      "rule": "min 1.0",
+      "passed": true
+    },
+    "max_foot_slip_m": {
+      "value": 2.4614613319156253e-06,
+      "rule": "max 0.002",
+      "passed": true
+    },
+    "weight_carried_rel_error": {
+      "value": 1.0898257851721382e-09,
+      "rule": "max 0.02",
+      "passed": true
+    }
+  },
+  "measured": {
+    "duration_s": 10.0,
+    "max_height_deviation_m": 7.228301133754833e-07,
+    "height_m": 0.274636210186187,
+    "max_abs_roll_pitch_deg": 0.10282486806344837,
+    "contact_fraction": 1.0,
+    "max_foot_slip_m": 2.4614613319156253e-06,
+    "weight_carried_rel_error": 1.0898257851721382e-09,
+    "foot_fz_mean_N": {
+      "FL": 37.03456102586916,
+      "FR": 37.03456419754179,
+      "RL": 37.552872075035836,
+      "RR": 37.552865344127845
+    },
+    "foot_fz_statics_N": {
+      "FL": 37.03453926823649,
+      "FR": 37.034537386310994,
+      "RL": 37.552893759353026,
+      "RR": 37.552892066099474
+    },
+    "foot_force_end_N": {
+      "FL": [
+        0.0,
+        -0.0,
+        37.03
+      ],
+      "FR": [
+        0.0,
+        0.0,
+        37.03
+      ],
+      "RL": [
+        -0.0,
+        -0.0,
+        37.55
+      ],
+      "RR": [
+        -0.0,
+        0.0,
+        37.55
+      ]
+    }
+  },
+  "outputs": [
+    "figures/3-03_hold.png"
+  ],
+  "command": "python run.py 3.03",
+  "mujoco": "3.17.0",
+  "wall_s": 50.6,
+  "load_avg_1min": 67.1
+}

@@ -1,0 +1,41 @@
+{
+  "id": "4.03",
+  "title": "Walk in place",
+  "status": "failed",
+  "metrics": {
+    "drift_m": 0.3199502216123185,
+    "yaw_change_deg": 2.386614306759613,
+    "min_liftoffs_per_foot": 0,
+    "liftoffs": {
+      "lf": 0,
+      "rf": 0,
+      "lh": 0,
+      "rh": 0
+    }
+  },
+  "acceptance": "drift_m <= 0.1; |yaw_change_deg| <= 5.0; min_liftoffs_per_foot >= 15",
+  "checks": {
+    "drift_m": {
+      "value": 0.3199502216123185,
+      "rule": "drift_m <= 0.1",
+      "passed": false
+    },
+    "yaw_change_deg": {
+      "value": 2.386614306759613,
+      "rule": "|yaw_change_deg| <= 5.0",
+      "passed": true
+    },
+    "min_liftoffs_per_foot": {
+      "value": 0,
+      "rule": "min_liftoffs_per_foot >= 15",
+      "passed": false
+    }
+  },
+  "command": "python3 run.py 4.03",
+  "outputs": [
+    "figures/4-03_walk_in_place.png",
+    "media/4-03_walk_in_place.mp4"
+  ],
+  "gait": "default",
+  "wall_s": 14.8
+}

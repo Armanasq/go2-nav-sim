@@ -1,0 +1,114 @@
+{
+  "id": "3.10",
+  "title": "Lift one foot on three legs",
+  "status": "verified",
+  "checks": {
+    "min_margin_m": {
+      "value": 0.038387864407394806,
+      "rule": "min 0.025",
+      "passed": true
+    },
+    "stance_contact_fraction": {
+      "value": 1.0,
+      "rule": "min 1.0",
+      "passed": true
+    },
+    "min_lift_m": {
+      "value": 0.05716378813016382,
+      "rule": "min 0.05",
+      "passed": true
+    },
+    "max_attitude_change_deg": {
+      "value": 0.4849419536262951,
+      "rule": "max 1.5",
+      "passed": true
+    },
+    "max_height_change_m": {
+      "value": 0.0006236194729681288,
+      "rule": "max 0.005",
+      "passed": true
+    },
+    "max_stance_slip_m": {
+      "value": 0.0002859511005701097,
+      "rule": "max 0.003",
+      "passed": true
+    },
+    "max_force_prediction_error_n": {
+      "value": 0.00423994021928209,
+      "rule": "max 5.0",
+      "passed": true
+    }
+  },
+  "measured": {
+    "min_margin_m": 0.038387864407394806,
+    "stance_contact_fraction": 1.0,
+    "max_stance_slip_m": 0.0002859511005701097,
+    "max_attitude_change_deg": 0.4849419536262951,
+    "max_height_change_m": 0.0006236194729681288,
+    "margin_target_m": 0.04,
+    "lift_command_m": 0.06,
+    "min_lift_m": 0.05716378813016382,
+    "fz_hold_N": [
+      0.0,
+      65.40179832161282,
+      59.16882449770751,
+      24.60433260778142
+    ],
+    "fz_statics_N": [
+      0.0,
+      65.40405923164263,
+      59.17071058079523,
+      24.600092667562137
+    ],
+    "max_force_prediction_error_n": 0.00423994021928209,
+    "fl_fz_hold_max_N": 0.0,
+    "fl_fz_end_of_unload_N": 7.029041504047575,
+    "fl_fz_below_1N_after_s": 0.6139999999999324,
+    "fl_height_error_world_m": -0.0028287533019400197,
+    "fl_error_body_frame_m": 4.1380924326147097e-05,
+    "max_torque_fraction": 0.2742024456227804,
+    "no_com_shift": {
+      "predicted_margin_m": 0.0013257429333195171,
+      "max_abs_roll_deg": 18.326840958984988,
+      "max_abs_pitch_deg": 11.57757780189935,
+      "fz_end_N": [
+        47.464374936224196,
+        43.11769960149135,
+        58.592859156195644,
+        0.0
+      ],
+      "n_other_contacts_max": 0,
+      "base_height_change_m": -0.00515918721237707
+    },
+    "foot_force_end_N": {
+      "FL": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "FR": [
+        -0.37,
+        0.48,
+        65.41
+      ],
+      "RL": [
+        0.64,
+        -0.22,
+        59.17
+      ],
+      "RR": [
+        -0.27,
+        -0.26,
+        24.59
+      ]
+    }
+  },
+  "outputs": [
+    "figures/3-10_lift.png",
+    "figures/3-10_no_shift.png"
+  ],
+  "command": "python run.py 3.10",
+  "mujoco": "3.17.0",
+  "wall_s": 61.9,
+  "load_avg_1min": 75.6
+}

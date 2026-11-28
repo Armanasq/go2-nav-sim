@@ -1,0 +1,37 @@
+{
+  "id": "6.09",
+  "title": "Cloud into the robot frame",
+  "status": "verified",
+  "metrics": {
+    "tf_translation": [
+      0.0,
+      0.0,
+      0.1
+    ],
+    "tf_translation_error_m": 0.0,
+    "true_base_height_m": 0.21572543434889643,
+    "floor_z_base_link_m": -0.21333496272563934,
+    "floor_z_error_m": 0.00239047162325709,
+    "floor_z_base_footprint_m": 0.21266503632068634,
+    "n_floor_points": 4560
+  },
+  "acceptance": "tf_translation_error_m <= 0.001; floor_z_error_m <= 0.02. Basis: base_link -> lidar_link from tf2 against the URDF (0, 0, 0.10); floor points in base_link should sit at z = -(true base height)",
+  "checks": {
+    "tf_translation_error_m": {
+      "value": 0.0,
+      "rule": "<= 0.001",
+      "passed": true
+    },
+    "floor_z_error_m": {
+      "value": 0.00239047162325709,
+      "rule": "<= 0.02",
+      "passed": true
+    }
+  },
+  "outputs": [
+    "figures/6.09_base_link.png"
+  ],
+  "command": "python3 tasks/s06_sensors-and-perception/run.py 6.09",
+  "world": "arena",
+  "wall_s": 0.4
+}

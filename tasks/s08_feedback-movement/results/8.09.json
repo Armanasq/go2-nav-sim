@@ -1,0 +1,36 @@
+{
+  "id": "8.09",
+  "title": "Follow waypoints",
+  "status": "verified",
+  "metrics": {
+    "corner_errs_m": [
+      0.021295822004042134,
+      0.01601552969081695,
+      0.042510022249666754,
+      0.08122360759427914,
+      0.0284918916805051
+    ],
+    "n_reached": 5,
+    "max_waypoint_err_m": 0.08122360759427914,
+    "odom_gap_m": 0.0049012033393154185,
+    "time_s": 50.25000000000001
+  },
+  "acceptance": "max_waypoint_err_m <= 0.1; n_reached == 5",
+  "checks": {
+    "max_waypoint_err_m": {
+      "value": 0.08122360759427914,
+      "rule": "max_waypoint_err_m <= 0.1",
+      "passed": true
+    },
+    "n_reached": {
+      "value": 5,
+      "rule": "n_reached == 5",
+      "passed": true
+    }
+  },
+  "command": "python3 run.py 8.09",
+  "outputs": [
+    "figures/s8_09.png"
+  ],
+  "wall_s": 95.2
+}

@@ -1,0 +1,29 @@
+{
+  "id": "4.10",
+  "title": "Turn 90 deg",
+  "status": "verified",
+  "metrics": {
+    "final_heading_deg": 84.74666193104262,
+    "heading_error_deg": -5.253338068957376,
+    "position_drift_m": 0.12154814044287626
+  },
+  "acceptance": "|heading_error_deg| <= 9.0; position_drift_m <= 0.15",
+  "checks": {
+    "heading_error_deg": {
+      "value": -5.253338068957376,
+      "rule": "|heading_error_deg| <= 9.0",
+      "passed": true
+    },
+    "position_drift_m": {
+      "value": 0.12154814044287626,
+      "rule": "position_drift_m <= 0.15",
+      "passed": true
+    }
+  },
+  "command": "python3 run.py 4.10",
+  "outputs": [
+    "figures/4-09_turns.png"
+  ],
+  "gait": "default",
+  "wall_s": 6.3
+}

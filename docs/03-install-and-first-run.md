@@ -4,17 +4,20 @@
 |---|---|
 | Goal | The workspace built, the full stack running with every check passed, and one mission from A to B read and scored. |
 | Time | 1.5 h. Chapters 2 and 3 together: 2 h. |
-| Before you start | [Chapter 2](02-prerequisites.md) done: every package in its version check is installed. |
+| Before you start | [Chapter 2](02-prerequisites.md) done: every package in its version check is installed, natively or in the dev container. The clone from [chapter 0](00-overview.md), task 1.1. |
 | You will learn | what `setup.sh` changes in the upstream code; how `up.sh` decides the stack is ready; how to check rates in simulated time; how to read the result line of a mission and score the run against ground truth. |
 
 ## Task 1: Build the workspace
 
-### 1.1 Clone and run setup.sh
+### 1.1 Run setup.sh
 
 Objective: fetch the pinned upstream code, patch it and build everything.
 
+Work in the clone you made in [chapter 0](00-overview.md), task 1.1. If you skipped that chapter, clone first with
+`git clone https://github.com/Armanasq/go2-nav-sim.git` in the directory that should hold the repository.
+
 ```bash
-git clone https://github.com/Armanasq/go2-nav-sim.git && cd go2-nav-sim
+cd go2-nav-sim
 scripts/setup.sh
 ```
 
@@ -111,9 +114,9 @@ It printed `stack up` after 40 s here. `up.sh` starts three launch files and wai
 
 Check: the last line is `stack up`. The launch output is in `logs/up_sim.log`, `logs/up_est.log` and `logs/up_nav.log`.
 
-Common mistakes: `TIMEOUT waiting for: gazebo` while `gzserver` is running. The check calls `gz stats` without a world name, and
-`gz stats` then reads the first world the Gazebo master lists; when that was `default` instead of `arena`, it printed nothing
-and the check gave up after 288 s. Confirm with:
+The first readiness check runs `gz stats -w arena -d 1`. Without `-w arena`, `gz stats` reads the first world the Gazebo master
+lists. An earlier version of `up.sh` left out `-w arena`; on one run the first world listed was `default`, `gz stats` printed
+nothing, and `up.sh` stopped with `TIMEOUT waiting for: gazebo` after 288 s while `gzserver` was running. Run the check yourself:
 
 ```bash
 gz stats -w arena -d 2
@@ -123,8 +126,9 @@ gz stats -w arena -d 2
 Factor[0.76] SimTime[258.62] RealTime[348.07] Paused[F]
 ```
 
-If that prints `Factor` lines, the simulator is fine: change `gz stats -d 1` to `gz stats -w arena -d 1` in `scripts/up.sh` and
-run it again. `Factor` is the real-time factor; 0.76 means one simulated second took 1.3 s.
+`Factor` is the real-time factor; 0.76 means one simulated second took 1.3 s. If `up.sh` still stops with
+`TIMEOUT waiting for: gazebo` while this command prints `Factor` lines, the machine is too busy to answer within the 5 s
+timeout of the check; the troubleshooting table of [p01](../projects/p01_first-steps/README.md) has the way around it.
 
 ![Sequence of up.sh: each launch file followed by the readiness check that must pass before the next starts](img/c00-03-up-sequence.png)
 
@@ -156,6 +160,10 @@ simulations running on the same GPU it delivered one image every 0.29 s of simul
 
 Common mistakes: without `-s`, `ros2 topic hz` measures in wall-clock time, so every rate is multiplied by the real-time factor.
 At a factor of about 0.58 the lidar showed 5.99 Hz instead of 10.03 Hz. Every rate and time in this course is in simulated time.
+
+![Left: configured and measured rate of each topic on a log axis. Right: the lidar rate measured with and without -s](img/c00-03-sensor-rates.png)
+
+*Measured rates from the outputs above against the configured ones in `gazebo.xacro` (IMU), `ekf.yaml` and `sensors.xacro`. The camera is the one topic far below its setting.*
 
 ### 2.3 Check that the robot is localised
 
@@ -200,8 +208,10 @@ Objective: drive from A to B with Nav2 while recording a rosbag.
 scripts/run_mission.sh bags/first; echo "exit code $?"
 ```
 
-`run_mission.sh` restarts the stack with `up.sh`, starts `record_bag.sh`, runs `go_to_goal.py` and stops the recording. The
-output, with most progress lines left out:
+`run_mission.sh` restarts the stack with `up.sh`, starts `record_bag.sh`, runs `go_to_goal.py` and stops the recording. It
+stops only its own recorder: `setsid` makes the recorder the leader of a new process group, and the script sends Ctrl-C (SIGINT)
+to that group and waits until the bag is closed. A recorder of another stack on the same machine keeps running. The output,
+with most progress lines left out:
 
 ```
 stack: ROS_DOMAIN_ID=42 GAZEBO_MASTER_URI=http://localhost:11345
@@ -272,8 +282,17 @@ python3 src/go2_nav_sim/scripts/bag_metrics.py bags/first
 }
 ```
 
-Check: `goal_error_m` equals the ground-truth final error in the result line. The bag was 639 MiB for 112 s of wall time (`ros2 bag info bags/first`);
-[chapter 11](11-record-and-visualise.md) explains each number and renders the dashboard video from the same bag.
+Check: `goal_error_m` agrees with the ground-truth final error of the result line to within 0.01 m. Both come from `/odom_gt`,
+but `go_to_goal.py` reads it when Nav2 reports the result and `bag_metrics.py` takes the last pose in the bag, which ends at
+least 4 s later. In a second run they were 0.26 m and 0.25 m.
+
+The bag was 639 MiB (`ros2 bag info bags/first`): 5.7 MiB per wall-clock second over 112 s, or 10.3 MiB per simulated second
+over the 62.1 s of `duration_s`. [Chapter 11](11-record-and-visualise.md) explains each number and renders the dashboard video
+from the same bag.
+
+![One frame of the dashboard: external camera, onboard RGB, depth, lidar sweep, map with plan and trajectories, run metrics and three IMU plots](img/dashboard.png)
+
+*One frame of the dashboard that `render_dashboard.py` makes from a bag. The run metrics panel is evaluation only.*
 
 ## Task 4: Stop the stack
 
@@ -298,6 +317,10 @@ Answer: Nav2 checks the tolerance against its own pose estimate, which comes fro
 good (`odom_ate_aligned_cm` 1.6), but AMCL was off by 11.7 cm RMSE and up to 18.1 cm (`amcl_rmse_cm`, `amcl_max_cm`). An AMCL
 error of about 0.1 m in the direction of B is enough to move a stop that Nav2 sees inside 0.25 m to 0.32 m from B in reality.
 Localisation, not odometry, limits how close to B the robot stops.
+
+![Close-up of goal B for the recorded runs w1, w2 and w3: in w3 the last AMCL pose is inside the tolerance circle and the true stop is outside](img/c00-00-final-approach.png)
+
+*The same effect in the recorded runs (`site/data/runs/wN/run.json`): in w3 the last `/amcl_pose` was 0.23 m from B and the robot 0.34 m.*
 
 ## Further reading
 

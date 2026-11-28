@@ -1,0 +1,51 @@
+[amcl-2] [WARN] [1795853423.482027598] [amcl]: Failed to transform initial pose in time (Lookup would require extrapolation into the future.  Requested time 16.380000 but the latest data is at time 16.377000, when looking up transform from frame [base_footprint] to frame [odom])
+[controller_server-4] [WARN] [1795853426.346796874] [controller_server]: No goal checker was specified in parameter 'current_goal_checker'. Server will use only plugin loaded general_goal_checker . This warning will appear once.
+[planner_server-6] [WARN] [1795853464.225368016] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795853464.225434027] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (-0.75, 1.00)
+[planner_server-6] [WARN] [1795853464.225450235] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[planner_server-6] [WARN] [1795853464.445859095] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795853464.445965272] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (-0.75, 1.00)
+[planner_server-6] [WARN] [1795853464.445992010] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[bt_navigator-8] [ERROR] [1795853464.484912552] [bt_navigator_navigate_to_pose_rclcpp_node]: Failed to get result for follow_path in node halt!
+[bt_navigator-8] [WARN] [1795853464.486611221] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[planner_server-6] [WARN] [1795853464.646804833] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795853464.646878101] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (-0.75, 1.00)
+[planner_server-6] [WARN] [1795853464.646902827] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[planner_server-6] [WARN] [1795853464.848742137] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795853464.848837624] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (-0.75, 1.00)
+[planner_server-6] [WARN] [1795853464.848857419] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[planner_server-6] [WARN] [1795853468.898991803] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795853468.899084122] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (-0.75, 1.00)
+[planner_server-6] [WARN] [1795853468.899106045] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[planner_server-6] [WARN] [1795853469.048373982] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795853469.048459290] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (-0.75, 1.00)
+[planner_server-6] [WARN] [1795853469.048484735] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[planner_server-6] [WARN] [1795853474.897403333] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795853474.897514950] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (-0.75, 1.00)
+[planner_server-6] [WARN] [1795853474.897529228] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[planner_server-6] [WARN] [1795853475.049171622] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795853475.049266678] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (-0.75, 1.00)
+[planner_server-6] [WARN] [1795853475.049290855] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[behavior_server-7] [WARN] [1795853476.368222342] [behavior_server]: Collision Ahead - Exiting DriveOnHeading
+[behavior_server-7] [WARN] [1795853476.368289505] [behavior_server]: backup failed
+[behavior_server-7] [WARN] [1795853476.368314316] [behavior_server]: [backup] [ActionServer] Aborting handle.
+[planner_server-6] [WARN] [1795853476.448535338] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795853476.448618437] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (-0.75, 1.00)
+[planner_server-6] [WARN] [1795853476.448644884] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[planner_server-6] [WARN] [1795853476.650030066] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795853476.650105360] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (-0.75, 1.00)
+[planner_server-6] [WARN] [1795853476.650123591] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[planner_server-6] [WARN] [1795853480.997401132] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795853480.997497969] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (-0.75, 1.00)
+[planner_server-6] [WARN] [1795853480.997513355] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[planner_server-6] [WARN] [1795853481.043156167] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795853481.043312039] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (-0.75, 1.00)
+[planner_server-6] [WARN] [1795853481.043349795] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[planner_server-6] [WARN] [1795853486.488208620] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795853486.488323111] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (-0.75, 1.00)
+[planner_server-6] [WARN] [1795853486.488340612] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[planner_server-6] [WARN] [1795853486.649542644] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795853486.649715711] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (-0.75, 1.00)
+[planner_server-6] [WARN] [1795853486.649741620] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[bt_navigator-8] [WARN] [1795853486.676710146] [bt_navigator]: [navigate_to_pose] [ActionServer] Aborting handle.
+[bt_navigator-8] [ERROR] [1795853486.677080258] [bt_navigator]: Goal failed

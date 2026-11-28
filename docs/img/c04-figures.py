@@ -442,7 +442,9 @@ def amcl_vs_odom():
     b.plot(t, 100 * se2_err(am, gt), color=C['est2'], drawstyle='steps-post', label='AMCL − ground truth')
     b.set_xlabel('time since start of recording [s]'); b.set_ylabel('position error [cm]')
     m = run['metrics']
-    b.set_title(f"AMCL: {m['amcl_updates']} updates, each a step; RMSE {m['amcl_rmse_cm']} cm, max {m['amcl_max_cm']} cm")
+    b.set_title(f"AMCL at its {m['amcl_updates']} updates: RMSE {m['amcl_rmse_cm']} cm, max {m['amcl_max_cm']} cm")
+    b.text(0.6, 0.99, 'held pose between updates drawn as steps,\nso this trace peaks higher', transform=b.transAxes,
+           ha='center', va='top', fontsize=7, color=C['muted'])
     b.legend(loc='upper left', fontsize=7)
     save(fig, 'amcl-vs-odom')
 
@@ -638,9 +640,61 @@ def map_odom_jump():
     save(fig, 'map-odom-jump')
 
 
+def ladder(steps, name, size, title, qw=0.36):
+    """Troubleshooting ladder: questions down the left, each one's answer (the cause and fix) to its right."""
+    fig, ax = plt.subplots(figsize=size); ax.set_axis_off(); n = len(steps)
+    ax.set_xlim(-0.005, 1.005); ax.set_ylim(-0.4, n - 0.6); ax.set_title(title, fontsize=9.5)
+    for i, (q, branch, ans, col) in enumerate(steps):
+        y = n - 1 - i
+        ax.add_patch(FancyBboxPatch((0.0, y - 0.32), qw, 0.64, boxstyle='round,pad=0,rounding_size=0.02', fc='white',
+                                    ec=C['ink'], lw=0.9))
+        ax.text(qw / 2, y, q, ha='center', va='center', fontsize=7.8, color=C['ink'])
+        ax.add_patch(FancyBboxPatch((qw + 0.07, y - 0.32), 1.0 - qw - 0.07, 0.64, boxstyle='round,pad=0,rounding_size=0.02',
+                                    fc=C['fill'], ec=col, lw=0.9))
+        ax.text(qw + 0.085, y, ans, ha='left', va='center', fontsize=7.4, color=C['ink'])
+        arr(ax, (qw, y), (qw + 0.07, y), color=col, text=branch, tfs=7.5)
+        if i < n - 1:
+            arr(ax, (qw / 2, y - 0.32), (qw / 2, y - 0.68), text=None)
+            ax.text(qw / 2 + 0.01, y - 0.5, 'no' if branch == 'yes' else 'yes', fontsize=7.5, va='center', color=C['muted'])
+    save(fig, name)
+
+
+def echo_tree():
+    """Chapter 4, task 2: why ros2 topic echo prints nothing, from the cases measured in tasks 1 and 2."""
+    ladder([
+        ('ros2 topic list does not\nshow the topic?', 'yes',
+         'Other domain or unsourced terminal: source env.sh sets\nROS_DOMAIN_ID=42; nodes on different domains never meet', C['bad']),
+        ('ros2 topic info -v:\nPublisher count 0?', 'yes',
+         'Nothing publishes it yet: the launch file that starts\nthe publisher is not up', C['bad']),
+        ('Warning "offering incompatible\nQoS ... RELIABILITY"?', 'yes',
+         'Request no more than the offer: /scan is BEST_EFFORT,\nso drop --qos-reliability reliable (2.2)', C['bad']),
+        ('Published once, before you\nsubscribed (/map, /amcl_pose)?', 'yes',
+         'Subscribe TRANSIENT_LOCAL as go_to_goal.py does;\n/amcl_pose also waits for 5 cm or 0.1 rad of motion (2.3)',
+         C['plan']),
+        ('Your node, use_sim_time:=true,\nand nothing on /clock?', 'yes',
+         'Its clock does not advance and its timers never fire;\nstart the simulator or a bag with /clock (2.4)', C['plan']),
+    ], 'echo-tree', (8.0, 4.6), 'ros2 topic echo prints nothing: ask in this order')
+
+
+def tf_lookup_tree():
+    """Chapter 5: read an ExtrapolationException; the numbers are the three probe messages in the chapter."""
+    ladder([
+        ('Requested time a Unix time\n(about 1.8e9 s), data in\nsimulated seconds?', 'yes',
+         'The node runs on the wall clock: pass use_sim_time\n(chapter 4, 2.4)', C['bad']),
+        ('"into the future"?', 'yes',
+         'Tens of ms: the publisher is late, pass a timeout Duration.\nMore: that time has not happened (probe: now + 0.5 s, 0.511 s)',
+         C['plan']),
+        ('"into the past" by a\nfew ms, at start-up?', 'yes',
+         'The listener had just started and lacks the first stamps\n(probe: 4 ms short of the earliest data)', C['plan']),
+        ('"into the past" by more\nthan the buffer holds?', 'yes',
+         'Older than the history kept (10 s by default)\n(probe: now − 30 s, 29.4 s before the earliest data)', C['bad']),
+    ], 'tf-lookup-tree', (8.0, 3.8),
+           'ExtrapolationException: read the message (static transforms have no time and never raise it)')
+
+
 ALL = dict(**{f.__name__: f for f in (stack_launch, ros_graph, mechanisms, qos_matrix, sim_time, overlay, lifecycle, executor,
                                        bag_clock, yaw_drift, tf_tree, amcl_vs_odom, one_parent, optical_frame, tilt_error,
-                                       lookup_time, compose_chain, map_odom_jump)})
+                                       lookup_time, compose_chain, map_odom_jump, echo_tree, tf_lookup_tree)})
 
 if __name__ == '__main__':
     for n in sys.argv[1:] or ALL:

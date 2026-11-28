@@ -1,0 +1,10 @@
+[controller_server-4] [WARN] [1795852657.163339634] [controller_server]: No goal checker was specified in parameter 'current_goal_checker'. Server will use only plugin loaded general_goal_checker . This warning will appear once.
+[planner_server-6] [WARN] [1795852664.575830224] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795852664.575893446] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (-0.50, -0.50)
+[planner_server-6] [WARN] [1795852664.575908345] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[planner_server-6] [WARN] [1795852664.685226204] [planner_server]: Planner loop missed its desired rate of 20.0000 Hz. Current loop rate is 11.7647 Hz
+[planner_server-6] [ERROR] [1795852679.062472640] [planner_server]: Failed to create a plan from potential when a legal potential was found. This shouldn't happen.
+[planner_server-6] [WARN] [1795852679.062573165] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795852679.062595569] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (-0.50, -0.50)
+[planner_server-6] [WARN] [1795852679.062614583] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[planner_server-6] [WARN] [1795852679.283093219] [planner_server]: Planner loop missed its desired rate of 20.0000 Hz. Current loop rate is 5.0000 Hz

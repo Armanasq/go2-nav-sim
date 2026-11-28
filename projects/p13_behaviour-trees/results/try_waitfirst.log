@@ -1,0 +1,136 @@
+    0.00  NavigateRecovery             IDLE     -> RUNNING
+    0.00  RateController               IDLE     -> RUNNING
+    0.00  ComputePathToPose            IDLE     -> RUNNING
+    0.00  ComputePathToPose            IDLE     -> RUNNING
+    0.00  NavigateWithReplanning       IDLE     -> RUNNING
+    0.02  ComputePathToPose            RUNNING  -> FAILURE
+    0.02  ClearGlobalCostmap-Context   IDLE     -> SUCCESS
+    0.02  ComputePathToPose            IDLE     -> RUNNING
+    0.12  ComputePathToPose            RUNNING  -> FAILURE
+    0.12  ComputePathToPose            RUNNING  -> FAILURE
+    0.12  RateController               RUNNING  -> FAILURE
+    0.12  NavigateWithReplanning       RUNNING  -> FAILURE
+    0.12  RecoveryFallback             IDLE     -> RUNNING
+    0.12  RecoveryActions              IDLE     -> RUNNING
+    0.12  ClearingActions              IDLE     -> RUNNING
+    0.12  ClearLocalCostmap-Subtree    IDLE     -> SUCCESS
+    0.12  ClearGlobalCostmap-Subtree   IDLE     -> RUNNING
+    0.13  ClearGlobalCostmap-Subtree   RUNNING  -> SUCCESS
+    0.13  ClearingActions              RUNNING  -> SUCCESS
+    0.13  RecoveryActions              RUNNING  -> SUCCESS
+    0.13  RecoveryFallback             RUNNING  -> SUCCESS
+    0.13  RateController               IDLE     -> RUNNING
+    0.13  ComputePathToPose            IDLE     -> RUNNING
+    0.13  ComputePathToPose            IDLE     -> RUNNING
+    0.13  NavigateWithReplanning       IDLE     -> RUNNING
+    0.28  ComputePathToPose            RUNNING  -> FAILURE
+    0.28  ClearGlobalCostmap-Context   IDLE     -> SUCCESS
+    0.28  ComputePathToPose            IDLE     -> RUNNING
+    0.44  ComputePathToPose            RUNNING  -> FAILURE
+    0.44  ComputePathToPose            RUNNING  -> FAILURE
+    0.44  RateController               RUNNING  -> FAILURE
+    0.44  NavigateWithReplanning       RUNNING  -> FAILURE
+    0.44  RecoveryFallback             IDLE     -> RUNNING
+    0.44  RecoveryActions              IDLE     -> RUNNING
+    0.44  Wait                         IDLE     -> RUNNING
+    5.46  Wait                         RUNNING  -> SUCCESS
+    5.46  RecoveryActions              RUNNING  -> SUCCESS
+    5.46  RecoveryFallback             RUNNING  -> SUCCESS
+    5.46  RateController               IDLE     -> RUNNING
+    5.46  ComputePathToPose            IDLE     -> RUNNING
+    5.46  ComputePathToPose            IDLE     -> RUNNING
+    5.46  NavigateWithReplanning       IDLE     -> RUNNING
+    5.47  ComputePathToPose            RUNNING  -> FAILURE
+    5.47  ClearGlobalCostmap-Context   IDLE     -> SUCCESS
+    5.47  ComputePathToPose            IDLE     -> RUNNING
+    5.61  ComputePathToPose            RUNNING  -> FAILURE
+    5.61  ComputePathToPose            RUNNING  -> FAILURE
+    5.61  RateController               RUNNING  -> FAILURE
+    5.61  NavigateWithReplanning       RUNNING  -> FAILURE
+    5.61  RecoveryFallback             IDLE     -> RUNNING
+    5.61  RecoveryActions              IDLE     -> RUNNING
+    5.61  Spin                         IDLE     -> RUNNING
+    9.01  Spin                         RUNNING  -> SUCCESS
+    9.01  RecoveryActions              RUNNING  -> SUCCESS
+    9.01  RecoveryFallback             RUNNING  -> SUCCESS
+    9.01  RateController               IDLE     -> RUNNING
+    9.01  ComputePathToPose            IDLE     -> RUNNING
+    9.01  ComputePathToPose            IDLE     -> RUNNING
+    9.01  NavigateWithReplanning       IDLE     -> RUNNING
+    9.03  ComputePathToPose            RUNNING  -> FAILURE
+    9.03  ClearGlobalCostmap-Context   IDLE     -> SUCCESS
+    9.03  ComputePathToPose            IDLE     -> RUNNING
+    9.17  ComputePathToPose            RUNNING  -> FAILURE
+    9.17  ComputePathToPose            RUNNING  -> FAILURE
+    9.17  RateController               RUNNING  -> FAILURE
+    9.17  NavigateWithReplanning       RUNNING  -> FAILURE
+    9.17  RecoveryFallback             IDLE     -> RUNNING
+    9.17  RecoveryActions              IDLE     -> RUNNING
+    9.17  BackUp                       IDLE     -> RUNNING
+   12.82  BackUp                       RUNNING  -> SUCCESS
+   12.82  RecoveryActions              RUNNING  -> SUCCESS
+   12.82  RecoveryFallback             RUNNING  -> SUCCESS
+   12.82  RateController               IDLE     -> RUNNING
+   12.82  ComputePathToPose            IDLE     -> RUNNING
+   12.82  ComputePathToPose            IDLE     -> RUNNING
+   12.82  NavigateWithReplanning       IDLE     -> RUNNING
+   12.84  ComputePathToPose            RUNNING  -> FAILURE
+   12.84  ClearGlobalCostmap-Context   IDLE     -> SUCCESS
+   12.84  ComputePathToPose            IDLE     -> RUNNING
+   12.98  ComputePathToPose            RUNNING  -> FAILURE
+   12.98  ComputePathToPose            RUNNING  -> FAILURE
+   12.98  RateController               RUNNING  -> FAILURE
+   12.98  NavigateWithReplanning       RUNNING  -> FAILURE
+   12.98  RecoveryFallback             IDLE     -> RUNNING
+   12.98  RecoveryActions              IDLE     -> RUNNING
+   12.98  ClearingActions              IDLE     -> RUNNING
+   12.98  ClearLocalCostmap-Subtree    IDLE     -> SUCCESS
+   12.98  ClearGlobalCostmap-Subtree   IDLE     -> SUCCESS
+   12.98  ClearingActions              RUNNING  -> SUCCESS
+   12.98  RecoveryActions              RUNNING  -> SUCCESS
+   12.98  RecoveryFallback             RUNNING  -> SUCCESS
+   12.98  RateController               IDLE     -> RUNNING
+   12.98  ComputePathToPose            IDLE     -> RUNNING
+   12.98  ComputePathToPose            IDLE     -> RUNNING
+   12.98  NavigateWithReplanning       IDLE     -> RUNNING
+   13.16  ComputePathToPose            RUNNING  -> FAILURE
+   13.16  ClearGlobalCostmap-Context   IDLE     -> SUCCESS
+   13.16  ComputePathToPose            IDLE     -> RUNNING
+   13.36  ComputePathToPose            RUNNING  -> FAILURE
+   13.36  ComputePathToPose            RUNNING  -> FAILURE
+   13.36  RateController               RUNNING  -> FAILURE
+   13.36  NavigateWithReplanning       RUNNING  -> FAILURE
+   13.36  RecoveryFallback             IDLE     -> RUNNING
+   13.36  RecoveryActions              IDLE     -> RUNNING
+   13.36  Wait                         IDLE     -> RUNNING
+   18.48  Wait                         RUNNING  -> SUCCESS
+   18.48  RecoveryActions              RUNNING  -> SUCCESS
+   18.48  RecoveryFallback             RUNNING  -> SUCCESS
+   18.48  RateController               IDLE     -> RUNNING
+   18.48  ComputePathToPose            IDLE     -> RUNNING
+   18.48  ComputePathToPose            IDLE     -> RUNNING
+   18.48  NavigateWithReplanning       IDLE     -> RUNNING
+   18.50  ComputePathToPose            RUNNING  -> FAILURE
+   18.50  ClearGlobalCostmap-Context   IDLE     -> SUCCESS
+   18.50  ComputePathToPose            IDLE     -> RUNNING
+   18.52  ComputePathToPose            RUNNING  -> FAILURE
+   18.52  ComputePathToPose            RUNNING  -> FAILURE
+   18.52  RateController               RUNNING  -> FAILURE
+   18.52  NavigateWithReplanning       RUNNING  -> FAILURE
+   18.52  NavigateRecovery             RUNNING  -> FAILURE
+Traceback (most recent call last):
+  File "/home/arman/project/slam_paper/go2-nav-sim/projects/p13_behaviour-trees/bt_log.py", line 56, in <module>
+    main()
+  File "/home/arman/project/slam_paper/go2-nav-sim/projects/p13_behaviour-trees/bt_log.py", line 49, in main
+    rclpy.spin(node)
+  File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/__init__.py", line 229, in spin
+    executor.spin_once()
+  File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/executors.py", line 812, in spin_once
+    self._spin_once_impl(timeout_sec)
+  File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/executors.py", line 801, in _spin_once_impl
+    handler, entity, node = self.wait_for_ready_callbacks(timeout_sec=timeout_sec)
+  File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/executors.py", line 784, in wait_for_ready_callbacks
+    return next(self._cb_iter)
+  File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/executors.py", line 685, in _wait_for_ready_callbacks
+    raise ExternalShutdownException()
+rclpy.executors.ExternalShutdownException

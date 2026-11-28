@@ -1,0 +1,4 @@
+#!/bin/bash
+# gzserver with the gazebo_ros force system plugin, which adds the /apply_link_wrench service used by task 8.10.
+# run.py puts this folder first on PATH, so the champ_gazebo launch file starts this instead of the plain gzserver.
+exec /usr/bin/gzserver -s libgazebo_ros_force_system.so "$@"

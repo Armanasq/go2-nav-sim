@@ -1,0 +1,10 @@
+ab1 [python3-4] RESULT REACHED method=vfh time=39.5s path=11.10m min_clearance=0.57m true_dist_to_goal=0.27m odom_err_end=0.06m
+ba1 [python3-4] RESULT REACHED method=vfh time=60.2s path=15.85m min_clearance=0.56m true_dist_to_goal=0.36m odom_err_end=0.14m
+ab2 [python3-4] RESULT REACHED method=vfh time=41.6s path=11.07m min_clearance=0.57m true_dist_to_goal=0.27m odom_err_end=0.11m
+ba2 [python3-4] RESULT REACHED method=vfh time=61.2s path=16.04m min_clearance=0.57m true_dist_to_goal=0.33m odom_err_end=0.18m
+ab3 [python3-4] RESULT REACHED method=vfh time=41.5s path=10.96m min_clearance=0.57m true_dist_to_goal=0.31m odom_err_end=0.06m
+ba3 [python3-4] RESULT REACHED method=vfh time=60.5s path=16.05m min_clearance=0.57m true_dist_to_goal=0.23m odom_err_end=0.18m
+ab4 [python3-4] RESULT REACHED method=vfh time=41.9s path=10.99m min_clearance=0.57m true_dist_to_goal=0.32m odom_err_end=0.05m
+ba4 [python3-4] RESULT STUCK method=vfh time=45.2s path=11.06m min_clearance=0.56m true_dist_to_goal=7.79m odom_err_end=0.03m
+ab5 [python3-4] RESULT REACHED method=vfh time=11.3s path=3.19m min_clearance=1.10m true_dist_to_goal=0.28m odom_err_end=0.08m
+ba5 [python3-4] RESULT REACHED method=vfh time=60.5s path=16.03m min_clearance=0.57m true_dist_to_goal=0.32m odom_err_end=0.12m

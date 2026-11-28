@@ -1,0 +1,285 @@
+{
+ "_about": "Pass/fail thresholds for stage 6, written 2026-11-28 before run.py was first executed. Each check compares one key of results/<id>.json 'metrics' with max (value <= x), min (value >= x) or equals. Thresholds are not loosened to make a task pass; a changed threshold keeps its old value and the reason under 'changes'. A task with 'runs': N is run N times, each on a fresh simulator, and is verified only when every run passes.",
+ "6.01": {
+  "title": "Stationary IMU",
+  "checks": {
+   "accel_norm_error_ms2": {
+    "max": 0.1
+   },
+   "gyro_mean_abs_max_rads": {
+    "max": 0.005
+   },
+   "tilt_vs_gt_deg": {
+    "max": 0.5
+   },
+   "imu_rate_hz_sim": {
+    "min": 95
+   }
+  },
+  "basis": "20 s standing at A. |mean a| should be g = 9.8 (world gravity); roll and pitch from the mean accelerometer vector compared with /odom_gt; nominal IMU rate 100 Hz",
+  "runs": 5
+ },
+ "6.02": {
+  "title": "Rotate and measure angular rate",
+  "checks": {
+   "mean_rate_rel_error": {
+    "max": 0.01
+   },
+   "rms_rate_diff_rads": {
+    "max": 0.02
+   }
+  },
+  "basis": "turn in place at a commanded 0.5 rad/s for 8 s; gyro z against the /odom_gt angular rate, steady window = last 5 s of the turn, gyro interpolated to the 50 Hz ground-truth stamps"
+ },
+ "6.03": {
+  "title": "IMU noise and bias",
+  "checks": {
+   "gyro_bias_abs_max_rads": {
+    "max": 0.001
+   },
+   "gyro_white_noise_ratio_min": {
+    "min": 0.5
+   },
+   "gyro_white_noise_ratio_max": {
+    "max": 2.0
+   }
+  },
+  "basis": "60 s standing. Configured gyro noise sigma = 2e-4 rad/s at 100 Hz (go2_description gazebo.xacro), so N = sigma * sqrt(dt) = 2e-5 rad/s/sqrt(Hz); N estimated as sigma_Allan(tau) * sqrt(tau) at tau = 0.1 s on each axis; ratio = estimate / configured. Accelerometer numbers are reported, not checked: chapter 8 measured a standing z spread of 0.7 to 1.0 m/s2 against a configured 0.017"
+ },
+ "6.04": {
+  "title": "Integrate the gyro for heading",
+  "checks": {
+   "turn_heading_error_deg": {
+    "max": 1.0
+   },
+   "standing_drift_deg": {
+    "max": 0.1
+   }
+  },
+  "basis": "turn left about 90 deg, right about 90 deg, then stand 30 s; trapezoidal integral of gyro z against the /odom_gt yaw change"
+ },
+ "6.05": {
+  "title": "RGB camera",
+  "checks": {
+   "width": {
+    "equals": 640
+   },
+   "height": {
+    "equals": 360
+   },
+   "encoding_ok": {
+    "equals": true
+   },
+   "frame_ok": {
+    "equals": true
+   },
+   "fx_error_px": {
+    "max": 1.0
+   },
+   "pixel_std": {
+    "min": 10
+   }
+  },
+  "basis": "sensors.xacro: 640x360, 1.2 rad horizontal FOV, so fx = 320 / tan(0.6) = 467.7 px; frame camera_optical"
+ },
+ "6.06": {
+  "title": "Depth camera",
+  "checks": {
+   "encoding_ok": {
+    "equals": true
+   },
+   "floor_depth_median_rel_error": {
+    "max": 0.03
+   }
+  },
+  "basis": "at A facing +x the floor ahead is clear; floor depth on row v predicted as z = h / (((v - cy) / fy) cos(pitch) + sin(pitch)) with h and pitch of the camera from /odom_gt interpolated at the image's stamp; per frame the median over the 40 centre columns of rows with predicted depth 0.7 to 6 m; the checked value is the worst of 5 consecutive frames",
+  "runs": 5
+ },
+ "6.07": {
+  "title": "Distance to a wall from depth and from the scan",
+  "checks": {
+   "scan_gap_error_m": {
+    "max": 0.05
+   },
+   "depth_gap_error_m": {
+    "max": 0.03
+   }
+  },
+  "basis": "p05 lane start (true gap about 2 m to the pallet's flat west face); scan gap = nearest return in +-20 deg minus 0.28 m, depth = median 5x5 centre patch (p05 obstacle.py); true gap from /odom_gt"
+ },
+ "6.08": {
+  "title": "Lidar point cloud",
+  "checks": {
+   "frame_ok": {
+    "equals": true
+   },
+   "xyz_fields_ok": {
+    "equals": true
+   },
+   "ring_radius_error_m": {
+    "max": 0.03
+   }
+  },
+  "basis": "lowest beam (-15 deg) meets the floor at h / tan(15 deg), h = lidar height from /odom_gt (base z + 0.10); median over all azimuths"
+ },
+ "6.09": {
+  "title": "Cloud into the robot frame",
+  "checks": {
+   "tf_translation_error_m": {
+    "max": 0.001
+   },
+   "floor_z_error_m": {
+    "max": 0.02
+   }
+  },
+  "basis": "base_link -> lidar_link from tf2 against the URDF (0, 0, 0.10); floor points in base_link should sit at z = -(true base height)"
+ },
+ "6.10": {
+  "title": "Remove floor and body returns",
+  "checks": {
+   "floor_removed_frac": {
+    "min": 0.99
+   },
+   "obstacle_kept_frac": {
+    "min": 0.98
+   },
+   "body_points_left": {
+    "equals": 0
+   }
+  },
+  "basis": "labels from /odom_gt: floor = world z < 0.02 m, obstacle = world z > 0.10 m; body = inside |x| <= 0.40, |y| <= 0.20 of base_link"
+ },
+ "6.11": {
+  "title": "Detect one obstacle",
+  "checks": {
+   "n_clusters_in_roi": {
+    "equals": 1
+   },
+   "face_x_error_m": {
+    "max": 0.05
+   },
+   "width_error_m": {
+    "max": 0.1
+   }
+  },
+  "basis": "p05 lane start facing the pallet (west face x = 1.9, y from -3.1 to -1.9); ROI: cluster centroid 0.3 to 4 m ahead and within +-1.0 m sideways (the end of box 1 sits 1.3 m to the left)"
+ },
+ "6.12": {
+  "title": "Detect several obstacles",
+  "checks": {
+   "recall_visible": {
+    "min": 1.0
+   },
+   "false_clusters": {
+    "equals": 0
+   },
+   "max_median_boundary_dist_m": {
+    "max": 0.05
+   }
+  },
+  "basis": "at A; obstacles from make_arena.py; visible = hit first by at least 3 of 720 rays of a 2D ray cast from the lidar against the footprints in make_arena.py; a cluster matches an obstacle or wall when its median point distance to that footprint is under 0.15 m"
+ },
+ "6.13": {
+  "title": "Stop before a wall",
+  "checks": {
+   "max_abs_gap_error_m": {
+    "max": 0.05
+   },
+   "min_final_gap_m": {
+    "min": 0.0
+   }
+  },
+  "basis": "p05 measure_stops.py at 0.2 m/s, 3 runs, target gap 0.5 m to the pallet's west face; p05 measured 0.479 to 0.489 m at this speed"
+ },
+ "6.14": {
+  "title": "Stop before a newly spawned obstacle",
+  "checks": {
+   "gap_at_spawn_m": {
+    "min": 0.8
+   },
+   "abs_gap_error_m": {
+    "max": 0.06
+   },
+   "final_gap_m": {
+    "min": 0.0
+   }
+  },
+  "basis": "p05 stop_at_obstacle.py at 0.2 m/s from the lane start; worlds/new_box.sdf spawned 1 s after walking starts, west face x = 1.2; target gap 0.5 m"
+ },
+ "6.15": {
+  "title": "Handle missing measurements",
+  "checks": {
+   "walked_without_readings_m": {
+    "max": 0.02
+   },
+   "timeout_line": {
+    "equals": true
+   },
+   "zero_after_last_reading_s": {
+    "max": 0.65
+   },
+   "walked_after_last_reading_m": {
+    "max": 0.25
+   }
+  },
+  "basis": "p05 stop_at_obstacle.py, timeout 0.5 s, 10 Hz timer: (a) started with no /front_range for 3 s must not walk; (b) walking at 0.2 m/s, sense.py stopped: a zero within timeout + one tick + 0.05 s"
+ },
+ "6.16": {
+  "title": "Detect a raised platform from depth",
+  "checks": {
+   "detected": {
+    "equals": true
+   },
+   "top_inliers": {
+    "min": 1000
+   },
+   "top_normal_angle_deg": {
+    "max": 2.0
+   }
+  },
+  "basis": "worlds/platform.world: box 1.0 x 1.2 x 0.12 m centred at (-2.2, -3.5), near edge 1.5 m ahead of the camera at A"
+ },
+ "6.17": {
+  "title": "Estimate platform height and edges",
+  "checks": {
+   "height_error_m": {
+    "max": 0.01
+   },
+   "max_edge_error_m": {
+    "max": 0.05
+   }
+  },
+  "basis": "height = top plane minus floor plane along the floor normal; edges = 1st and 99th percentiles of the top inliers in world x and y (horizontal pose from /odom_gt); true edges x -2.7, -1.7, y -4.1, -2.9",
+  "runs": 5
+ },
+ "changes": {
+  "6.06": [
+   {
+    "date": "2026-11-28",
+    "threshold": "unchanged (median relative error <= 0.03)",
+    "old_model": "z = h / ((v - cy) / fy), level camera, h = base z + 0.03",
+    "old_result": "failed, median relative error 0.0374 (results/6.06_level_model_failed.json)",
+    "reason": "the level-camera prediction ignored the trunk's measured 0.39 deg nose-up pitch, which moves a floor point seen 3 deg below the horizon by about 15 %; the prediction now includes pitch and the camera offset rotated by the true attitude. The sensor and the threshold are the same."
+   },
+   {
+    "date": "2026-11-28",
+    "threshold": "unchanged (median relative error <= 0.03)",
+    "old_reference": "the /odom_gt sample received after the depth frame, one frame per run",
+    "old_basis": "at A facing +x the floor ahead is clear; floor depth on row v predicted as z = h / (((v - cy) / fy) cos(pitch) + sin(pitch)) with h and pitch of the camera from /odom_gt, median over the 40 centre columns, rows with predicted depth 0.7 to 6 m",
+    "old_result": "verdict changed from run to run: 0.5 % passed, 3.7 % and 3.8 % failed, then 0.61, 1.12, 1.88, 1.53 % passed (separate check by another reader)",
+    "reason": "the trunk pitch oscillates by about 0.3 deg while standing and the old reference sample came from a different instant than the image; interpolating /odom_gt at the image stamp gave 1.06 to 1.46 % on 20 consecutive frames. The checked value is now the worst of 5 frames, which is stricter than one frame, and the task is repeated 5 times."
+   }
+  ],
+  "runs": {
+   "date": "2026-11-28",
+   "tasks": [
+    "6.01",
+    "6.06",
+    "6.17"
+   ],
+   "old_rule": "one run; the status was that of the last run",
+   "new_rule": "5 runs, each on a fresh simulator; verified only when all 5 pass",
+   "reason": "the verdicts of these three tasks changed between runs with the same code (6.01 gyro mean 2 passes in 5 runs, 6.06 see above, 6.17 far edge 0.093 m in 1 of 3 runs), so the status of a single run depended on which run happened last. Thresholds unchanged."
+  }
+ }
+}

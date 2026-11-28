@@ -1,0 +1,39 @@
+[planner_server-6] [WARN] [1795850540.173644684] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795850540.173763134] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (4.00, 3.00)
+[planner_server-6] [WARN] [1795850540.333923642] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795850540.334017758] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (4.00, 3.00)
+[planner_server-6] [WARN] [1795850540.533975112] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795850540.534076850] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (4.00, 3.00)
+[planner_server-6] [WARN] [1795850540.735532031] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795850540.735617838] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (4.00, 3.00)
+[behavior_server-7] [INFO] [1795850540.744350153] [behavior_server]: Running spin
+[behavior_server-7] [INFO] [1795850547.949169548] [behavior_server]: spin completed successfully
+[planner_server-6] [WARN] [1795850547.977306692] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795850547.977376556] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (4.00, 3.00)
+[planner_server-6] [WARN] [1795850548.135487870] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795850548.135575538] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (4.00, 3.00)
+[behavior_server-7] [INFO] [1795850548.151379240] [behavior_server]: Running wait
+[behavior_server-7] [INFO] [1795850555.752548497] [behavior_server]: wait completed successfully
+[planner_server-6] [WARN] [1795850555.784253808] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795850555.784329570] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (4.00, 3.00)
+[planner_server-6] [WARN] [1795850555.930867549] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795850555.930988853] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (4.00, 3.00)
+[behavior_server-7] [INFO] [1795850555.955372908] [behavior_server]: Running backup
+[behavior_server-7] [INFO] [1795850560.655838154] [behavior_server]: backup completed successfully
+[planner_server-6] [WARN] [1795850560.687553549] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795850560.687681270] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (4.00, 3.00)
+[planner_server-6] [WARN] [1795850561.757072413] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795850561.757183578] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (4.00, 3.00)
+[planner_server-6] [WARN] [1795850561.933295951] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795850561.933453006] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (4.00, 3.00)
+[planner_server-6] [WARN] [1795850563.173633197] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795850563.174496691] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (4.00, 3.00)
+[planner_server-6] [WARN] [1795850563.333385425] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795850563.333516688] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (4.00, 3.00)
+[behavior_server-7] [INFO] [1795850563.372268636] [behavior_server]: Running spin
+[behavior_server-7] [INFO] [1795850570.572607129] [behavior_server]: spin completed successfully
+[planner_server-6] [WARN] [1795850570.603463179] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795850570.604617993] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (4.00, 3.00)
+[planner_server-6] [WARN] [1795850570.725877212] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795850570.725954168] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (4.00, 3.00)
+[bt_navigator-8] [ERROR] [1795850570.753732793] [bt_navigator]: Goal failed

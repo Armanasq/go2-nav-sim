@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Measure the command chain of arbitration.launch.py against ground truth.
-usage: python3 projects/p11_command-arbitration/measure.py override --csv ~/p11_runs/override.csv
-       python3 projects/p11_command-arbitration/measure.py estop    --csv ~/p11_runs/estop.csv   [--goal -4.5 -3.5 3.14]
-       python3 projects/p11_command-arbitration/measure.py box      --csv ~/p11_runs/box.csv     [--dist 2.0]
+usage: python3 projects/p11_command-arbitration/measure.py override --csv ~/p11_runs/override_1.csv
+       python3 projects/p11_command-arbitration/measure.py estop    --csv ~/p11_runs/estop_1.csv [--goal -4.5 -3.5 3.14]
+       python3 projects/p11_command-arbitration/measure.py box      --csv ~/p11_runs/box_1.csv   [--dist 2.0]
 override: Nav2 drives to a goal; a scripted keyboard holds 'j' for 2 s. Prints the delay from key to each topic.
 estop:    Nav2 drives to a goal; e_stop goes true for 8 s. Prints the time to standstill (from /odom_gt), then releases it.
 box:      a box is spawned --dist m ahead; the script sends 0.3 m/s on teleop/cmd_vel. Prints where the robot stopped.
@@ -20,7 +20,7 @@ HERE = pathlib.Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 sys.path.insert(0, str(HERE.parent / 'p02_teleop-and-safety'))
 from measure_stop import stop_time          # p02: first time the 0.5 s windowed true speed stays below 0.02 m/s
-from arbitration_check import first_after, stop_gap
+from arbitration_check import first_after, is_key, load, stop_gap
 
 A = (-4.5, -3.5)                             # /odom_gt starts at 0 on marker A (go_to_goal.py, make_arena.py)
 TOPICS = ['teleop/cmd_vel', 'nav/cmd_vel', 'cmd_vel_mux', 'cmd_vel_cm', 'cmd_vel']
@@ -30,11 +30,13 @@ BOX = (0.4, 0.8, 0.5)                        # depth along the walk, width, heig
 class Probe(Node):
     def __init__(self):
         super().__init__('p11_measure', parameter_overrides=[Parameter('use_sim_time', value=True)])
-        self.log = {k: [] for k in TOPICS}  # (wall, sim, vx, wz)
+        self.log = {k: [] for k in TOPICS + ['e_stop']}  # (wall, sim, vx, wz); e_stop: (wall, sim, 1.0 locked / 0.0, 0)
         self.gt = []                         # (sim, x, y, yaw) in map coordinates
         for k in TOPICS:
             self.create_subscription(Twist, k, lambda m, k=k: self.log[k].append(
                 (time.monotonic(), self.now(), m.linear.x, m.angular.z)), 50)
+        self.create_subscription(Bool, 'e_stop', lambda m: self.log['e_stop'].append(
+            (time.monotonic(), self.now(), float(m.data), 0.0)), 10)
         self.create_subscription(Odometry, 'odom_gt', self.on_gt, 50)
         self.teleop = self.create_publisher(Twist, 'teleop/cmd_vel', 10)
         self.lock = self.create_publisher(Bool, 'e_stop', 10)
@@ -106,13 +108,15 @@ def override(n, a):
     s_rel = n.now()
     n.wait(4.0)
     os.write(master, b'\x03'); teleop.wait(timeout=10)  # Ctrl-C: teleop sends one zero as it exits
-    turn = lambda w: w > 0.9                            # Nav2 never turns faster than 0.5 rad/s, so 1.0 is the key
-    hit = {k: first_after([(w, z) for w, _, _, z in n.log[k]], t_key, turn) for k in TOPICS}
+    ratio = load('collision_monitor.yaml')['PolygonSlow']['slowdown_ratio']
+    key = lambda v: is_key(*v, ratio=ratio)             # vx 0, wz 1.0, or 1.0 * ratio inside the slowdown zone
+    hit = {k: first_after([(w, (vx, z)) for w, _, vx, z in n.log[k]], t_key, key) for k in TOPICS}
     for k in ['teleop/cmd_vel', 'cmd_vel_mux', 'cmd_vel_cm', 'cmd_vel']:
         if n.log[k]:                                    # cmd_vel_cm is empty without the dead-man
-            print(f'key -> {k:15s}{ms(t_key, (hit[k] or [None])[0])}')
-    last_key = max(s for _, s, _, z in n.log['teleop/cmd_vel'] if turn(z))
-    back = first_after([(s, z) for _, s, _, z in n.log['cmd_vel']], last_key, lambda z: not turn(z))
+            h = hit[k]
+            print(f'key -> {k:15s}{ms(t_key, (h or [None])[0])}' + (f'  (slowed: wz {h[1][1]:.2f})' if h and h[1][1] < 0.9 else ''))
+    last_key = max(s for _, s, vx, z in n.log['teleop/cmd_vel'] if key((vx, z)))
+    back = first_after([(s, (vx, z)) for _, s, vx, z in n.log['cmd_vel']], last_key, lambda v: not key(v))
     print(f'Nav2 back on cmd_vel {back[0] - last_key:.2f} s (simulated) after the last key event' if back else 'Nav2 never came back')
     nav_during = [1 for _, s, _, _ in n.log['nav/cmd_vel'] if s_key <= s <= s_rel]
     print(f'Nav2 kept publishing during the override: {len(nav_during)} messages in {s_rel - s_key:.1f} s')
@@ -133,8 +137,8 @@ def estop(n, a):
           f'{len(out_after)} messages on cmd_vel from 0.5 s after the lock on')
     n.lock.publish(Bool(data=False)); t_un = n.now()
     n.wait(3.0)
-    back = first_after([(s, vx) for _, s, vx, _ in n.log['cmd_vel']], t_un, lambda v: abs(v) > 0.05)
-    print(f'unlock: Nav2 moving the robot again {back[0] - t_un:.2f} s later' if back else 'unlock: no motion command within 3 s')
+    back = first_after([(s, vx) for _, s, vx, _ in n.log['cmd_vel']], t_un, lambda v: abs(v) > 0.05)  # a command, not /odom_gt motion
+    print(f'unlock: Nav2 command reaches cmd_vel again {back[0] - t_un:.2f} s later' if back else 'unlock: no motion command within 3 s')
     finish_goal(goal)
 
 
@@ -151,6 +155,9 @@ def box(n, a):
     req.initial_pose.position.x, req.initial_pose.position.y, req.initial_pose.position.z = bx, by, BOX[2] / 2
     req.initial_pose.orientation.z, req.initial_pose.orientation.w = math.sin(yaw / 2), math.cos(yaw / 2)
     r = n.call(SpawnEntity, '/spawn_entity', req)
+    if not r.success:                                   # e.g. a box kept from an earlier run with --keep
+        sys.exit(f'spawn failed: {r.status_message} (remove it: ros2 service call /delete_entity '
+                 'gazebo_msgs/srv/DeleteEntity "{name: p11_box}")')
     print(f'box spawned: {r.status_message}; face {a.dist:.2f} m ahead of base_footprint at ({bx:.2f}, {by:.2f})')
     n.wait(1.0)
     fwd = Twist(); fwd.linear.x = 0.3
@@ -199,7 +206,7 @@ def main():
         path = pathlib.Path(a.csv).expanduser(); path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, 'w', newline='') as f:
             w = csv.writer(f); w.writerow(['src', 'wall', 'sim', 'a', 'b'])
-            for k in TOPICS:
+            for k in TOPICS + ['e_stop']:
                 w.writerows([k, f'{wa:.4f}', f'{s:.4f}', f'{vx:.4f}', f'{z:.4f}'] for wa, s, vx, z in n.log[k])
             w.writerows(['gt', '', f'{s:.4f}', f'{x:.4f}', f'{y:.4f}'] for s, x, y, _ in n.gt)
         rclpy.try_shutdown(); spin.join(timeout=2)

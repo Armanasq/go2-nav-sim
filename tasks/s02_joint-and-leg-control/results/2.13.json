@@ -1,0 +1,109 @@
+{
+  "id": "2.13",
+  "title": "Reject an unreachable foot target",
+  "status": "verified",
+  "checks": {
+    "n_rejected_with_expected_reason": {
+      "value": 5,
+      "rule": "equals 5",
+      "passed": true
+    },
+    "n_dls_also_failed": {
+      "value": 5,
+      "rule": "equals 5",
+      "passed": true
+    },
+    "reachable_accept_rate": {
+      "value": 1.0,
+      "rule": "min 1.0",
+      "passed": true
+    },
+    "foot_motion_during_rejected_m": {
+      "value": 3.498133743671542e-05,
+      "rule": "max 0.001",
+      "passed": true
+    }
+  },
+  "measured": {
+    "designed": [
+      {
+        "target_base_m": [
+          0.1922,
+          0.142,
+          -0.4664
+        ],
+        "expected": "too_far",
+        "reason": "too_far",
+        "rejected": true,
+        "dls_converged": false,
+        "nearest_workspace_sample_m": 0.0769416814890101
+      },
+      {
+        "target_base_m": [
+          0.1934,
+          0.142,
+          -0.06
+        ],
+        "expected": "too_close",
+        "reason": "too_close",
+        "rejected": true,
+        "dls_converged": false,
+        "nearest_workspace_sample_m": 0.020489045436910797
+      },
+      {
+        "target_base_m": [
+          0.1934,
+          0.0765,
+          -0.03
+        ],
+        "expected": "inside_offset",
+        "reason": "inside_offset",
+        "rejected": true,
+        "dls_converged": false,
+        "nearest_workspace_sample_m": 0.08993344534793042
+      },
+      {
+        "target_base_m": [
+          0.1934,
+          0.4165,
+          -0.05
+        ],
+        "expected": "joint_limit",
+        "reason": "joint_limit",
+        "rejected": true,
+        "dls_converged": false,
+        "nearest_workspace_sample_m": 0.05001186560813213
+      },
+      {
+        "target_base_m": [
+          0.1934,
+          -0.2535,
+          -0.1
+        ],
+        "expected": "joint_limit",
+        "reason": "joint_limit",
+        "rejected": true,
+        "dls_converged": false,
+        "nearest_workspace_sample_m": 0.1621015778426484
+      }
+    ],
+    "n_rejected_with_expected_reason": 5,
+    "n_dls_also_failed": 5,
+    "reachable_accept_rate": 1.0,
+    "sim_sequence_reasons": [
+      null,
+      "too_far",
+      null
+    ],
+    "foot_motion_during_rejected_m": 3.498133743671542e-05,
+    "rho_min_m": 0.09053046809336804,
+    "rho_max_m": 0.3899879502839636,
+    "lateral_offset_m": 0.0955
+  },
+  "outputs": [
+    "figures/2-13_rejections.png"
+  ],
+  "command": "python run.py 2.13",
+  "mujoco": "3.17.0",
+  "wall_s": 21.8
+}

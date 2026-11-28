@@ -1,0 +1,37 @@
+{
+  "id": "8.03",
+  "title": "Reach a target orientation",
+  "status": "verified",
+  "metrics": {
+    "heading_errs_deg": [
+      -0.026359592036670123,
+      1.1213589221153644,
+      2.045409576848783
+    ],
+    "max_heading_err_deg": 2.045409576848783,
+    "odom_heading_errs_deg": [
+      0.16963352782340663,
+      1.0448600633253067,
+      -1.3118501892031906
+    ],
+    "trunk_moved_m": [
+      0.12433188606047736,
+      0.254876297790179,
+      0.3530688901024543
+    ],
+    "time_s": 19.400000000000002
+  },
+  "acceptance": "max_heading_err_deg <= 5.0",
+  "checks": {
+    "max_heading_err_deg": {
+      "value": 2.045409576848783,
+      "rule": "max_heading_err_deg <= 5.0",
+      "passed": true
+    }
+  },
+  "command": "python3 run.py 8.03",
+  "outputs": [
+    "figures/s8_03.png"
+  ],
+  "wall_s": 47.8
+}

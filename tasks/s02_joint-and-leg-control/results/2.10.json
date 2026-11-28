@@ -1,0 +1,35 @@
+{
+  "id": "2.10",
+  "title": "Move the foot forward and backward",
+  "status": "verified",
+  "checks": {
+    "rms_error_m": {
+      "value": 0.0007056278636104911,
+      "rule": "max 0.003",
+      "passed": true
+    },
+    "max_error_m": {
+      "value": 0.0012168302168087028,
+      "rule": "max 0.006",
+      "passed": true
+    },
+    "stroke_error_m": {
+      "value": 0.000296355800024628,
+      "rule": "max 0.003",
+      "passed": true
+    }
+  },
+  "measured": {
+    "rms_error_m": 0.0007056278636104911,
+    "max_error_m": 0.0012168302168087028,
+    "path_rms_error_m": 0.00016752307961437346,
+    "stroke_measured_m": 0.11970364419997537,
+    "stroke_error_m": 0.000296355800024628
+  },
+  "outputs": [
+    "figures/2-10_horizontal.png"
+  ],
+  "command": "python run.py 2.10",
+  "mujoco": "3.17.0",
+  "wall_s": 12.8
+}

@@ -1,0 +1,67 @@
+{
+  "id": "6.12",
+  "title": "Detect several obstacles",
+  "status": "verified",
+  "metrics": {
+    "visible": [
+      "box0",
+      "box1",
+      "box2",
+      "box3",
+      "pillar0",
+      "pillar1"
+    ],
+    "rays_per_obstacle": {
+      "box0": 50,
+      "box1": 4,
+      "box2": 23,
+      "box3": 17,
+      "pillar0": 12,
+      "pillar1": 26
+    },
+    "detected": [
+      "box0",
+      "box1",
+      "box2",
+      "box3",
+      "pillar0",
+      "pillar1"
+    ],
+    "recall_visible": 1.0,
+    "false_clusters": 0,
+    "n_clusters": 18,
+    "median_boundary_dist_m": {
+      "box0": 0.0,
+      "pillar1": 0.0,
+      "box1": 0.0,
+      "box3": 0.0,
+      "box2": 0.0,
+      "pillar0": 0.0
+    },
+    "max_median_boundary_dist_m": 0.0
+  },
+  "acceptance": "recall_visible >= 1.0; false_clusters == 0; max_median_boundary_dist_m <= 0.05. Basis: at A; obstacles from make_arena.py; visible = hit first by at least 3 of 720 rays of a 2D ray cast from the lidar against the footprints in make_arena.py; a cluster matches an obstacle or wall when its median point distance to that footprint is under 0.15 m",
+  "checks": {
+    "recall_visible": {
+      "value": 1.0,
+      "rule": ">= 1.0",
+      "passed": true
+    },
+    "false_clusters": {
+      "value": 0,
+      "rule": "== 0",
+      "passed": true
+    },
+    "max_median_boundary_dist_m": {
+      "value": 0.0,
+      "rule": "<= 0.05",
+      "passed": true
+    }
+  },
+  "outputs": [
+    "figures/6.12_several.png"
+  ],
+  "command": "python3 tasks/s06_sensors-and-perception/run.py 6.12",
+  "world": "arena",
+  "wall_s": 3.2
+}

@@ -1,0 +1,3 @@
+[amcl-2] [WARN] [1795852850.357570605] [amcl]: Failed to transform initial pose in time (Lookup would require extrapolation into the future.  Requested time 19.595000 but the latest data is at time 19.575000, when looking up transform from frame [base_footprint] to frame [odom])
+[controller_server-4] [WARN] [1795852853.260401907] [controller_server]: No goal checker was specified in parameter 'current_goal_checker'. Server will use only plugin loaded general_goal_checker . This warning will appear once.
+[bt_navigator-8] [WARN] [1795852856.706178255] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!

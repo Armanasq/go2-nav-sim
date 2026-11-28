@@ -1,0 +1,78 @@
+{
+  "id": "6.03",
+  "title": "IMU noise and bias",
+  "status": "failed",
+  "metrics": {
+    "duration_s": 60.260000000000005,
+    "n_samples": 5961,
+    "dt_s": 0.00999999999999801,
+    "dropped_samples": 7,
+    "gyro_bias_rads": [
+      -0.0023469617053414465,
+      0.00472369833348167,
+      0.0005160405727866515
+    ],
+    "gyro_bias_abs_max_rads": 0.00472369833348167,
+    "gyro_std_rads": [
+      0.08892852012853457,
+      0.05662108363687764,
+      0.016996534910979556
+    ],
+    "gyro_N_est": [
+      0.009902384138538816,
+      0.008668033519977053,
+      0.0027710680300835357
+    ],
+    "gyro_N_configured": 1.9999999999998013e-05,
+    "gyro_white_noise_ratio": [
+      495.11920692699,
+      433.4016759988957,
+      138.55340150419056
+    ],
+    "gyro_white_noise_ratio_min": 138.55340150419056,
+    "gyro_white_noise_ratio_max": 495.11920692699,
+    "gyro_z_minus_gt_std_rads": 0.01747490590142646,
+    "accel_bias_ms2": [
+      0.055944692694564216,
+      -0.001513803532391779,
+      -0.004982781481551513
+    ],
+    "accel_std_ms2": [
+      0.36146916215740327,
+      0.3211524760931682,
+      0.9823780780305511
+    ],
+    "accel_N_est": [
+      0.04844320939712041,
+      0.0416930733236288,
+      0.10127305419767389
+    ],
+    "accel_N_configured": 0.001699999999999831,
+    "allan_min_gyro_z": 0.0005452929790353806,
+    "allan_min_tau_gyro_z_s": 6.695555555555555
+  },
+  "acceptance": "gyro_bias_abs_max_rads <= 0.001; gyro_white_noise_ratio_min >= 0.5; gyro_white_noise_ratio_max <= 2.0. Basis: 60 s standing. Configured gyro noise sigma = 2e-4 rad/s at 100 Hz (go2_description gazebo.xacro), so N = sigma * sqrt(dt) = 2e-5 rad/s/sqrt(Hz); N estimated as sigma_Allan(tau) * sqrt(tau) at tau = 0.1 s on each axis; ratio = estimate / configured. Accelerometer numbers are reported, not checked: chapter 8 measured a standing z spread of 0.7 to 1.0 m/s2 against a configured 0.017",
+  "checks": {
+    "gyro_bias_abs_max_rads": {
+      "value": 0.00472369833348167,
+      "rule": "<= 0.001",
+      "passed": false
+    },
+    "gyro_white_noise_ratio_min": {
+      "value": 138.55340150419056,
+      "rule": ">= 0.5",
+      "passed": true
+    },
+    "gyro_white_noise_ratio_max": {
+      "value": 495.11920692699,
+      "rule": "<= 2.0",
+      "passed": false
+    }
+  },
+  "outputs": [
+    "figures/6.03_allan.png"
+  ],
+  "command": "python3 tasks/s06_sensors-and-perception/run.py 6.03",
+  "world": "arena",
+  "wall_s": 83.5
+}

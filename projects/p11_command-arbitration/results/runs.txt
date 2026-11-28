@@ -1,0 +1,66 @@
+### override 1 goal 4.0 3.0 0.65 load average: 37.87, 51.83, 65.98
+key -> teleop/cmd_vel      0 ms
+key -> cmd_vel_mux         1 ms
+key -> cmd_vel_cm         31 ms
+key -> cmd_vel            42 ms
+Nav2 back on cmd_vel 0.66 s (simulated) after the last key event
+Nav2 kept publishing during the override: 41 messages in 2.0 s
+nav2: RESULT SUCCEEDED  sim_time 93.2 s  ground-truth final error 0.20 m  final pos (3.90, 2.82)
+### override 2 goal -4.5 -3.5 3.14 load average: 39.89, 48.44, 63.31
+key -> teleop/cmd_vel      0 ms
+key -> cmd_vel_mux         1 ms
+key -> cmd_vel_cm         21 ms
+key -> cmd_vel            63 ms
+Nav2 back on cmd_vel 0.62 s (simulated) after the last key event
+Nav2 kept publishing during the override: 41 messages in 2.0 s
+nav2: RESULT FAILED  sim_time 189.1 s  ground-truth final error 0.40 m  final pos (-4.74, -3.18)
+### override 3 goal 4.0 3.0 0.65 load average: 48.12, 47.79, 60.02
+key -> teleop/cmd_vel      2 ms
+key -> cmd_vel_mux         2 ms
+key -> cmd_vel_cm         39 ms
+key -> cmd_vel            39 ms
+Nav2 back on cmd_vel 0.64 s (simulated) after the last key event
+Nav2 kept publishing during the override: 45 messages in 2.0 s
+nav2: RESULT SUCCEEDED  sim_time 67.4 s  ground-truth final error 0.37 m  final pos (3.98, 2.63)
+### estop 1 goal -4.5 -3.5 3.14 load average: 37.30, 44.79, 57.98
+lock at 602.16 s: standstill 0.89 s after the lock, 0.11 m walked; 6 messages on cmd_vel from 0.5 s after the lock on
+unlock: Nav2 moving the robot again 0.10 s later
+nav2: RESULT SUCCEEDED  sim_time 228.2 s  ground-truth final error 0.29 m  final pos (-4.28, -3.30)
+### estop 2 goal 4.0 3.0 0.65 load average: 90.46, 68.69, 63.97
+lock at 796.04 s: standstill 0.80 s after the lock, 0.03 m walked; 7 messages on cmd_vel from 0.5 s after the lock on
+unlock: Nav2 moving the robot again 0.36 s later
+nav2: RESULT FAILED  sim_time 74.2 s  ground-truth final error 8.18 m  final pos (-2.88, -1.41)
+### estop 3 goal -4.5 -3.5 3.14 load average: 107.65, 85.90, 71.18
+lock at 860.22 s: standstill 0.95 s after the lock, 0.16 m walked; 7 messages on cmd_vel from 0.5 s after the lock on
+unlock: Nav2 moving the robot again 0.07 s later
+nav2: RESULT SUCCEEDED  sim_time 42.4 s  ground-truth final error 0.20 m  final pos (-4.30, -3.55)
+
+### Later session (fresh scripts/up.sh, same configuration). From here measure.py prints "Nav2 command reaches cmd_vel again"
+### for the unlock line (same measurement as "Nav2 moving the robot again" above: first cmd_vel with |linear.x| > 0.05).
+### override 4 goal 4.0 3.0 0.65 load average: 59.90, 64.77, 74.71 (csv: override_4.csv)
+key -> teleop/cmd_vel      1 ms
+key -> cmd_vel_mux         1 ms
+key -> cmd_vel_cm         32 ms
+key -> cmd_vel            55 ms
+Nav2 back on cmd_vel 0.65 s (simulated) after the last key event
+Nav2 kept publishing during the override: 52 messages in 2.0 s
+nav2: RESULT SUCCEEDED  sim_time 71.7 s  ground-truth final error 0.21 m  final pos (3.79, 3.02)
+### estop 4 goal -4.5 -3.5 3.14 load average: 78.46, 69.29, 75.09 (csv: estop_4.csv; launch log: 0 "failed to create plan")
+lock at 136.78 s: standstill 1.02 s after the lock, 0.19 m walked; 8 messages on cmd_vel from 0.5 s after the lock on
+unlock: Nav2 command reaches cmd_vel again 0.07 s later
+nav2: RESULT SUCCEEDED  sim_time 116.5 s  ground-truth final error 0.27 m  final pos (-4.24, -3.44)
+(from estop_4.csv: command at the lock 0.250 m/s, first zero on cmd_vel 0.66 s after the lock)
+### turn on A: go_to_goal.py -4.5 -3.5 0.0
+RESULT SUCCEEDED  sim_time 95.6 s  ground-truth final error 0.18 m  final pos (-4.57, -3.34)
+### box 4 (measure.py box --keep) load average: 68.37, 73.37, 75.40 (csv: box_4.csv)
+box spawned: SpawnEntity: Successfully spawned entity [p11_box]; face 2.00 m ahead of base_footprint at (-2.50, -4.07)
+slowdown: cmd_vel 0.090 m/s at 0.87 m walked (box face 1.13 m from base)
+stop: first zero on cmd_vel at 1.34 m walked (box face 0.66 m from base)
+end after 14.4 s: walked 1.354 m, base 0.646 m from the box face, gap body front to box 0.321 m
+zones_snapshot.py: polygon_slowdown: 4 corners, 117 scan points inside / polygon_stop: 4 corners, 11 scan points inside
+### Nav2 messages during the override = 20 Hz wall clock (velocity_smoother) x wall time of the 2 simulated seconds
+override_1.csv 41 msgs; wall span 2.00 s -> 20.0 Hz wall, RTF 1.00
+override_2.csv 40 msgs; wall span 1.95 s -> 20.0 Hz wall, RTF 1.03
+override_3.csv 44 msgs; wall span 2.15 s -> 20.0 Hz wall, RTF 0.93
+override_4.csv 52 msgs; wall span 2.55 s -> 20.0 Hz wall, RTF 0.78
+### stop: Ctrl-C (SIGINT) on the launch, exited after 5 s; scripts/stop.sh; ros2 node list --no-daemon | wc -l -> 0

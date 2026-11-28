@@ -4,8 +4,8 @@
 |---|---|
 | Goal | A machine with Ubuntu 22.04, ROS 2 Humble, Gazebo Classic 11 and every package the stack loads, each version checked. |
 | Time | 0.5 h of work, plus the download time of the packages. Chapters 2 and 3 together: 2 h. |
-| Before you start | Ubuntu 22.04 with ROS 2 Humble installed from the ROS apt repository (`ros-humble-desktop`), and sudo for apt. |
-| You will learn | which packages the stack needs and why; how to check a version; the two environment settings that `env.sh` makes and what fails without them. |
+| Before you start | Ubuntu 22.04 with ROS 2 Humble installed from the ROS apt repository (`ros-humble-desktop`), and sudo for apt. On any other Linux host: Docker, and task 2.4 instead of 2.1 to 2.3. |
+| You will learn | which packages the stack needs and why; how to check a version; how to get the same packages in a dev container with RViz on your desktop; the two environment settings that `env.sh` makes and what fails without them. |
 
 Tested on Ubuntu 22.04.5 with ROS 2 Humble and Gazebo 11.10.2, on a laptop with an RTX 4090 and 32 threads. The stack ran at
 1.0x real time there when nothing else was running. A discrete GPU is not required, but three cameras (RGB-D, chase and
@@ -39,7 +39,8 @@ Mem:              62          17          31           1          14          43
 NVIDIA GeForce RTX 4090 Laptop GPU, 580.196.07
 ```
 
-Check: Ubuntu 22.04; 8 or more threads from `nproc`; about 5 GB free plus 0.5 GB per minute you plan to record.
+Check: Ubuntu 22.04; 8 or more threads from `nproc`; about 5 GB free plus 0.6 GB per simulated minute you plan to record
+([chapter 0](00-overview.md), task 2.2, has the measured bag size).
 
 The cameras and the GPU lidar need an OpenGL context, so the machine needs a display (a desktop session, or a virtual one such
 as Xvfb; only a desktop session was tested). Gazebo itself runs without a window.
@@ -127,6 +128,51 @@ not installed: setup.sh will unpack it into overlay/
 
 Check: either the path or the message. Both work; [chapter 3](03-install-and-first-run.md), task 1, handles the second case.
 
+### 2.4 Or use the dev container
+
+Objective: get the same packages on any Linux host with Docker, and open RViz from inside the container.
+
+`.devcontainer/Dockerfile` starts from `osrf/ros:humble-desktop-full-jammy` (ROS 2 Humble, Gazebo 11 and RViz) and installs
+the apt list of 2.1. It adds a user `dev` with your user and group ID, so that files the build writes into the repository
+belong to you. `.devcontainer/devcontainer.json` holds the same settings for an editor that opens dev containers. Build the
+image once, from the clone of [chapter 0](00-overview.md), task 1.1:
+
+```bash
+cd go2-nav-sim
+docker build -t go2-nav-sim --build-arg USER_UID=$(id -u) --build-arg USER_GID=$(id -g) .devcontainer
+```
+
+Start a shell in it. The repository is mounted, so the build and the bags stay on the host. RViz draws on your desktop
+through the X socket, your X cookie and `/dev/dri`; `--net=host` lets the cookie match and keeps DDS on the host's loopback:
+
+```bash
+docker run --rm -it --net=host --device /dev/dri \
+  -e DISPLAY -e XAUTHORITY=/tmp/.Xauthority \
+  -v /tmp/.X11-unix:/tmp/.X11-unix -v "$XAUTHORITY":/tmp/.Xauthority:ro \
+  -v "$PWD":/home/dev/go2-nav-sim go2-nav-sim bash
+```
+
+Inside the container:
+
+```bash
+rviz2
+```
+
+```
+QStandardPaths: XDG_RUNTIME_DIR not set, defaulting to '/tmp/runtime-'
+[INFO] [...] [rviz2]: Stereo is NOT SUPPORTED
+[INFO] [...] [rviz2]: OpenGl version: 4.6 (GLSL 4.6)
+[INFO] [...] [rviz2]: Stereo is NOT SUPPORTED
+```
+
+Check: an empty RViz window opens on your desktop and its status bar says `RViz is ready`. `Global Status` shows `No tf data`
+because nothing publishes yet. Close the window, then continue with task 3 and chapter 3 inside the container.
+
+What was tested: the `docker run` line above on the Ubuntu 22.04 test machine, with the base image
+`osrf/ros:humble-desktop-full-jammy` in place of `go2-nav-sim` and `--user $(id -u):$(id -g) -e HOME=/tmp` added, because the
+base image has no `dev` user. RViz opened with OpenGL 4.6. The `docker build` step and running the stack
+inside the container were not tried, because the build downloads the apt packages.
+
 ## Task 3: Avoid the two environment traps
 
 ### 3.1 See which middleware ROS uses
@@ -135,7 +181,7 @@ Objective: confirm that `env.sh` switches ROS from Fast DDS to Cyclone DDS.
 
 Fast DDS drops service replies on a busy machine. Nav2 starts its nodes with lifecycle service calls, and a lost reply aborts
 the bring-up. `env.sh` selects Cyclone DDS on the loopback interface. Run this in a new terminal, inside the repository
-(cloned in [chapter 3](03-install-and-first-run.md), task 1):
+(cloned in [chapter 0](00-overview.md), task 1.1):
 
 ```bash
 source /opt/ros/humble/setup.bash
@@ -155,8 +201,8 @@ Check: the second line says `rmw_cyclonedds_cpp`. Source `env.sh` in every termi
 
 Objective: make sure the build uses the system Python.
 
-A Python virtualenv on `PATH` breaks the build: `rosidl` imports `em` (empy) from whichever `python3` comes first. `env.sh`
-removes `PATH` entries that contain `/.venv/`, and nothing else.
+A Python virtualenv on `PATH` breaks the build: `rosidl` imports `em` (empy) from whichever `python3` comes first. The first
+line of `env.sh` unsets `VIRTUAL_ENV` and removes the `PATH` entries that contain `/.venv/`.
 
 ```bash
 source env.sh
@@ -189,7 +235,8 @@ the loopback interface. Check with `printenv RMW_IMPLEMENTATION CYCLONEDDS_URI`.
 ## Further reading
 
 - Gazebo, "Installing Gazebo with ROS": https://gazebosim.org/docs/latest/ros_installation/
-- ROS 2 documentation (humble), `How-To-Guides/Setup-ROS-2-with-VSCode-and-Docker-Container.rst` in `ros2/ros2_documentation`,
-  for a container instead of a native install.
+- ROS 2 documentation (humble), `How-To-Guides/Setup-ROS-2-with-VSCode-and-Docker-Container.rst` in `ros2/ros2_documentation`:
+  the editor side of the dev container in 2.4.
+- `unitreerobotics/unitree_ros2`, `.devcontainer/`: how the Go2's own ROS 2 package sets up its build container.
 
 Next: [3. Install and first run](03-install-and-first-run.md)

@@ -9,7 +9,7 @@ line, record and replay a bag, and write, build and test a node of your own in `
 | Goal | Inspect the running stack, explain a silent echo, change a Nav2 parameter and confirm the change, replay a bag on the right clock, and build and test a node of your own. |
 | Time | 4 h |
 | Before you start | [Chapter 3](03-install-and-first-run.md): the workspace builds and `scripts/up.sh` prints `stack up`. Every terminal starts with `source env.sh` at the repository root. |
-| You will learn | nodes, topics, services, actions and parameters; the QoS and clock rules behind a silent echo; workspaces, packages and entry points; launch arguments, YAML overrides, `ros2 param get`, `set` and `dump`; bags and which clock to replay them with. |
+| You will learn | nodes, topics, services, actions and parameters; the QoS and clock rules behind a silent echo; workspaces, packages and entry points; launch arguments (`world`, `params_file`, `use_sim_time`), YAML overrides, `ros2 param get`, `set` and `dump`; bags and which clock to replay them with. |
 
 The outputs come from two sessions on one machine that also ran other simulators: load average 40 to 57 on 32 threads, Gazebo
 real-time factor (`gz stats`) between 0.48 and 0.96. Anything measured against the wall clock will be higher on a quiet machine.
@@ -28,8 +28,9 @@ ros2 launch go2_nav_sim estimation.launch.py   # terminal 2: /scan, lidar odomet
 ros2 launch go2_nav_sim nav.launch.py          # terminal 3: Nav2, AMCL, passive slam_toolbox
 ```
 
-`env.sh` sources ROS 2 and this workspace, selects Cyclone DDS, and sets `ROS_DOMAIN_ID=42`. Two ROS 2 programs see each other
-only when they share a domain ID, which is how two stacks can run on one machine without crosstalk.
+`env.sh` sources ROS 2 and this workspace, selects Cyclone DDS, and sets `ROS_DOMAIN_ID=42` if the variable is not already
+set (`${ROS_DOMAIN_ID:-42}`); a value you export before sourcing it is kept, which task 5.3 uses. Two ROS 2 programs see each
+other only when they share a domain ID, which is how two stacks can run on one machine without crosstalk.
 
 ![Three layers, one per launch file: simulator and CHAMP, estimation, navigation, with the topics that cross between them](img/c04-stack-launch.png)
 
@@ -38,6 +39,8 @@ only when they share a domain ID, which is how two stacks can run on one machine
 Check: `ros2 node list | wc -l` prints 44 once all three are up (44 in both sessions).
 
 ### 1.2 List the nodes and read one node's interface
+
+List the running nodes and read what one of them subscribes to and publishes.
 
 A running ROS 2 system is a graph of nodes that talk through four mechanisms:
 
@@ -103,6 +106,8 @@ Check: `/lidar_odom` subscribes to `/imu/data` and `/lidar/points` and publishes
 
 ### 1.3 Read a topic
 
+Find a topic's type, its endpoints and its rate, and print one field of a message.
+
 ```bash
 ros2 topic list -t                 # -t adds the message type
 ros2 topic info /imu/data          # Publisher count: 1, Subscription count: 2
@@ -122,6 +127,8 @@ z: 0.008941496483492451
 Check: `ros2 topic hz -s /imu/data` reports about 100 Hz (99.751 and 99.507 in the two sessions).
 
 ### 1.4 Read services and parameters
+
+List one node's services, and read and describe its parameters.
 
 Every node offers six parameter services, so the list is long:
 
@@ -153,6 +160,8 @@ with `self.declare_parameter(name, default)`; the default sets the type.
 Check: `ros2 param get /lidar_odom voxel` prints `Double value is: 0.15`.
 
 ### 1.5 Send an action goal
+
+Find the action servers and send a goal to one of them.
 
 ```bash
 ros2 action list -t
@@ -211,6 +220,8 @@ Check: the last line is `Goal finished with status: SUCCEEDED`.
 
 ### 1.6 Read an interface
 
+Print the definition of a message and of an action.
+
 Message, service and action definitions are interfaces:
 
 ```bash
@@ -264,6 +275,8 @@ Check: the goal fields of `nav2_msgs/action/Spin` are the two you sent in 1.5.
 
 ### 1.7 Read Nav2's lifecycle state
 
+Check that Nav2's lifecycle nodes are active.
+
 Nav2's nodes are lifecycle nodes: a manager configures and then activates them, in a fixed order. Two commands tell you where
 they are:
 
@@ -283,6 +296,8 @@ inactive; `scripts/up.sh` watches for that line and retries.
 Check: `ros2 lifecycle get /amcl` prints `active [3]`.
 
 ### 1.8 Find loose ends with ros2 doctor
+
+Let `ros2 doctor` list the topics that have no publisher or no subscriber.
 
 `ros2 doctor` checks the setup and lists topics with no subscriber or no publisher:
 
@@ -312,6 +327,8 @@ Check: the output has a warning for `/foot_contacts`.
 `ros2 topic echo` can print nothing while a publisher is sending. Two settings cause it here: the QoS profile and the clock.
 
 ### 2.1 Read the QoS profile of each endpoint
+
+Compare the QoS profile a publisher offers with what its subscriptions ask for.
 
 Each publisher and subscription carries a QoS profile. Three settings matter here:
 
@@ -358,6 +375,8 @@ Check: the IMU publisher is `RELIABLE` and both subscriptions are `BEST_EFFORT`.
 
 ### 2.2 Ask for more than the publisher offers
 
+Make an echo silent by asking for more reliability than the publisher offers.
+
 A subscription may ask for less than the publisher offers, never more. `pointcloud_to_laserscan` publishes `/scan` best effort
 (`ros2 topic info -v /scan`). Ask for reliable delivery:
 
@@ -376,6 +395,8 @@ Common mistakes: with a plain `timeout 10` (SIGTERM) the warning was lost in my 
 `-s INT` lets `ros2` flush its log before it exits.
 
 ### 2.3 Miss a message that was published before you subscribed
+
+Make an echo silent by subscribing to a message that was published once, without asking for its history.
 
 `/map` is published once, when `map_server` activates:
 
@@ -416,6 +437,8 @@ Check: the first command prints `width: 260`; the second prints nothing and exit
 
 ### 2.4 Measure on the right clock
 
+Measure rate and delay on the simulated clock, and see what the system clock gives instead.
+
 Gazebo publishes simulated time on `/clock`. A node with the parameter `use_sim_time` set to true takes its time from `/clock`:
 its timers, `get_clock().now()` and TF lookups all run in simulated seconds. Every node in this stack has it set.
 
@@ -453,12 +476,20 @@ start-up line and then nothing for 6 s; without `use_sim_time` its timer logged 
 
 Check: `ros2 topic hz -s /imu/data` stays near 100 Hz while the plain `hz` changes with the real-time factor.
 
+The cases of this task and of task 1, in the order to check them when an echo stays silent:
+
+![Troubleshooting ladder: topic missing from the list, no publisher, incompatible-QoS warning, message published before you subscribed, node on simulated time with no /clock, each with its cause and fix](img/c04-echo-tree.png)
+
+*The section that measured each case is in brackets; the first two rows come from task 1.*
+
 ## Task 3: Write, build and test a node
 
 The node integrates the IMU's yaw rate into a heading and publishes it. It is the gyro prediction inside `lidar_odom.py` in its
 simplest form, and it shows how fast an integrated gyro drifts.
 
 ### 3.1 Find where packages come from
+
+Find out which workspace a package is loaded from.
 
 A workspace is a directory with a `src/` folder of packages. `colcon build`, run at the workspace root (here the repository
 root), builds every package into `build/` and installs it into `install/`. Sourcing `install/setup.bash` (which `env.sh` does)
@@ -492,6 +523,8 @@ ros2 pkg prefix nav2_amcl                      # /opt/ros/humble
 Check: `ros2 pkg prefix nav2_amcl` prints `/opt/ros/humble`.
 
 ### 3.2 See how a package installs its programs
+
+See where `colcon` installs a package's programs and which of them `ros2 run` can find.
 
 A package is a directory with a `package.xml`: name, version, dependencies and build type. `colcon list` shows 13 packages
 here; 12 are `ament_cmake`, and `go2_tutorials`, which you write below, is `ament_python`.
@@ -528,6 +561,8 @@ Common mistakes: with `--symlink-install` the executable bit is the source file'
 with `python3 path/to/script.py`; `chmod +x` on the source file fixes `ros2 run`.
 
 ### 3.3 Write the node
+
+Write a node that integrates the IMU's yaw rate and publishes the heading.
 
 The package:
 
@@ -608,10 +643,13 @@ What to check against tasks 1 and 2:
 - The integration lives in `YawIntegrator`, a class with no ROS in it, so it can be tested without a running system.
 
 An executor runs a node's callbacks; `rclpy.spin(node)` uses one thread, so one callback at a time. In `lidar_odom.py` that let a
-registration of several milliseconds hold up the IMU callback, and yaw was under-integrated by about half during turns
-([chapter 9](09-state-estimation.md), failures). The fix puts the two subscriptions in separate `MutuallyExclusiveCallbackGroup`s
+registration of several milliseconds hold up the IMU callback, and yaw was under-integrated by about half during turns.
+The fix puts the two subscriptions in separate `MutuallyExclusiveCallbackGroup`s
 under a `MultiThreadedExecutor(num_threads=3)`; a multi-threaded executor alone does not help, because by default all of a
 node's callbacks share one mutually exclusive group. The gyro is also looked up by timestamp, so callback order no longer matters.
+The full account of that failure and its fix is in [chapter 9](09-state-estimation.md#failures-worth-knowing-about), third item;
+the ROS 2 guide [Using callback groups](https://docs.ros.org/en/humble/How-To-Guides/Using-callback-groups.html) covers the
+executor API.
 
 ![Two callback timelines: with one thread the IMU callbacks stop during a registration; with separate groups they keep running in their own thread](img/c04-executor.png)
 
@@ -630,6 +668,8 @@ stamp and a 1.9 s gap are skipped.
 Check: `python3 -c "import ast,sys; ast.parse(open('src/go2_tutorials/go2_tutorials/imu_yaw.py').read())"` prints nothing.
 
 ### 3.4 Build, test and run it
+
+Build the package, run its tests and start the node.
 
 From the repository root:
 
@@ -671,6 +711,8 @@ of lines before the node does anything.
 <a id="check-it-against-ground-truth"></a>
 
 ### 3.5 Check it against ground truth
+
+Measure how far the integrated yaw drifts from ground truth.
 
 `/odom_gt` is the simulator's true pose of `base_link`. `yaw_check` subscribes to both topics, takes the first sample of each
 as zero, unwraps the true yaw across ±180 degrees, and prints how far each has turned every 10 s of simulated time:
@@ -725,6 +767,8 @@ a node parameter, a file to load, whether a node starts at all.
 
 ### 4.1 Read a launch file that takes an argument
 
+Read how a launch file declares an argument and hands it to its nodes.
+
 `src/go2_nav_sim/launch/estimation.launch.py`:
 
 ```python
@@ -754,6 +798,8 @@ def generate_launch_description():
 Check: `ros2 node info /pointcloud_to_laserscan` shows a subscription to `/lidar/points` and a publisher on `/scan`.
 
 ### 4.2 List the arguments of each launch file
+
+List the arguments each of the three launch files accepts.
 
 `ros2 launch -s` prints the arguments a launch file accepts:
 
@@ -813,16 +859,29 @@ ros2 launch -s go2_nav_sim sim.launch.py
         Use simulation (Gazebo) clock if true
         (default: 'false')
 ...
+    'world_init_heading':
+        no description given
+        (default: '0.6')
+
+    'odom':
+        odom->base_footprint source: 'lidar' (estimation.launch.py) or 'gt' (simulator ground truth)
+        (default: 'lidar')
 ```
 
-The arguments after `use_sim_time` in `nav.launch.py` (and after `headless` in `sim.launch.py`) come from the launch files they
-include: Nav2's `bringup_launch.py` and CHAMP's launch files. `nav.launch.py` passes its own `params_file` and `use_sim_time` on
-to Nav2. The `use_sim_time` listed for `sim.launch.py`, default `'false'`, belongs to an included CHAMP file; `sim.launch.py`
-sets it to `true` when it includes that file. The defaults reproduce what `scripts/up.sh` starts, which passes no arguments.
+The arguments after `use_sim_time` in `nav.launch.py` come from Nav2's `bringup_launch.py`, which it includes, and
+`nav.launch.py` passes its own `params_file` and `use_sim_time` on to it. In `sim.launch.py`, `world`, `headless` and the last
+one, `odom`, are its own; the ones between come from the CHAMP launch files it includes. The `use_sim_time` listed there,
+default `'false'`, belongs to a CHAMP file, and `sim.launch.py` sets it to `true` when it includes that file; the same holds for
+the `world_init_*` values, which `sim.launch.py` fixes to marker A. `odom:=gt` starts `gt_odom.py`, which publishes `odom` to
+`base_footprint` from the simulator's ground truth instead of the estimation layer ([chapter 5](05-frames-and-tf2.md), task
+1.4). The defaults reproduce what `scripts/up.sh` starts, which passes no arguments.
 
-Check: `nav.launch.py` lists `params_file` and `use_sim_time`, `sim.launch.py` lists `world`.
+Check: `nav.launch.py` lists `params_file` and `use_sim_time`, `sim.launch.py` lists `world` and, last, `odom` with default
+`'lidar'`.
 
 ### 4.3 Read a Nav2 value and dump a node's parameters
+
+Read one Nav2 parameter, and dump all parameters of its node.
 
 The path follower's cruise speed is `desired_linear_vel` in the `FollowPath` block of `controller_server`:
 
@@ -856,6 +915,8 @@ Check: `get` and the dump agree on 0.25.
 
 ### 4.4 Change it from the command line
 
+Change that parameter in the running node and measure the effect.
+
 `ros2 param set` changes a parameter in the running node, if the node accepts the change:
 
 ```bash
@@ -888,6 +949,8 @@ default file, `ros2 param get` printed 0.25 again.
 Check: `ros2 param get` prints 0.15, and the second goal takes about twice as long.
 
 ### 4.5 Change it in a YAML file
+
+Make the change survive a restart with your own params file.
 
 A value that should survive a restart goes in a params file. Copy the installed one, change one line, and restart Nav2 with
 it:
@@ -931,6 +994,8 @@ pose as its first step, so run it before you judge the localisation.
 Check: both commands print 0.15 after the restart.
 
 ### 4.6 Pass use_sim_time, and see what one wrong clock does
+
+Start one layer on the wrong clock and read what breaks.
 
 Every node in one graph has to use the same clock. Restart the stack with only the estimation layer on the system clock:
 
@@ -979,11 +1044,75 @@ ros2 param get /odom_ekf use_sim_time          # Boolean value is: True
 
 Check: with `use_sim_time:=false` the `/odom` stamp is a Unix time; with the default it is close to `/clock`.
 
+### 4.7 Start Gazebo on another world
+
+Start Gazebo on a world of your own and see the change in the scan.
+
+The `world` argument of `sim.launch.py` takes any world file. Copy the arena and move the brick wall `box1` (0.8 m deep,
+1.0 m high) from the middle of the arena to 1.5 m in front of marker A, where the robot starts facing +x:
+
+```bash
+scripts/stop.sh
+cp $(ros2 pkg prefix go2_nav_sim)/share/go2_nav_sim/worlds/arena.world $HOME/my_arena.world
+sed -i 's|<model name="box1"><static>1</static><pose>1.0 0.0 0.5 |<model name="box1"><static>1</static><pose>-3.0 -3.5 0.5 |' $HOME/my_arena.world
+diff $(ros2 pkg prefix go2_nav_sim)/share/go2_nav_sim/worlds/arena.world $HOME/my_arena.world
+```
+
+```
+77c77
+<     <model name="box1"><static>1</static><pose>1.0 0.0 0.5 0 0 0</pose><link name="l">
+---
+>     <model name="box1"><static>1</static><pose>-3.0 -3.5 0.5 0 0 0</pose><link name="l">
+```
+
+Start the simulator on it, and the estimation layer for `/scan`:
+
+```bash
+ros2 launch go2_nav_sim sim.launch.py world:=$HOME/my_arena.world      # terminal 1
+ros2 launch go2_nav_sim estimation.launch.py                           # terminal 2, once /imu/data publishes
+```
+
+Read the range straight ahead from one scan. `/scan` covers -π to π in steps of 0.00698 rad, so 0 rad is index 450:
+
+```bash
+python3 - <<'EOF'
+import rclpy
+from rclpy.node import Node
+from rclpy.qos import qos_profile_sensor_data
+from sensor_msgs.msg import LaserScan
+rclpy.init(); n = Node('ahead'); got = []
+n.create_subscription(LaserScan, '/scan', lambda m: got.append(m), qos_profile_sensor_data)
+while not got: rclpy.spin_once(n, timeout_sec=1.0)
+m = got[0]; i = round((0.0 - m.angle_min) / m.angle_increment)
+print(f'frame {m.header.frame_id}  range straight ahead (index {i}): {m.ranges[i]:.3f} m')
+EOF
+```
+
+```
+frame base_footprint  range straight ahead (index 450): 0.876 m
+```
+
+A second scan read 0.892 m; in the default arena the same script printed 6.410 m. The wall's near face is at x = -3.4 m,
+1.1 m ahead of marker A (x = -4.5 m). The robot does not settle exactly on A: read how far it moved with
+`ros2 topic echo --once /odom_gt --field pose.pose.position`. Here `/odom_gt` x was 0.20 m, so 1.1 − 0.20 = 0.90 m was
+expected. In a second session x was 0.132 m and two scans read 0.938 and 0.949 m, against 0.968 m expected. AMCL and Nav2 still
+load `maps/arena.yaml`, which has no wall there; give `nav.launch.py` a matching `map:=` before you plan through a changed
+world.
+
+Check: with your world the range straight ahead is 1.1 m minus the `/odom_gt` x, within a few centimetres (it read 1 to 3 cm
+short in both sessions); with the default world it is several metres.
+
+Common mistakes: with a load average above 100 from other simulators, Gazebo took about 5 min to load, and a script with the
+same Gazebo wait as `scripts/up.sh` gave up after 4 min 44 s. Start the next launch file only when `gz stats` prints a
+`Factor`.
+
 ## Task 5: Record and replay a bag
 
 A bag records topics to disk with their timestamps, so a run can be analysed again without the simulator.
 
 ### 5.1 Record a bag
+
+Record five topics while the robot turns.
 
 With the stack up, record five topics while the robot turns:
 
@@ -1015,6 +1144,8 @@ a real-time factor of 0.54, close to the 0.49 that `gz stats` showed.
 
 ### 5.2 Read a longer bag
 
+Read the rates and the real-time factor from a bag's summary.
+
 `bags/v3` is one of the author's earlier missions:
 
 ```bash
@@ -1043,6 +1174,8 @@ Check: your own bag from 5.1 gives an IMU rate per wall-clock second (2096 / 39.
 recorded at a real-time factor near 0.5.
 
 ### 5.3 Replay it with the right clock
+
+Replay a bag so that `/clock` and the message stamps agree.
 
 Play a bag on a domain where no simulator runs; otherwise two sources publish the same topics. `--topics` limits the playback,
 and `--clock` makes the player publish `/clock`:

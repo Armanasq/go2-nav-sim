@@ -1,0 +1,35 @@
+{
+  "id": "2.09",
+  "title": "Raise and lower one foot",
+  "status": "verified",
+  "checks": {
+    "rms_error_m": {
+      "value": 0.000546481021861601,
+      "rule": "max 0.003",
+      "passed": true
+    },
+    "max_error_m": {
+      "value": 0.0007839312043469795,
+      "rule": "max 0.006",
+      "passed": true
+    },
+    "lift_error_m": {
+      "value": 0.00012486852509656365,
+      "rule": "max 0.003",
+      "passed": true
+    }
+  },
+  "measured": {
+    "rms_error_m": 0.000546481021861601,
+    "max_error_m": 0.0007839312043469795,
+    "path_rms_error_m": 0.00019795391507709692,
+    "lift_measured_m": 0.07987513147490344,
+    "lift_error_m": 0.00012486852509656365
+  },
+  "outputs": [
+    "figures/2-09_vertical.png"
+  ],
+  "command": "python run.py 2.09",
+  "mujoco": "3.17.0",
+  "wall_s": 11.8
+}

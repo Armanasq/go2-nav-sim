@@ -1,0 +1,56 @@
+[collision_monitor-14] [INFO] [1795849370.123421390] [collision_monitor]: Robot to slowdown for 30.000000 percents due to PolygonSlow polygon
+[collision_monitor-14] [INFO] [1795849370.257021357] [collision_monitor]: Robot to stop due to PolygonStop polygon
+[collision_monitor-14] [INFO] [1795849370.938462322] [collision_monitor]: Robot to slowdown for 30.000000 percents due to PolygonSlow polygon
+[collision_monitor-14] [INFO] [1795849371.034412663] [collision_monitor]: Robot to stop due to PolygonStop polygon
+[collision_monitor-14] [INFO] [1795849371.523073107] [collision_monitor]: Robot to slowdown for 30.000000 percents due to PolygonSlow polygon
+[collision_monitor-14] [INFO] [1795849371.623107149] [collision_monitor]: Robot to stop due to PolygonStop polygon
+[collision_monitor-14] [INFO] [1795849372.323718930] [collision_monitor]: Robot to slowdown for 30.000000 percents due to PolygonSlow polygon
+[collision_monitor-14] [INFO] [1795849372.423644581] [collision_monitor]: Robot to stop due to PolygonStop polygon
+[collision_monitor-14] [INFO] [1795849373.433941822] [collision_monitor]: Robot to slowdown for 30.000000 percents due to PolygonSlow polygon
+[collision_monitor-14] [INFO] [1795849373.524456018] [collision_monitor]: Robot to stop due to PolygonStop polygon
+[collision_monitor-14] [INFO] [1795849374.323057571] [collision_monitor]: Robot to slowdown for 30.000000 percents due to PolygonSlow polygon
+[collision_monitor-14] [INFO] [1795849374.422982700] [collision_monitor]: Robot to stop due to PolygonStop polygon
+[collision_monitor-14] [INFO] [1795849374.523190329] [collision_monitor]: Robot to slowdown for 30.000000 percents due to PolygonSlow polygon
+[collision_monitor-14] [INFO] [1795849374.622990369] [collision_monitor]: Robot to stop due to PolygonStop polygon
+[behavior_server-7] [WARN] [1795849375.712812341] [behavior_server]: Exceeded time allowance before reaching the Spin goal - Exiting Spin
+[behavior_server-7] [WARN] [1795849375.712906651] [behavior_server]: spin failed
+[behavior_server-7] [INFO] [1795849375.732535143] [behavior_server]: Running wait
+[behavior_server-7] [INFO] [1795849381.813373010] [behavior_server]: Running backup
+[collision_monitor-14] [INFO] [1795849381.837817414] [collision_monitor]: Robot to slowdown for 30.000000 percents due to PolygonSlow polygon
+[collision_monitor-14] [INFO] [1795849382.024550844] [collision_monitor]: Robot to stop due to PolygonStop polygon
+[behavior_server-7] [WARN] [1795849382.313692603] [behavior_server]: Collision Ahead - Exiting DriveOnHeading
+[behavior_server-7] [WARN] [1795849382.313756632] [behavior_server]: backup failed
+[behavior_server-7] [INFO] [1795849382.614970481] [behavior_server]: Running spin
+[collision_monitor-14] [INFO] [1795849382.647820134] [collision_monitor]: Robot to slowdown for 30.000000 percents due to PolygonSlow polygon
+[collision_monitor-14] [INFO] [1795849382.837595816] [collision_monitor]: Robot to stop due to PolygonStop polygon
+[collision_monitor-14] [INFO] [1795849383.426219848] [collision_monitor]: Robot to slowdown for 30.000000 percents due to PolygonSlow polygon
+[collision_monitor-14] [INFO] [1795849383.536051852] [collision_monitor]: Robot to stop due to PolygonStop polygon
+[collision_monitor-14] [INFO] [1795849383.935943671] [collision_monitor]: Robot to slowdown for 30.000000 percents due to PolygonSlow polygon
+[collision_monitor-14] [INFO] [1795849384.125889109] [collision_monitor]: Robot to stop due to PolygonStop polygon
+[collision_monitor-14] [INFO] [1795849384.937148559] [collision_monitor]: Robot to slowdown for 30.000000 percents due to PolygonSlow polygon
+[collision_monitor-14] [INFO] [1795849385.035861826] [collision_monitor]: Robot to stop due to PolygonStop polygon
+[collision_monitor-14] [INFO] [1795849385.936188787] [collision_monitor]: Robot to slowdown for 30.000000 percents due to PolygonSlow polygon
+[collision_monitor-14] [INFO] [1795849386.035863718] [collision_monitor]: Robot to stop due to PolygonStop polygon
+[collision_monitor-14] [INFO] [1795849386.435947005] [collision_monitor]: Robot to slowdown for 30.000000 percents due to PolygonSlow polygon
+[collision_monitor-14] [INFO] [1795849386.536164518] [collision_monitor]: Robot to stop due to PolygonStop polygon
+[collision_monitor-14] [INFO] [1795849387.737176785] [collision_monitor]: Robot to slowdown for 30.000000 percents due to PolygonSlow polygon
+[collision_monitor-14] [INFO] [1795849387.826656218] [collision_monitor]: Robot to stop due to PolygonStop polygon
+[collision_monitor-14] [INFO] [1795849388.328447903] [collision_monitor]: Robot to slowdown for 30.000000 percents due to PolygonSlow polygon
+[collision_monitor-14] [INFO] [1795849388.437158992] [collision_monitor]: Robot to stop due to PolygonStop polygon
+[collision_monitor-14] [INFO] [1795849389.036093243] [collision_monitor]: Robot to slowdown for 30.000000 percents due to PolygonSlow polygon
+[collision_monitor-14] [INFO] [1795849389.126436882] [collision_monitor]: Robot to stop due to PolygonStop polygon
+[collision_monitor-14] [INFO] [1795849389.369954426] [collision_monitor]: Robot to slowdown for 30.000000 percents due to PolygonSlow polygon
+[collision_monitor-14] [INFO] [1795849389.436903758] [collision_monitor]: Robot to stop due to PolygonStop polygon
+[collision_monitor-14] [INFO] [1795849390.736196252] [collision_monitor]: Robot to slowdown for 30.000000 percents due to PolygonSlow polygon
+[collision_monitor-14] [INFO] [1795849390.837160371] [collision_monitor]: Robot to stop due to PolygonStop polygon
+[collision_monitor-14] [INFO] [1795849391.336905659] [collision_monitor]: Robot to slowdown for 30.000000 percents due to PolygonSlow polygon
+[collision_monitor-14] [INFO] [1795849391.448399610] [collision_monitor]: Robot to stop due to PolygonStop polygon
+[behavior_server-7] [WARN] [1795849393.415291694] [behavior_server]: Exceeded time allowance before reaching the Spin goal - Exiting Spin
+[behavior_server-7] [WARN] [1795849393.415331113] [behavior_server]: spin failed
+[behavior_server-7] [INFO] [1795849393.432309189] [behavior_server]: Running wait
+[behavior_server-7] [INFO] [1795849399.215308778] [behavior_server]: Running backup
+[collision_monitor-14] [INFO] [1795849399.530999165] [collision_monitor]: Robot to slowdown for 30.000000 percents due to PolygonSlow polygon
+[collision_monitor-14] [INFO] [1795849399.953386551] [collision_monitor]: Robot to stop due to PolygonStop polygon
+[behavior_server-7] [WARN] [1795849400.015882189] [behavior_server]: Collision Ahead - Exiting DriveOnHeading
+[behavior_server-7] [WARN] [1795849400.015998045] [behavior_server]: backup failed
+[bt_navigator-8] [ERROR] [1795849400.422378664] [bt_navigator]: Goal failed

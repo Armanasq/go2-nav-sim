@@ -1,0 +1,82 @@
+{
+  "id": "3.02",
+  "title": "Stand up",
+  "status": "verified",
+  "checks": {
+    "height_error_m": {
+      "value": 0.0007363442342834814,
+      "rule": "max 0.005",
+      "passed": true
+    },
+    "max_abs_roll_pitch_deg": {
+      "value": 1.9654884741517036,
+      "rule": "max 3.0",
+      "passed": true
+    },
+    "max_torque_fraction": {
+      "value": 0.36096110492617306,
+      "rule": "max 0.8",
+      "passed": true
+    },
+    "max_foot_slip_m": {
+      "value": 0.007673767524428811,
+      "rule": "max 0.01",
+      "passed": true
+    },
+    "n_feet_in_contact_end": {
+      "value": 4,
+      "rule": "equals 4",
+      "passed": true
+    },
+    "n_other_contacts_end": {
+      "value": 0,
+      "rule": "equals 0",
+      "passed": true
+    }
+  },
+  "measured": {
+    "predicted_height_m": 0.275372500302558,
+    "kinematic_height_m": 0.266372500302558,
+    "final_height_m": 0.2746361560682745,
+    "height_error_m": 0.0007363442342834814,
+    "max_abs_roll_pitch_deg": 1.9654884741517036,
+    "max_torque_fraction": 0.36096110492617306,
+    "max_torque_nm": 11.987727320344733,
+    "max_foot_slip_m": 0.007673767524428811,
+    "trunk_lift_off_s": 0.06999999999999229,
+    "n_feet_in_contact_end": 4,
+    "n_other_contacts_end": 0,
+    "feet_share_end": 1.0000000004282825,
+    "foot_force_end_N": {
+      "FL": [
+        0.0,
+        -0.0,
+        37.03
+      ],
+      "FR": [
+        0.0,
+        0.0,
+        37.03
+      ],
+      "RL": [
+        -0.0,
+        -0.01,
+        37.55
+      ],
+      "RR": [
+        -0.0,
+        0.01,
+        37.55
+      ]
+    }
+  },
+  "outputs": [
+    "media/3-02_stand_up.mp4",
+    "media/3-02_stand_up.png",
+    "figures/3-02_stand_up.png"
+  ],
+  "command": "python run.py 3.02",
+  "mujoco": "3.17.0",
+  "wall_s": 25.9,
+  "load_avg_1min": 70.1
+}

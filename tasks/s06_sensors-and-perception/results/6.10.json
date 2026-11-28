@@ -1,0 +1,45 @@
+{
+  "id": "6.10",
+  "title": "Remove floor and body returns",
+  "status": "verified",
+  "metrics": {
+    "n_points": 12706,
+    "floor_normal": [
+      0.006392229111082425,
+      0.0012570063296657996,
+      0.9999787794458834
+    ],
+    "floor_offset_m": 0.21229786485575888,
+    "n_floor": 3888,
+    "n_obstacle": 7993,
+    "floor_removed_frac": 1.0,
+    "obstacle_kept_frac": 0.9822344551482547,
+    "body_points_raw": 142,
+    "body_points_left": 0,
+    "n_kept": 8327
+  },
+  "acceptance": "floor_removed_frac >= 0.99; obstacle_kept_frac >= 0.98; body_points_left == 0. Basis: labels from /odom_gt: floor = world z < 0.02 m, obstacle = world z > 0.10 m; body = inside |x| <= 0.40, |y| <= 0.20 of base_link",
+  "checks": {
+    "floor_removed_frac": {
+      "value": 1.0,
+      "rule": ">= 0.99",
+      "passed": true
+    },
+    "obstacle_kept_frac": {
+      "value": 0.9822344551482547,
+      "rule": ">= 0.98",
+      "passed": true
+    },
+    "body_points_left": {
+      "value": 0,
+      "rule": "== 0",
+      "passed": true
+    }
+  },
+  "outputs": [
+    "figures/6.10_floor_removed.png"
+  ],
+  "command": "python3 tasks/s06_sensors-and-perception/run.py 6.10",
+  "world": "arena",
+  "wall_s": 2.4
+}

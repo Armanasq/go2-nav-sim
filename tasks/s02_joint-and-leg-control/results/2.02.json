@@ -1,0 +1,77 @@
+{
+  "id": "2.02",
+  "title": "Move a joint between two angles",
+  "status": "verified",
+  "checks": {
+    "max_limit_excess_rad": {
+      "value": 0.0,
+      "rule": "max 0.0",
+      "passed": true
+    },
+    "max_final_error_rad": {
+      "value": 0.0022309541658116494,
+      "rule": "max 0.01",
+      "passed": true
+    },
+    "n_requests_clamped": {
+      "value": 2,
+      "rule": "equals 2",
+      "passed": true
+    }
+  },
+  "measured": {
+    "range_rad": [
+      -2.7227,
+      -0.83776
+    ],
+    "margin_rad": 0.05,
+    "moves": [
+      {
+        "request_rad": -1.2,
+        "command_rad": -1.2,
+        "clamped": false,
+        "final_rad": -1.199245371570572,
+        "error_rad": 0.0007546284294279726
+      },
+      {
+        "request_rad": -2.4,
+        "command_rad": -2.4,
+        "clamped": false,
+        "final_rad": -2.3977690458341883,
+        "error_rad": 0.0022309541658116494
+      },
+      {
+        "request_rad": -3.0,
+        "command_rad": -2.6727000000000003,
+        "clamped": true,
+        "final_rad": -2.6705214374868316,
+        "error_rad": 0.0021785625131687247
+      },
+      {
+        "request_rad": -0.5,
+        "command_rad": -0.88776,
+        "clamped": true,
+        "final_rad": -0.8876649985823533,
+        "error_rad": 9.500141764673398e-05
+      },
+      {
+        "request_rad": -1.8,
+        "command_rad": -1.8,
+        "clamped": false,
+        "final_rad": -1.798186289608278,
+        "error_rad": 0.0018137103917219566
+      }
+    ],
+    "n_requests_clamped": 2,
+    "max_final_error_rad": 0.0022309541658116494,
+    "max_limit_excess_rad": 0.0,
+    "q_min_rad": -2.6705217634018026,
+    "q_max_rad": -0.8869691454740948
+  },
+  "outputs": [
+    "figures/2-02_knee_limits.png"
+  ],
+  "command": "python run.py 2.02",
+  "mujoco": "3.17.0",
+  "wall_s": 3.3
+}

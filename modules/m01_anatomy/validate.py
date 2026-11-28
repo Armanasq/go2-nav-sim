@@ -6,12 +6,12 @@
   intermediate: forward kinematics and body velocities of the parsed tree against MuJoCo; centre of mass and centroidal momentum
                 against Pinocchio; transmission (u -> generalised force) and armature against MuJoCo; joint-range diagram;
                 torque budget at the stand pose; joint-sweep video.
-  advanced:     underactuation. B has six zero rows; in flight random joint torques leave the centroidal momentum rate at M g;
-                in stance it equals M g plus the contact wrenches; integrator drift of momentum (Euler vs RK4); zero-momentum
+  advanced:     underactuation. B has six zero rows; in flight random joint torques leave the centroidal momentum rate at m_tot g;
+                in stance it equals m_tot g plus the contact wrenches; integrator drift of momentum (Euler vs RK4); zero-momentum
                 reorientation by a joint-space loop. Flight and reorientation videos.
 Writes results.json, figures/ (PNG + SVG) and media/ (MP4 + PNG).
 usage: python validate.py [--n 1000] [--no-media]"""
-import argparse, json, os, pathlib, sys, time
+import argparse, json, os, pathlib, sys, time, warnings
 import numpy as np
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent)); sys.path.insert(0, str(HERE)); sys.path.insert(0, str(HERE.parent / 'm00_math'))
@@ -51,6 +51,20 @@ ACCEPT = {
     # by a different amount; 0.1 is three times the 3% speed effect, which bounds what tracking error alone can cause
     'reorient_other_region_rel_diff': ('>', 0.1),
 }
+# Checks that need offscreen rendering (MUJOCO_GL=glfw and a live X display). Without one they are skipped with a warning and
+# left out of results.json['checks'] (MODULE_SPEC.md); media_mp4_under_6MB is also left out with --no-media.
+GL_CHECKS = ('camera_projection_bbox_px', 'media_mp4_under_6MB')
+
+
+def can_render(m):
+    """True if MuJoCo can open an offscreen GL context here (glfw needs a live X display)."""
+    try:
+        with mujoco.Renderer(m, 8, 8):
+            return True
+    except Exception as e:                                          # mujoco.FatalError when the display is missing
+        warnings.warn(f'offscreen rendering unavailable ({type(e).__name__}: {e}): skipping {", ".join(GL_CHECKS)}, '
+                      'views_annotated.png and the videos')
+        return False
 
 
 def check(key, val):
@@ -216,7 +230,7 @@ def intermediate(r, m, pm, n):
     for _ in range(n):
         q, v = random_state(rng, r)
         d.qpos[:], d.qvel[:] = q, v
-        u = rng.uniform(-1.5, 1.5, m.nu) * m.actuator_ctrlrange[:, 1]; d.ctrl[:] = u      # half beyond the range: tests clipping
+        u = rng.uniform(-1.5, 1.5, m.nu) * m.actuator_ctrlrange[:, 1]; d.ctrl[:] = u      # a third beyond the range: tests clipping
         mujoco.mj_forward(m, d)
         R, p, an, ax = A.fk(r, q)
         e['pose'] = max(e['pose'], mx(p - d.xpos[1:], R - d.xmat[1:].reshape(-1, 3, 3)))
@@ -282,8 +296,8 @@ def contact_wrenches(m, d):
 
 
 def underactuation(r, m, pm, n):
-    """B structure; in flight (no contacts with the world) the momentum rate is M g whatever the joint torques; in stance it is
-    M g plus the contact wrenches. The constraint solver runs to tolerance 0 here (see README, failure analysis)."""
+    """B structure; in flight (no contacts with the world) the momentum rate is m_tot g whatever the joint torques; in stance it is
+    m_tot g plus the contact wrenches. The constraint solver runs to tolerance 0 here (see README, failure analysis)."""
     B = A.selection(r); res = dict(B_base_rows_max_abs=mx(B[:6]), rank_B=int(np.linalg.matrix_rank(B)))
     res['nullspace_BT_dim'] = int(r.nv - np.linalg.matrix_rank(B))
     d = mujoco.MjData(m); pd = pm.createData(); rng = np.random.default_rng(1)
@@ -327,7 +341,7 @@ def underactuation(r, m, pm, n):
 
 def stance_balance():
     """Squat from the stand pose (min-jerk PD to a lower pose and back) on the floor. At every 10 ms compare the momentum rate
-    of the robot (finite difference of centroidal() along the motion) with M g + the contact wrenches from MuJoCo."""
+    of the robot (finite difference of centroidal() along the motion) with m_tot g + the contact wrenches from MuJoCo."""
     m, d = sim.load(); m.opt.tolerance, m.opt.iterations = 0.0, 1000
     sim.stand(m, d, settle=0.5); r = A.parse(); g = m.opt.gravity.copy()
     q0 = sim.Q_STAND.copy(); q1 = np.tile([0.0, 1.25, -2.5], 4)
@@ -370,11 +384,11 @@ def flight(integrator, dt=0.002, T=0.9, rec=None):
     return dict(X=X, c_ballistic=c_ballistic, floor_contacts=floor_contacts[0], M=M)
 
 
-def drift(res_only=True):
+def drift(T=0.9):
     out = {}; runs = {}
     for name, integ in (('euler', mujoco.mjtIntegrator.mjINT_EULER), ('rk4', mujoco.mjtIntegrator.mjINT_RK4)):
         for dt in (0.002, 0.001):
-            F = flight(integ, dt); X = F['X']; runs[(name, dt)] = F
+            F = flight(integ, dt, T=T); X = F['X']; runs[(name, dt)] = F
             out[f'{name}_{dt * 1e3:g}ms_lin'] = float(np.abs(X[:, 4:7]).max()); out[f'{name}_{dt * 1e3:g}ms_ang'] = float(np.abs(X[:, 7:10]).max())
             out[f'{name}_{dt * 1e3:g}ms_floor_contacts'] = F['floor_contacts']
     out['flight_drift_order_euler'] = out['euler_2ms_ang'] / out['euler_1ms_ang']
@@ -412,10 +426,11 @@ def reorient(f=1.0, sign=1.0, cycles=5, rec=None, kp=400.0, kd=6.0, region=1.0):
 
 # ---- figures -------------------------------------------------------------------------------------------------------------
 
-# Categorical colours for joint roles and for x/y/z (roll/pitch/yaw) components. Kept apart from the semantic colours in
-# fs.C (estimate blue, second estimate violet, plan amber, pass green, fail red), which mean something else in MODULE_SPEC.md.
-CAT = ('#159a9c', '#c2378f', '#7b5b3a')                                   # teal, magenta, brown
-JCOL = dict(hip=CAT[0], thigh=CAT[1], calf=CAT[2])                         # joint role colours, used in every figure here
+# Joint-role colours, used for nothing else. Kept apart from the semantic colours in fs.C (estimate blue, second estimate
+# violet, plan amber, pass green, fail red), which mean something else in MODULE_SPEC.md. Vector components (x/y/z,
+# roll/pitch/yaw) are told apart by line style in ink, so no colour carries two meanings.
+JCOL = dict(hip='#159a9c', thigh='#c2378f', calf='#7b5b3a')                # teal, magenta, brown
+XYZ_LS = ('-', '--', ':')                                                   # x / roll, y / pitch, z / yaw
 ROLE = dict(hip='hip abduction (x)', thigh='hip flexion (y)', calf='knee (y)')
 
 
@@ -569,15 +584,15 @@ def fig_B_and_M(r):
     M = np.zeros((m.nv, m.nv)); mujoco.mj_fullM(m, d, M); B = A.selection(r)
     fig, axs = plt.subplots(1, 2, figsize=(9.5, 4.2), gridspec_kw=dict(width_ratios=[0.8, 1.2]))
     ax = axs[0]; ax.imshow(B, cmap='Greys', vmin=0, vmax=1.5, aspect='equal'); ax.grid(False)
-    ax.axhline(5.5, color=fs.C['bad'], lw=1.2); ax.set_yticks(range(18), ['vx', 'vy', 'vz', 'wx', 'wy', 'wz'] + [f'{l}{p}' for l in LEGS for p in 'htk'], fontsize=7)
+    ax.axhline(5.5, color=fs.C['muted'], lw=1.2); ax.set_yticks(range(18), ['vx', 'vy', 'vz', 'wx', 'wy', 'wz'] + [f'{l}{p}' for l in LEGS for p in 'htk'], fontsize=7)
     ax.set_xticks(range(12), [f'{l}{p}' for l in LEGS for p in 'htk'], rotation=90, fontsize=7)
-    ax.text(5.5, 2.5, 'six zero rows:\nno actuator acts\non the base', ha='center', va='center', color=fs.C['bad'], fontsize=8)
+    ax.text(5.5, 2.5, 'six zero rows:\nno actuator acts\non the base', ha='center', va='center', color=fs.C['ink'], fontsize=8)
     ax.set_title(r'$B$ (18 x 12) in $\tau = B u$')
-    ax = axs[1]; im = ax.imshow(np.log10(np.abs(M) + 1e-6), cmap='Blues', vmin=-6, vmax=1.5); ax.grid(False)
-    ax.axhline(5.5, color=fs.C['bad'], lw=1.0); ax.axvline(5.5, color=fs.C['bad'], lw=1.0)
+    ax = axs[1]; im = ax.imshow(np.log10(np.abs(M) + 1e-6), cmap='Greys', vmin=-6, vmax=1.5); ax.grid(False)
+    ax.axhline(5.5, color=fs.C['muted'], lw=1.0); ax.axvline(5.5, color=fs.C['muted'], lw=1.0)
     ax.set_xticks([2.5, 11.5], ['base (6)', 'joints (12)']); ax.set_yticks([2.5, 11.5], ['base', 'joints'])
-    for (i, j), t in {(2.5, 2.5): r'$M_{bb}$', (2.5, 11.5): r'$M_{bj}$', (11.5, 2.5): r'$M_{jb}$', (11.5, 11.5): r'$M_{jj}$'}.items():
-        ax.text(j, i, t, ha='center', va='center', fontsize=12, color=fs.C['bad'])
+    for (i, j), t in {(2.5, 2.5): r'$M_{bb}$', (2.5, 11.5): r'$M_{bq}$', (11.5, 2.5): r'$M_{qb}$', (11.5, 11.5): r'$M_{qq}$'}.items():
+        ax.text(j, i, t, ha='center', va='center', fontsize=12, color=fs.C['ink'], bbox=dict(fc=fs.C['paper'], ec='none', alpha=0.85, pad=1.5))
     fig.colorbar(im, ax=ax, label=r'$\log_{10}|M_{ij}|$'); ax.set_title('mass matrix at the stand pose (MuJoCo mj_fullM)')
     return fs.save(fig, FIG / 'selection_and_mass_matrix')
 
@@ -586,8 +601,8 @@ def fig_underactuation_diagram():
     fig, ax = fs.diagram(10, 4.0, (0, 10), (0, 4))
     fs.box(ax, (0.1, 2.4), 1.6, 0.8, 'motor torques\nu (12)', fontsize=8.5)
     fs.box(ax, (2.6, 2.4), 1.3, 0.8, r'$B$' + '\n(18 x 12)', fontsize=8.5)
-    fs.box(ax, (0.1, 0.5), 1.6, 0.8, 'contact forces\nf (3 per foot)', fontsize=8.5)
-    fs.box(ax, (2.6, 0.5), 1.3, 0.8, r'$J_c^T$' + '\n(18 x 3n)', fontsize=8.5)
+    fs.box(ax, (0.1, 0.5), 1.6, 0.8, 'contact wrenches\n' + r'$\lambda$ (6 per foot)', fontsize=8.5)
+    fs.box(ax, (2.6, 0.5), 1.3, 0.8, r'$J_\lambda^T$' + '\n' + r'(18 x 6$n_f$)', fontsize=8.5)
     fs.box(ax, (5.0, 2.65), 2.0, 0.55, 'joint rows (12)', fontsize=8.5)
     fs.box(ax, (5.0, 1.65), 2.0, 0.55, 'base rows (6)', fontsize=8.5, color=fs.C['muted'])
     fs.arrow(ax, (1.7, 2.8), (2.6, 2.8)); fs.arrow(ax, (1.7, 0.9), (2.6, 0.9))
@@ -595,13 +610,13 @@ def fig_underactuation_diagram():
     fs.arrow(ax, (3.9, 0.9), (5.0, 1.75), color=fs.C['ink']); fs.arrow(ax, (3.9, 1.1), (5.0, 2.7), color=fs.C['ink'])
     fs.box(ax, (7.7, 1.65), 2.2, 0.55, 'centroidal momentum', fontsize=8.5, color=fs.C['muted'])
     fs.arrow(ax, (7.0, 1.93), (7.7, 1.93))
-    ax.text(8.8, 1.5, r'$\dot l = M g + \sum_k f_k$', ha='center', va='top', fontsize=9)
-    ax.text(8.8, 1.12, r'$\dot k = \sum_k \left[(p_k - c) \times f_k + \tau_k\right]$', ha='center', va='top', fontsize=9)
+    ax.text(8.8, 1.5, r'$\dot l = m_{\mathrm{tot}}\, g + \sum_j f_j$', ha='center', va='top', fontsize=9)
+    ax.text(8.8, 1.12, r'$\dot k = \sum_j \left[(r_j - c) \times f_j + \mu_j\right]$', ha='center', va='top', fontsize=9)
     ax.text(8.8, 0.68, 'no u in these equations', ha='center', va='top', fontsize=8.5, color=fs.C['ink'])
     fs.box(ax, (7.7, 2.65), 2.2, 0.55, 'joint accelerations', fontsize=8.5)
     fs.arrow(ax, (7.0, 2.93), (7.7, 2.93))
-    ax.text(5.0, 3.75, r'$M(q)\dot v + h(q, v) = B u + J_c^T f$,   $v = (v_b, \omega_b, \dot q) \in \mathbb{R}^{18}$', fontsize=10)
-    ax.text(5.0, 0.55, 'gravity enters through h; joint damping,\nfriction loss and limits are internal', fontsize=8, color=fs.C['muted'])
+    ax.text(5.0, 3.75, r'$M(q)\dot v + C(q, v) = B u + J_\lambda^T \lambda$,   $v = (v_{\mathcal{B}}, \omega_{\mathcal{B}}, \dot{\mathbf{q}}) \in \mathbb{R}^{18}$', fontsize=10)
+    ax.text(5.0, 0.55, 'gravity enters through C; joint damping,\nfriction loss and limits are internal', fontsize=8, color=fs.C['muted'])
     ax.set_title('Why the floating base is underactuated: actuators reach only the joint rows')
     return fs.save(fig, FIG / 'underactuation_diagram')
 
@@ -610,16 +625,18 @@ def fig_flight(F):
     X = F['X']; t = X[:, 0]; cb = F['c_ballistic']
     fig, axs = plt.subplots(1, 3, figsize=(12, 3.5))
     ax = axs[0]; ax.plot(t, cb[:, 2], color=fs.C['plan'], lw=3, alpha=0.5, label='ballistic parabola of the COM')
-    ax.plot(t, X[:, 3], color=fs.C['est'], label='COM, simulated'); ax.plot(t, X[:, 15], color=fs.C['gt'], label='base origin, simulated')
+    ax.plot(t, X[:, 3], color=fs.C['ink'], label='COM, simulated'); ax.plot(t, X[:, 15], '--', color=fs.C['muted'], label='base origin, simulated')
     ax.set(xlabel='time [s]', ylabel='height [m]', title='Height in flight with flailing legs'); ax.legend(fontsize=7.5)
     ax = axs[1]
     for i, n in enumerate(('roll', 'pitch', 'yaw')):
-        ax.plot(t, np.degrees(X[:, 10 + i]), color=CAT[i], label=n)
+        ax.plot(t, np.degrees(X[:, 10 + i]), XYZ_LS[i], color=fs.C['ink'], label=n)
     ax.set(xlabel='time [s]', ylabel='base attitude [deg]', title='The base rotates under joint torques'); ax.legend(fontsize=7.5)
     ax = axs[2]
-    ax.semilogy(t, np.linalg.norm(X[:, 4:7], axis=1) + 1e-16, color=fs.C['est'], label=r'$|l - l_0 - M g t|$ [kg m/s]')
-    ax.semilogy(t, np.linalg.norm(X[:, 7:10], axis=1) + 1e-16, '--', color=fs.C['est'], label=r'$|k - k_0|$ [kg m$^2$/s]')
-    ax.set(xlabel='time [s]', title='Momentum change not caused by gravity (RK4, 2 ms)'); ax.legend(fontsize=7.5)
+    # linear axis in units of 1e-6: on a log axis this range (about 1e-7 to 5e-6) gets a single labelled decade
+    ax.plot(t, 1e6 * np.linalg.norm(X[:, 4:7], axis=1), color=fs.C['ink'], label=r'$|l - l_0 - m_{\mathrm{tot}}\, g t|$ [kg m/s]')
+    ax.plot(t, 1e6 * np.linalg.norm(X[:, 7:10], axis=1), '--', color=fs.C['muted'], label=r'$|k - k_0|$ [kg m$^2$/s]')
+    ax.set(xlabel='time [s]', ylabel=r'[$10^{-6}$ kg m/s or kg m$^2$/s]', title='Momentum change not caused by gravity (RK4, 2 ms)')
+    ax.set_ylim(bottom=0); ax.legend(fontsize=7.5)
     return fs.save(fig, FIG / 'flight_momentum')
 
 
@@ -627,13 +644,13 @@ def fig_stance(X):
     t = X[:, 0]
     fig, axs = plt.subplots(1, 3, figsize=(12, 3.5))
     ax = axs[0]; ax.plot(t, X[:, 9] - X[:, 15], color=fs.C['gt'], lw=3, alpha=0.6, label=r'$\sum f_z$ from MuJoCo contacts')
-    ax.plot(t, X[:, 3] - X[:, 15], '--', color=fs.C['est'], label=r'$\dot l_z - M g_z$ from the motion')
+    ax.plot(t, X[:, 3] - X[:, 15], '--', color=fs.C['est'], label=r'$\dot l_z - m_{\mathrm{tot}}\, g_z$ from the motion')
     ax.set(xlabel='time [s]', ylabel='[N]', title='Vertical: contacts carry weight + acceleration'); ax.legend(fontsize=7.5)
     ax = axs[1]
     for i, n in enumerate('xyz'):
-        ax.plot(t, X[:, 10 + i], color=CAT[i], lw=2.5, alpha=0.4)
-        ax.plot(t, X[:, 4 + i], '--', color=CAT[i], lw=1, label=rf'$\dot k_{n}$')
-    ax.set(xlabel='time [s]', ylabel='[N m]', title=r'Contact moment about COM (solid), $\dot k$ (dashed)')
+        ax.plot(t, X[:, 10 + i], XYZ_LS[i], color=fs.C['gt'], lw=3, alpha=0.6)
+        ax.plot(t, X[:, 4 + i], XYZ_LS[i], color=fs.C['est'], lw=1, label=rf'${n}$')
+    ax.set(xlabel='time [s]', ylabel='[N m]', title=r'Contact moment about COM (grey), $\dot k$ (blue)')
     ax.legend(fontsize=7.5)
     ax = axs[2]
     ax.semilogy(t, np.abs(X[:, 1:7] - X[:, 7:13]).max(1), color=fs.C['good'], label='with contact wrenches')
@@ -649,7 +666,7 @@ def fig_drift(runs, D):
         axs[0].semilogy(X[:, 0], np.linalg.norm(X[:, 7:10], axis=1) + 1e-16, ls, color=col, label=f'{name}, {dt * 1e3:g} ms')
         axs[1].semilogy(X[:, 0], np.linalg.norm(X[:, 4:7], axis=1) + 1e-16, ls, color=col, label=f'{name}, {dt * 1e3:g} ms')
     axs[0].set(xlabel='time [s]', ylabel=r'$|k(t) - k(0)|$ [kg m$^2$/s]', title='Angular momentum drift in flight (should be 0)')
-    axs[1].set(xlabel='time [s]', ylabel=r'$|l - l_0 - M g t|$ [kg m/s]', title='Linear momentum drift in flight (should be 0)')
+    axs[1].set(xlabel='time [s]', ylabel=r'$|l - l_0 - m_{\mathrm{tot}}\, g t|$ [kg m/s]', title='Linear momentum drift in flight (should be 0)')
     axs[0].legend(fontsize=7.5)
     return fs.save(fig, FIG / 'integrator_drift')
 
@@ -657,23 +674,23 @@ def fig_drift(runs, D):
 def fig_reorient(Xf, Xr, Xs, Xo):
     fig, axs = plt.subplots(1, 3, figsize=(13, 3.8), gridspec_kw=dict(width_ratios=[1.4, 1, 1]))
     ax = axs[0]
-    ax.plot(Xf[:, 0], np.degrees(Xf[:, 2]), color=fs.C['est'], label='loop forward, 1 Hz')
-    ax.plot(Xr[:, 0], np.degrees(Xr[:, 2]), color=fs.C['est2'], label='loop reversed, 1 Hz')
-    ax.plot(Xs[:, 0] / 2, np.degrees(Xs[:, 2]), '--', color=fs.C['est'], label='forward, 0.5 Hz (time / 2)')
-    ax.plot(Xo[:, 0], np.degrees(Xo[:, 2]), '-.', color=fs.C['ink'], lw=1.0, label='other region, same area, 1 Hz')
+    ax.plot(Xf[:, 0], np.degrees(Xf[:, 2]), color=fs.C['ink'], label='loop forward, 1 Hz')
+    ax.plot(Xr[:, 0], np.degrees(Xr[:, 2]), color=fs.C['muted'], lw=2.0, label='loop reversed, 1 Hz')
+    ax.plot(Xs[:, 0] / 2, np.degrees(Xs[:, 2]), '--', color=fs.C['ink'], label='forward, 0.5 Hz (time / 2)')
+    ax.plot(Xo[:, 0], np.degrees(Xo[:, 2]), '-.', color=fs.C['muted'], lw=1.0, label='other region, same area, 1 Hz')
     ax.set(xlabel='time [s] (cycles at 1 Hz)', ylabel='base pitch [deg]', title='Pitch changes with zero angular momentum')
     ax.legend(fontsize=7.5)
-    ax = axs[1]; ax.semilogy(Xf[:, 0], Xf[:, 4] + 1e-16, color=fs.C['est'], label=r'$|k|$ [kg m$^2$/s]')
+    ax = axs[1]; ax.semilogy(Xf[:, 0], Xf[:, 4] + 1e-16, color=fs.C['ink'], label=r'$|k|$ [kg m$^2$/s]')
     ax.semilogy(Xf[:, 0], Xf[:, 5] + 1e-16, color=fs.C['muted'], label=r'$|l|$ [kg m/s]')
     ax.set(xlabel='time [s]', title='Momentum stays at zero'); ax.legend(fontsize=7.5)
     ax = axs[2]
-    ax.plot(Xf[:, 6], Xf[:, 7], color=fs.C['est'], lw=0.8, label='tracked')
+    ax.plot(Xf[:, 6], Xf[:, 7], color=fs.C['ink'], lw=0.8, label='tracked')
     cmd = np.array([loop()(t)[1:3] for t in np.linspace(0, 1, 201)])     # the command the experiment used (amp 0.45)
     ax.plot(*cmd.T, '--', color=fs.C['plan'], label='commanded')
-    ax.plot(Xo[:, 6], Xo[:, 7], '-.', color=fs.C['ink'], lw=0.8, label='other region, tracked')
+    ax.plot(Xo[:, 6], Xo[:, 7], '-.', color=fs.C['muted'], lw=0.8, label='other region, tracked')
     ax.plot(*np.array([loop(region=-1.0)(t)[1:3] for t in np.linspace(0, 1, 201)]).T, '--', color=fs.C['plan'])
-    ax.set(xlabel='thigh [rad]', ylabel='knee [rad]', title='Joint-space loops (FL)', xlim=(0.3, 2.4)); ax.set_aspect('equal')
-    ax.legend(fontsize=7, loc='center right')       # the loops sit at thigh < 1.4 rad; the legend uses the space to their right
+    ax.set(xlabel='thigh [rad]', ylabel='knee [rad]', title='Joint-space loops (FL)'); ax.set_aspect('equal')
+    ax.legend(fontsize=7, loc='upper left', bbox_to_anchor=(1.02, 1.0), borderaxespad=0)   # beside the loops, not over them
     return fs.save(fig, FIG / 'zero_momentum_reorientation')
 
 
@@ -683,12 +700,12 @@ def fig_reorient_failure(Xf, Xh, Lf, Lh):
     fig, axs = plt.subplots(1, 2, figsize=(10, 3.6))
     ax = axs[0]; cmd = np.array([loop()(t)[1:3] for t in np.linspace(0, 1, 201)])
     ax.plot(*cmd.T, '--', color=fs.C['plan'], label='commanded')
-    for X, lab, col, ls in ((Xf, 'kp 400, 1 Hz', fs.C['est'], '-'), (Xh, 'kp 400, 0.5 Hz', fs.C['est'], ':'),
+    for X, lab, col, ls in ((Xf, 'kp 400, 1 Hz', fs.C['good'], '-'), (Xh, 'kp 400, 0.5 Hz', fs.C['good'], ':'),
                             (Lf, 'kp 60, 1 Hz', fs.C['bad'], '-'), (Lh, 'kp 60, 0.5 Hz', fs.C['bad'], ':')):
         n = len(X) // 5; ax.plot(X[-n:, 6], X[-n:, 7], ls, color=col, lw=1, label=lab)
     ax.set(xlabel='thigh [rad]', ylabel='knee [rad]', title='Traced loop, last cycle (FL)'); ax.set_aspect('equal'); ax.legend(fontsize=7)
     ax = axs[1]
-    for X, Y, lab, col in ((Xf, Xh, 'kp 400', fs.C['est']), (Lf, Lh, 'kp 60', fs.C['bad'])):
+    for X, Y, lab, col in ((Xf, Xh, 'kp 400', fs.C['good']), (Lf, Lh, 'kp 60', fs.C['bad'])):
         ax.plot(X[:, 0], np.degrees(X[:, 2]), color=col, label=f'{lab}, 1 Hz'); ax.plot(Y[:, 0] / 2, np.degrees(Y[:, 2]), ':', color=col, label=f'{lab}, 0.5 Hz (time / 2)')
     ax.set(xlabel='cycles', ylabel='base pitch [deg]', title='Same command, different speed'); ax.legend(fontsize=7)
     return fs.save(fig, FIG / 'reorientation_tracking_failure')
@@ -791,13 +808,13 @@ def video_joint_sweep():
 
 
 def video_flight():
-    """The flight experiment (RK4, 2 ms) at 1/4 speed from a fixed side camera, with the COM (blue sphere, the estimate colour used for the simulated COM in the figures) and the ballistic
+    """The flight experiment (RK4, 2 ms) at 1/4 speed from a fixed side camera, with the COM (near-black sphere, the ink colour of the simulated COM in the figures) and the ballistic
     parabola it must follow (amber dots). The COM lies inside the base, so the robot is drawn semi-transparent
     (mjVIS_TRANSPARENT); the marker spheres are added after update_scene and stay opaque."""
     m, _ = sim.load(); path = MEDIA / 'flight.mp4'
     F0 = flight(mujoco.mjtIntegrator.mjINT_RK4); cb = F0['c_ballistic'][::25]
     r = A.parse()
-    marks = lambda d: [(p, (0.79, 0.52, 0.06, 0.9), 0.012) for p in cb] + [(A.centroidal(r, d.qpos)[1], (0.043, 0.455, 0.659, 1), 0.03)]  # noqa: E731
+    marks = lambda d: [(p, (0.79, 0.52, 0.06, 0.9), 0.012) for p in cb] + [(A.centroidal(r, d.qpos)[1], (0.122, 0.137, 0.157, 1), 0.03)]  # noqa: E731
     with Rec(m, path, slow=0.25, marks=marks, width=960, height=540, fps=30, distance=2.3, azimuth=90, elevation=-5) as rec:
         if not rec.ok:
             return None
@@ -832,11 +849,13 @@ def main():
     t0 = time.time(); r = A.parse(); m = mujoco.MjModel.from_xml_path(str(GO2_XML)); pm = pin.buildModelFromMJCF(str(GO2_XML))
     res = {}
     res['fundamental'] = fundamental(r, m, pm)
-    views, mv, dv = render_views(r, lift=0.0)
-    lifted, ml, dl = render_views(r, lift=0.4)                     # in the air: no floor occlusion for the bbox check
-    perr, npts, eye = projection_check(ml, dl, lifted)
-    res['fundamental'].update(camera_projection_bbox_px=max(perr.values()), camera_projection_per_view_px=perr, mesh_vertices=npts,
-                              camera_eye0_only_shift_px=eye)
+    gl = can_render(m)
+    if gl:
+        views, mv, dv = render_views(r, lift=0.0)
+        lifted, ml, dl = render_views(r, lift=0.4)                 # in the air: no floor occlusion for the bbox check
+        perr, npts, eye = projection_check(ml, dl, lifted)
+        res['fundamental'].update(camera_projection_bbox_px=max(perr.values()), camera_projection_per_view_px=perr,
+                                  mesh_vertices=npts, camera_eye0_only_shift_px=eye)
     res['intermediate'] = intermediate(r, m, pm, a.n); res['intermediate'].update(torque_budget(r))
     adv = underactuation(r, m, pm, a.n); st, Xs = stance_balance(); adv.update(st)
     D, runs = drift(); adv.update(D)
@@ -865,14 +884,19 @@ def main():
                flight_base_pitch_range_deg=float(np.degrees(np.ptp(F['X'][:, 11]))),
                flight_base_vs_ballistic_m=float(np.abs(F['X'][:, 13:16] - F['c_ballistic']).max()))
     res['advanced'] = adv
-    fig_tree(r); fig_views(r, views, mv, dv); fig_joint_ranges(r); fig_torque_budget(res['intermediate'], res['intermediate'])
+    if gl:
+        fig_views(r, views, mv, dv)
+    fig_tree(r); fig_joint_ranges(r); fig_torque_budget(res['intermediate'], res['intermediate'])
     fig_B_and_M(r); fig_underactuation_diagram(); fig_flight(F); fig_stance(Xs); fig_drift(runs, D); fig_reorient(Xf, Xr, Xh, Xo); fig_reorient_failure(Xf, Xh, Lf, Lh)
     flat = {**res['fundamental'], **res['intermediate'], **adv}
-    if not a.no_media:
+    if gl and not a.no_media:
         vids = [video_turntable(), video_joint_sweep(), video_flight(), video_reorient()]
         sizes = {p.name: p.stat().st_size for p in vids if p is not None and p.exists()}
         res['media_bytes'] = sizes; flat['media_mp4_under_6MB'] = float(len(sizes) == 4 and all(s < 6e6 for s in sizes.values()))
     res['checks'] = {k: dict(measured=flat[k], op=op, threshold=thr, passed=check(k, flat[k])) for k, (op, thr) in ACCEPT.items() if k in flat}
+    res['skipped_checks'] = [k for k in ACCEPT if k not in flat]
+    for k in res['skipped_checks']:
+        warnings.warn(f'check {k} skipped ({"no offscreen rendering" if not gl else "--no-media"})')
     print('\nacceptance:')
     for k, c in res['checks'].items():
         print(f'  {"PASS" if c["passed"] else "MISS"}  {k:42s} {c["measured"]:.4g}  ({c["op"]} {c["threshold"]})')

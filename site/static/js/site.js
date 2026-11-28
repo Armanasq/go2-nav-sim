@@ -27,15 +27,15 @@ for (const pre of document.querySelectorAll('pre')) {
   box.appendChild(btn);
 }
 
-// Chapter list: always open beside the text, collapsed to one line on phones (open in the HTML, so it works without JS).
-const chapterList = document.querySelector('details.chapters');
-if (chapterList) {
-  const phone = matchMedia('(max-width: 760px)'); const sync = () => { chapterList.open = !phone.matches; };
+// Sidebar: always open beside the text, folded to one line on phones (open in the HTML, so it works without JS).
+const side = document.querySelector('details.side');
+if (side) {
+  const phone = matchMedia('(max-width: 860px)'); const sync = () => { side.open = !phone.matches; };
   phone.addEventListener('change', sync); sync();
 }
 
-// "On this page": mark the section being read.
-const toc = [...document.querySelectorAll('.onpage a')];
+// Sections of the current page in the sidebar: mark the one being read.
+const toc = [...document.querySelectorAll('.side .sections a')];
 if (toc.length) {
   const heads = toc.map((a) => document.getElementById(decodeURIComponent(a.hash.slice(1))));
   const spy = () => {
@@ -60,5 +60,5 @@ const io = new IntersectionObserver((entries) => {
     const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = `${base}static/css/${e.target.dataset.mount}.css`; document.head.appendChild(css);
     mounts[e.target.dataset.mount]?.(e.target).catch((err) => { e.target.innerHTML = `<p class="callout warn">Could not load this view: ${err.message}</p>`; console.error(err); });
   }
-}, { rootMargin: '300px' });
+}, { rootMargin: '600px' });
 document.querySelectorAll('[data-mount]').forEach((el) => io.observe(el));

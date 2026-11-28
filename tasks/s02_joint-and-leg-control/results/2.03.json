@@ -1,0 +1,38 @@
+{
+  "id": "2.03",
+  "title": "Control joint velocity",
+  "status": "verified",
+  "checks": {
+    "pi_steady_rms_error_rad_s": {
+      "value": 0.00561761276834205,
+      "rule": "max 0.03",
+      "passed": true
+    },
+    "max_limit_excess_rad": {
+      "value": 0.0,
+      "rule": "max 0.0",
+      "passed": true
+    }
+  },
+  "measured": {
+    "kv": 2.0,
+    "ki": 100.0,
+    "command_rad_s": 0.8,
+    "pi_steady_rms_error_rad_s": 0.00561761276834205,
+    "pi_steady_mean_error_rad_s": 0.0001727890617747926,
+    "p_only_steady_rms_error_rad_s": 0.20341332610699384,
+    "p_only_steady_mean_error_rad_s": -0.18011229957746952,
+    "p_only_final_angle_rad": -0.8792112574485278,
+    "max_limit_excess_rad": 0.0,
+    "q_range_rad": [
+      -0.3113708405262134,
+      0.2903651745014173
+    ]
+  },
+  "outputs": [
+    "figures/2-03_velocity.png"
+  ],
+  "command": "python run.py 2.03",
+  "mujoco": "3.17.0",
+  "wall_s": 14.8
+}

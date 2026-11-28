@@ -9,7 +9,7 @@ echo "stack: ROS_DOMAIN_ID=$ROS_DOMAIN_ID GAZEBO_MASTER_URI=$GAZEBO_MASTER_URI"
 wait_for() { for i in $(seq "$2"); do eval "$1" >/dev/null 2>&1 && return 0; sleep 2; done; echo "TIMEOUT waiting for: $3"; return 1; }
 
 (setsid ros2 launch go2_nav_sim sim.launch.py > logs/up_sim.log 2>&1 &)
-wait_for 'timeout 5 gz stats -d 1 | grep -q Factor' 75 "gazebo" || exit 1
+wait_for 'timeout 5 gz stats -w arena -d 1 | grep -q Factor' 75 "gazebo" || exit 1
 wait_for 'timeout 10 ros2 topic echo --once /imu/data --no-daemon' 40 "robot sensors/controllers (/imu/data)" || exit 1
 (setsid ros2 launch go2_nav_sim estimation.launch.py > logs/up_est.log 2>&1 &)
 wait_for 'grep -q " pose=" logs/up_est.log' 30 "lidar odometry" || exit 1

@@ -1,0 +1,48 @@
+{
+  "id": "4.01",
+  "title": "One footstep",
+  "status": "failed",
+  "metrics": {
+    "stepping_feet": [],
+    "stepping_pair_is_rf_lh": false,
+    "liftoffs_per_stepping_foot": 0,
+    "stepping_peak_clearance_m": 0.0,
+    "other_pair_max_clearance_m": NaN,
+    "swing_time_s": {},
+    "body_displacement_m": 0.001778973624463441
+  },
+  "acceptance": "stepping_pair_is_rf_lh == true; liftoffs_per_stepping_foot == 1; stepping_peak_clearance_m >= 0.01; other_pair_max_clearance_m <= 0.005; body_displacement_m <= 0.05",
+  "checks": {
+    "stepping_pair_is_rf_lh": {
+      "value": false,
+      "rule": "stepping_pair_is_rf_lh == true",
+      "passed": false
+    },
+    "liftoffs_per_stepping_foot": {
+      "value": 0,
+      "rule": "liftoffs_per_stepping_foot == 1",
+      "passed": false
+    },
+    "stepping_peak_clearance_m": {
+      "value": 0.0,
+      "rule": "stepping_peak_clearance_m >= 0.01",
+      "passed": false
+    },
+    "other_pair_max_clearance_m": {
+      "value": NaN,
+      "rule": "other_pair_max_clearance_m <= 0.005",
+      "passed": false
+    },
+    "body_displacement_m": {
+      "value": 0.001778973624463441,
+      "rule": "body_displacement_m <= 0.05",
+      "passed": true
+    }
+  },
+  "command": "python3 run.py 4.01",
+  "outputs": [
+    "figures/4-01_footstep.png"
+  ],
+  "gait": "default",
+  "wall_s": 2.6
+}

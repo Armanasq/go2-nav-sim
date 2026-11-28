@@ -1,0 +1,37 @@
+{
+  "id": "4.06",
+  "title": "Walk backward",
+  "status": "verified",
+  "metrics": {
+    "target_m": 0.5,
+    "along_m": 0.5955224369794496,
+    "distance_ratio": 1.1910448739588992,
+    "max_cross_track_m": 0.020334213909685872,
+    "cross_track_over_distance": 0.040668427819371744,
+    "heading_change_deg": -0.5983032087474834
+  },
+  "acceptance": "0.7 <= distance_ratio <= 1.3; cross_track_over_distance <= 0.1; |heading_change_deg| <= 5.0",
+  "checks": {
+    "distance_ratio": {
+      "value": 1.1910448739588992,
+      "rule": "0.7 <= distance_ratio <= 1.3",
+      "passed": true
+    },
+    "cross_track_over_distance": {
+      "value": 0.040668427819371744,
+      "rule": "cross_track_over_distance <= 0.1",
+      "passed": true
+    },
+    "heading_change_deg": {
+      "value": -0.5983032087474834,
+      "rule": "|heading_change_deg| <= 5.0",
+      "passed": true
+    }
+  },
+  "command": "python3 run.py 4.06",
+  "outputs": [
+    "figures/4-04_translations.png"
+  ],
+  "gait": "default",
+  "wall_s": 5.6
+}

@@ -1,0 +1,79 @@
+{
+  "id": "2.14",
+  "title": "Coordinate two legs on a supported robot",
+  "status": "verified",
+  "checks": {
+    "max_leg_rms_error_m": {
+      "value": 0.001369353248924498,
+      "rule": "max 0.004",
+      "passed": true
+    },
+    "xcorr_lag_s": {
+      "value": 0.0,
+      "rule": "max 0.004",
+      "passed": true
+    },
+    "max_apex_time_diff_s": {
+      "value": 0.0,
+      "rule": "max 0.01",
+      "passed": true
+    },
+    "fl_rl_max_rms_error_m": {
+      "value": 0.0013730066004955315,
+      "rule": "max 0.004",
+      "passed": true
+    },
+    "fl_rl_phase_error_s": {
+      "value": 0.0,
+      "rule": "max 0.004",
+      "passed": true
+    },
+    "fl_rl_max_apex_offset_error_s": {
+      "value": 0.0,
+      "rule": "max 0.01",
+      "passed": true
+    }
+  },
+  "measured": {
+    "pair": [
+      "FL",
+      "RR"
+    ],
+    "leg_rms_error_m": {
+      "FL": 0.001369353248924498,
+      "RR": 0.0013693532489244967
+    },
+    "max_leg_rms_error_m": 0.001369353248924498,
+    "xcorr_lag_s": 0.0,
+    "max_height_difference_m": 2.7755575615628914e-16,
+    "apex_time_diff_s": [
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "max_apex_time_diff_s": 0.0,
+    "fl_rl_rms_error_m": {
+      "FL": 0.0013693532489244982,
+      "RL": 0.0013730066004955315
+    },
+    "fl_rl_max_rms_error_m": 0.0013730066004955315,
+    "fl_rl_lag_s": 0.5,
+    "fl_rl_phase_error_s": 0.0,
+    "fl_rl_apex_offsets_s": [
+      0.5,
+      0.5,
+      0.5,
+      0.5
+    ],
+    "fl_rl_max_apex_offset_error_s": 0.0
+  },
+  "outputs": [
+    "figures/2-14_two_legs.png",
+    "media/2-14_two_legs.mp4",
+    "media/2-14_two_legs.png"
+  ],
+  "command": "python run.py 2.14",
+  "mujoco": "3.17.0",
+  "wall_s": 29.4
+}

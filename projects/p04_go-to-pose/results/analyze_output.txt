@@ -1,0 +1,112 @@
+
+high_gains
+| Goal | Time, s | Outcome | /odom error at end of drive, m | /odom error, m | deg | True error, m | deg | True path, m | Turn reversals |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | 7.0 | done | 0.038 | 0.045 | -5.0 | 0.032 | -4.3 | 2.04 | 2 |
+| 2 | 9.4 | done | 0.046 | 0.080 | -3.3 | 0.073 | -2.8 | 2.45 | 2 |
+| 3 | 11.9 | done | 0.048 | 0.092 | -3.0 | 0.110 | -4.5 | 2.13 | 1 |
+| 4 | 10.1 | done | 0.043 | 0.111 | +2.8 | 0.201 | -6.4 | 2.38 | 2 |
+| 5 | 5.6 | done | 0.036 | 0.089 | +0.9 | 0.118 | -9.7 | 1.30 | 2 |
+| all | 44.0 | | mean 0.042 | mean 0.083 | mean abs 3.0 | mean 0.107 | mean abs 5.6 | 10.28 | 9 |
+
+k_alpha_20
+| Goal | Time, s | Outcome | /odom error at end of drive, m | /odom error, m | deg | True error, m | deg | True path, m | Turn reversals |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | 32.1 | done | 0.048 | 0.078 | +1.0 | 0.111 | +0.6 | 3.04 | 102 |
+| 2 | 70.4 | done | 0.041 | 0.144 | -0.6 | 0.140 | +10.9 | 5.28 | 226 |
+| 3 | 17.2 | done | 0.049 | 0.145 | -0.1 | 0.145 | +13.0 | 2.08 | 24 |
+| 4 | 25.6 | done | 0.039 | 0.095 | +1.1 | 0.123 | +3.6 | 3.00 | 74 |
+| 5 | 9.7 | done | 0.046 | 0.070 | +5.4 | 0.061 | +1.6 | 1.31 | 22 |
+| all | 155.0 | | mean 0.045 | mean 0.107 | mean abs 1.6 | mean 0.116 | mean abs 5.9 | 14.70 | 448 |
+
+k_alpha_20_2
+| Goal | Time, s | Outcome | /odom error at end of drive, m | /odom error, m | deg | True error, m | deg | True path, m | Turn reversals |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | 80.4 | done | 0.049 | 0.092 | -2.7 | 0.037 | +7.8 | 5.40 | 283 |
+| 2 | 27.8 | done | 0.049 | 0.148 | -1.5 | 0.154 | +19.0 | 3.10 | 90 |
+| 3 | 17.7 | done | 0.043 | 0.112 | +4.9 | 0.106 | +23.6 | 2.04 | 28 |
+| 4 | 21.1 | done | 0.044 | 0.106 | +0.6 | 0.134 | +13.9 | 2.74 | 58 |
+| 5 | 8.7 | done | 0.039 | 0.027 | +1.0 | 0.074 | +17.1 | 1.23 | 18 |
+| all | 155.7 | | mean 0.045 | mean 0.097 | mean abs 2.1 | mean 0.101 | mean abs 16.3 | 14.52 | 477 |
+
+k_alpha_20_3
+| Goal | Time, s | Outcome | /odom error at end of drive, m | /odom error, m | deg | True error, m | deg | True path, m | Turn reversals |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | 43.4 | done | 0.048 | 0.075 | -2.5 | 0.094 | -6.9 | 3.62 | 145 |
+| 2 | 90.0 | timeout | 0.166 | 0.144 | -85.2 | 0.143 | -85.6 | 6.50 | 268 |
+| 3 | 13.3 | done | 0.046 | 0.182 | -1.2 | 0.163 | -2.4 | 1.80 | 26 |
+| 4 | 90.0 | timeout | 0.098 | 0.081 | +69.4 | 0.083 | +47.2 | 6.49 | 261 |
+| 5 | 44.4 | done | 0.048 | 0.167 | -2.8 | 0.290 | +37.5 | 3.21 | 102 |
+| all | 281.1 | | mean 0.081 | mean 0.130 | mean abs 32.2 | mean 0.155 | mean abs 35.9 | 21.61 | 802 |
+
+no_vmin
+| Goal | Time, s | Outcome | /odom error at end of drive, m | /odom error, m | deg | True error, m | deg | True path, m | Turn reversals |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | 90.0 | timeout | 0.107 | 0.099 | +31.9 | 0.074 | +54.1 | 5.15 | 15 |
+| 2 | 90.0 | timeout | 0.093 | 0.088 | -119.9 | 0.038 | -52.3 | 5.29 | 27 |
+| all | 180.0 | | mean 0.100 | mean 0.094 | mean abs 75.9 | mean 0.056 | mean abs 53.2 | 10.44 | 42 |
+
+no_vmin_2
+| Goal | Time, s | Outcome | /odom error at end of drive, m | /odom error, m | deg | True error, m | deg | True path, m | Turn reversals |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | 14.3 | done | 0.047 | 0.057 | -1.6 | 0.070 | -0.5 | 2.12 | 7 |
+| 2 | 90.0 | timeout | 0.099 | 0.107 | -47.1 | 0.073 | -32.9 | 5.47 | 36 |
+| all | 104.3 | | mean 0.073 | mean 0.082 | mean abs 24.3 | mean 0.072 | mean abs 16.7 | 7.59 | 43 |
+
+on_odom_gt
+| Goal | Time, s | Outcome | /odom error at end of drive, m | /odom error, m | deg | True error, m | deg | True path, m | Turn reversals |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | 9.7 | done | 0.049 | 0.043 | -0.7 | 0.043 | -0.7 | 2.06 | 3 |
+| 2 | 12.4 | done | 0.044 | 0.055 | -3.0 | 0.055 | -3.0 | 2.55 | 2 |
+| 3 | 12.9 | done | 0.050 | 0.025 | -2.7 | 0.025 | -2.7 | 2.41 | 1 |
+| 4 | 12.1 | done | 0.050 | 0.080 | +1.8 | 0.080 | +1.8 | 2.42 | 4 |
+| 5 | 5.1 | done | 0.045 | 0.018 | +1.5 | 0.018 | +1.5 | 1.22 | 0 |
+| all | 52.1 | | mean 0.048 | mean 0.044 | mean abs 1.9 | mean 0.044 | mean abs 1.9 | 10.65 | 10 |
+
+on_odom_gt_2
+| Goal | Time, s | Outcome | /odom error at end of drive, m | /odom error, m | deg | True error, m | deg | True path, m | Turn reversals |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | 9.8 | done | 0.049 | 0.037 | -1.4 | 0.037 | -1.4 | 2.06 | 4 |
+| 2 | 12.3 | done | 0.048 | 0.057 | -2.1 | 0.057 | -2.1 | 2.51 | 6 |
+| 3 | 12.8 | done | 0.046 | 0.012 | -1.8 | 0.012 | -1.8 | 2.41 | 1 |
+| 4 | 11.6 | done | 0.049 | 0.040 | +0.1 | 0.040 | +0.1 | 2.38 | 4 |
+| 5 | 5.5 | done | 0.043 | 0.009 | +2.1 | 0.009 | +2.1 | 1.29 | 0 |
+| all | 52.1 | | mean 0.047 | mean 0.031 | mean abs 1.5 | mean 0.031 | mean abs 1.5 | 10.64 | 15 |
+
+repeat
+| Goal | Time, s | Outcome | /odom error at end of drive, m | /odom error, m | deg | True error, m | deg | True path, m | Turn reversals |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | 10.0 | done | 0.040 | 0.018 | -2.6 | 0.022 | -3.1 | 2.05 | 7 |
+| 2 | 12.4 | done | 0.048 | 0.061 | -0.7 | 0.050 | -3.6 | 2.51 | 6 |
+| 3 | 12.8 | done | 0.048 | 0.036 | -0.5 | 0.026 | -1.6 | 2.42 | 1 |
+| 4 | 12.5 | done | 0.049 | 0.067 | +1.1 | 0.083 | -4.1 | 2.39 | 2 |
+| 5 | 6.1 | done | 0.042 | 0.043 | +0.6 | 0.016 | -6.3 | 1.25 | 2 |
+| all | 53.8 | | mean 0.045 | mean 0.045 | mean abs 1.1 | mean 0.039 | mean abs 3.7 | 10.62 | 18 |
+
+repeat2
+| Goal | Time, s | Outcome | /odom error at end of drive, m | /odom error, m | deg | True error, m | deg | True path, m | Turn reversals |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | 8.9 | done | 0.047 | 0.022 | -1.4 | 0.034 | -2.3 | 2.04 | 5 |
+| 2 | 12.3 | done | 0.049 | 0.050 | -2.0 | 0.052 | -4.2 | 2.52 | 6 |
+| 3 | 12.9 | done | 0.043 | 0.034 | +0.3 | 0.025 | -0.6 | 2.38 | 1 |
+| 4 | 12.6 | done | 0.049 | 0.076 | +0.6 | 0.086 | -4.3 | 2.41 | 2 |
+| 5 | 6.1 | done | 0.047 | 0.040 | +0.1 | 0.018 | -6.9 | 1.26 | 2 |
+| all | 52.8 | | mean 0.047 | mean 0.044 | mean abs 0.9 | mean 0.043 | mean abs 3.7 | 10.61 | 16 |
+
+run
+| Goal | Time, s | Outcome | /odom error at end of drive, m | /odom error, m | deg | True error, m | deg | True path, m | Turn reversals |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | 10.2 | done | 0.050 | 0.052 | +0.9 | 0.046 | -0.5 | 2.11 | 5 |
+| 2 | 12.8 | done | 0.043 | 0.095 | -0.9 | 0.087 | -3.4 | 2.58 | 4 |
+| 3 | 12.8 | done | 0.047 | 0.022 | -2.1 | 0.023 | -6.0 | 2.47 | 1 |
+| 4 | 12.6 | done | 0.042 | 0.092 | +1.4 | 0.179 | -5.4 | 2.34 | 2 |
+| 5 | 6.1 | done | 0.037 | 0.060 | +2.8 | 0.081 | -5.4 | 1.22 | 2 |
+| all | 54.6 | | mean 0.044 | mean 0.064 | mean abs 1.6 | mean 0.083 | mean abs 4.1 | 10.73 | 14 |
+
+run: /odom heading sway walking straight (1-5 s): peak to peak 9.0 deg, std 2.3 deg
+run: true heading sway walking straight (1-5 s): peak to peak 6.9 deg, std 2.2 deg
+run, goal 2: within 0.3 m after 8.0 s, then 3.7 s of drive with median v 0.10 m/s and |w| at the 0.5 rad/s limit 16% of the time
+k_alpha_20, goal 2: within 0.3 m after 11.9 s, then 56.2 s of drive with median v 0.02 m/s and |w| at the 0.5 rad/s limit 89% of the time
+
+wrote figures/trajectories.png
+wrote figures/gains.png

@@ -1,0 +1,54 @@
+{
+  "id": "6.04",
+  "title": "Integrate the gyro for heading",
+  "status": "failed",
+  "metrics": {
+    "true_turns_deg": [
+      96.09721122637549,
+      -7.245854985941734
+    ],
+    "turn_errors_deg": [
+      0.4971611897947966,
+      -0.7457821755639594
+    ],
+    "turn_heading_error_deg": 0.7457821755639594,
+    "standing_drift_deg": 6.532474793707447,
+    "standing_s": 30.0,
+    "final_error_deg": -7.278256969271406,
+    "standing_gyro_z_bias_rads": -0.003891235889995206,
+    "second_half_drift_deg": -3.1724359596509375,
+    "second_half_drift_bias_removed_deg": 0.23359248017090728
+  },
+  "acceptance": "turn_heading_error_deg <= 1.0; standing_drift_deg <= 0.1. Basis: turn left about 90 deg, right about 90 deg, then stand 30 s; trapezoidal integral of gyro z against the /odom_gt yaw change",
+  "checks": {
+    "turn_heading_error_deg": {
+      "value": 0.7457821755639594,
+      "rule": "<= 1.0",
+      "passed": true
+    },
+    "standing_drift_deg": {
+      "value": 6.532474793707447,
+      "rule": "<= 0.1",
+      "passed": false
+    }
+  },
+  "runs_passed": 0,
+  "runs_total": 1,
+  "per_run": [
+    {
+      "turn_heading_error_deg": 0.7457821755639594,
+      "standing_drift_deg": 6.532474793707447,
+      "standing_s": 30.0,
+      "final_error_deg": -7.278256969271406,
+      "standing_gyro_z_bias_rads": -0.003891235889995206,
+      "second_half_drift_deg": -3.1724359596509375,
+      "second_half_drift_bias_removed_deg": 0.23359248017090728
+    }
+  ],
+  "outputs": [
+    "figures/6.04_heading.png"
+  ],
+  "command": "python3 tasks/s06_sensors-and-perception/run.py 6.04",
+  "world": "arena",
+  "wall_s": 67.9
+}

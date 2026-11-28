@@ -1,0 +1,44 @@
+{
+  "id": "2.07",
+  "title": "Foot position from joint angles (FK)",
+  "status": "verified",
+  "checks": {
+    "foot_max_error_m": {
+      "value": 2.633125101432526e-16,
+      "rule": "max 1e-09",
+      "passed": true
+    },
+    "joint_origin_max_error_m": {
+      "value": 2.220446049250313e-16,
+      "rule": "max 1e-09",
+      "passed": true
+    }
+  },
+  "measured": {
+    "n_per_leg": 500,
+    "legs": {
+      "FL": {
+        "foot_max_m": 2.633125101432526e-16,
+        "joint_origin_max_m": 2.220446049250313e-16
+      },
+      "FR": {
+        "foot_max_m": 2.5438405243138006e-16,
+        "joint_origin_max_m": 2.220446049250313e-16
+      },
+      "RL": {
+        "foot_max_m": 2.482534153247273e-16,
+        "joint_origin_max_m": 2.220446049250313e-16
+      },
+      "RR": {
+        "foot_max_m": 2.3551386880256624e-16,
+        "joint_origin_max_m": 2.220446049250313e-16
+      }
+    },
+    "foot_max_error_m": 2.633125101432526e-16,
+    "joint_origin_max_error_m": 2.220446049250313e-16
+  },
+  "outputs": [],
+  "command": "python run.py 2.07",
+  "mujoco": "3.17.0",
+  "wall_s": 3.0
+}

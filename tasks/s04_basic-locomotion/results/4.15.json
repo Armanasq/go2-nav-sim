@@ -1,0 +1,51 @@
+{
+  "id": "4.15",
+  "title": "Walk-trot transition",
+  "status": "failed",
+  "metrics": {
+    "slow": {
+      "period_s": 0.5,
+      "duty": 0.6400000000000148,
+      "phase": {
+        "lf": 0.0,
+        "rf": 0.4942903234551087,
+        "lh": 0.5,
+        "rh": 0.007496911328624478
+      },
+      "window": [
+        3.0,
+        7.0
+      ]
+    },
+    "fast": {
+      "period_s": 0.5,
+      "duty": 0.6399999999999864,
+      "phase": {
+        "lf": 0.0,
+        "rf": 0.5,
+        "lh": 0.5085889626949711,
+        "rh": 0.007496911328613832
+      },
+      "window": [
+        33.0,
+        37.0
+      ]
+    },
+    "gait_changes_with_speed": false,
+    "source": "phase_generator.h: leg_clocks offsets 0, 0.5, 0.5, 0 of the stride and a fixed 0.25 s swing; no gait-type parameter"
+  },
+  "acceptance": "gait_changes_with_speed == true",
+  "checks": {
+    "gait_changes_with_speed": {
+      "value": false,
+      "rule": "gait_changes_with_speed == true",
+      "passed": false
+    }
+  },
+  "command": "python3 run.py 4.15",
+  "outputs": [
+    "figures/4-15_gait_types.png"
+  ],
+  "gait": "default",
+  "wall_s": 0.6
+}

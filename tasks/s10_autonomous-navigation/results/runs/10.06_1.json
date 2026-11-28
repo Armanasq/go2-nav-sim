@@ -1,0 +1,31 @@
+{
+ "mode": "goto",
+ "world": "corner",
+ "localise": [
+  "RESULT SUCCEEDED  sim_time 2.1 s  ground-truth final error 0.04 m  final pos (-4.46, -3.49)"
+ ],
+ "legs": [
+  {
+   "timed_out": false,
+   "result": "FAILED",
+   "status": 6,
+   "status_name": "ABORTED",
+   "sim_time_s": 37.01,
+   "t_start": 26.270000000000003,
+   "t_end": 63.275000000000006,
+   "goal": [
+    -0.75,
+    1.0,
+    1.5708
+   ],
+   "final_error_m": 4.257,
+   "path_m": 4.53,
+   "straight_m": 5.83,
+   "min_clearance_m": 0.436,
+   "max_displacement_m": 3.934,
+   "amcl_rmse_m": 1.775,
+   "amcl_max_m": 3.715
+  }
+ ],
+ "after_end_walked_m": 0.006
+}

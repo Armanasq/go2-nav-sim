@@ -1,0 +1,37 @@
+{
+  "id": "4.07",
+  "title": "Walk sideways",
+  "status": "failed",
+  "metrics": {
+    "target_m": 0.5,
+    "along_m": 0.5005856554608136,
+    "distance_ratio": 1.0011713109216271,
+    "max_cross_track_m": 0.1269566681390792,
+    "cross_track_over_distance": 0.2539133362781584,
+    "heading_change_deg": 2.952682469232208
+  },
+  "acceptance": "0.7 <= distance_ratio <= 1.3; cross_track_over_distance <= 0.1; |heading_change_deg| <= 5.0",
+  "checks": {
+    "distance_ratio": {
+      "value": 1.0011713109216271,
+      "rule": "0.7 <= distance_ratio <= 1.3",
+      "passed": true
+    },
+    "cross_track_over_distance": {
+      "value": 0.2539133362781584,
+      "rule": "cross_track_over_distance <= 0.1",
+      "passed": false
+    },
+    "heading_change_deg": {
+      "value": 2.952682469232208,
+      "rule": "|heading_change_deg| <= 5.0",
+      "passed": true
+    }
+  },
+  "command": "python3 run.py 4.07",
+  "outputs": [
+    "figures/4-04_translations.png"
+  ],
+  "gait": "default",
+  "wall_s": 5.7
+}

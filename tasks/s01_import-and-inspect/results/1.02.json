@@ -1,0 +1,35 @@
+{
+  "id": "1.02",
+  "title": "Display the model in RViz",
+  "status": "verified",
+  "metrics": {
+    "links_in_urdf": 24,
+    "links_resolved_in_tf": 24,
+    "missing": [],
+    "rviz_alive_s": 12.2,
+    "screenshot_pixel_std": 93.3
+  },
+  "acceptance": "links_resolved_in_tf equals 24; rviz_alive_s min 10; screenshot_pixel_std min 5",
+  "checks": {
+    "links_resolved_in_tf": {
+      "value": 24,
+      "rule": "equals 24",
+      "passed": true
+    },
+    "rviz_alive_s": {
+      "value": 12.2,
+      "rule": "min 10",
+      "passed": true
+    },
+    "screenshot_pixel_std": {
+      "value": 93.3,
+      "rule": "min 5",
+      "passed": true
+    }
+  },
+  "command": "python run.py 1.02",
+  "outputs": [
+    "figures/1-02_rviz.png"
+  ],
+  "date": "2026-11-28 11:26"
+}

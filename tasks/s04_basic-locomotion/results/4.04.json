@@ -1,0 +1,37 @@
+{
+  "id": "4.04",
+  "title": "Walk 0.5 m",
+  "status": "verified",
+  "metrics": {
+    "target_m": 0.5,
+    "along_m": 0.450781563358416,
+    "distance_ratio": 0.901563126716832,
+    "max_cross_track_m": 0.010970010478421386,
+    "cross_track_over_distance": 0.021940020956842773,
+    "heading_change_deg": 0.14276163956959131
+  },
+  "acceptance": "0.7 <= distance_ratio <= 1.3; cross_track_over_distance <= 0.1; |heading_change_deg| <= 5.0",
+  "checks": {
+    "distance_ratio": {
+      "value": 0.901563126716832,
+      "rule": "0.7 <= distance_ratio <= 1.3",
+      "passed": true
+    },
+    "cross_track_over_distance": {
+      "value": 0.021940020956842773,
+      "rule": "cross_track_over_distance <= 0.1",
+      "passed": true
+    },
+    "heading_change_deg": {
+      "value": 0.14276163956959131,
+      "rule": "|heading_change_deg| <= 5.0",
+      "passed": true
+    }
+  },
+  "command": "python3 run.py 4.04",
+  "outputs": [
+    "figures/4-04_translations.png"
+  ],
+  "gait": "default",
+  "wall_s": 4.9
+}

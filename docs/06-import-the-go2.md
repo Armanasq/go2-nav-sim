@@ -66,11 +66,8 @@ centre), `<name>_upper_leg_joint` (axis y, 0.0955 m outward), `<name>_lower_leg_
 *The offsets above drawn between joint origins, all joint angles zero (outside the knee limit, posed only to show the lengths). With straight legs the foot point is 0.213 + 0.213 = 0.426 m below `base_link`.*
 
 `gazebo.xacro` adds the `libgazebo_ros2_control.so` plugin, pointed at
-`$(find go2_description)/config/ros_control/ros_control.yaml`, an IMU on `imu_link` (100 Hz, gyro noise σ = 2e-4 rad/s, accel
-noise σ = 1.7e-2 m/s², published on `/imu/data`), friction 0.6 on the feet and 0.2 on the other links, and a `p3d` plugin that
-publishes `/odom/ground_truth` at 10 Hz with 1 cm noise. Three of the friction entries name `rf_hip`, `lh_hip` and `rh_hip`,
-which match no link. This repository ignores `/odom/ground_truth` and adds its own noise-free `/odom_gt` at 50 Hz.
-`go2_nav.xacro` attaches a lidar, an RGB-D camera, a chase camera and the ground-truth plugin to `base_link` with fixed joints
+`$(find go2_description)/config/ros_control/ros_control.yaml`, an IMU on `imu_link` publishing `/imu/data`
+([chapter 8](08-robot-and-sensors.md)), and friction 0.6 on the feet and 0.2 on the other links. `go2_nav.xacro` attaches a lidar, an RGB-D camera, a chase camera and the ground-truth plugin to `base_link` with fixed joints
 ([chapter 8](08-robot-and-sensors.md)), and takes `start_x` and `start_y` so that `/odom_gt` starts at zero.
 
 Check: `grep -c "xacro:leg " src/third_party/unitree-go2-ros2/robots/descriptions/go2_description/xacro/robot.xacro` prints `4`.
@@ -294,6 +291,18 @@ Paste this into `docs/exercises/go2_extra.xacro`, just above `</robot>`:
 
 The include paths in the copy use `$(find ...)`, so the copy works from any folder.
 
+```bash
+grep -c rear_cam docs/exercises/go2_extra.xacro
+tail -n 1 docs/exercises/go2_extra.xacro
+```
+
+```
+3
+</robot>
+```
+
+Check: `3` (the link name, the joint name and the joint's child) and `</robot>` still on the last line.
+
 ### 4.2 Check that it parses
 
 Objective: catch a typo before a node does.
@@ -338,11 +347,15 @@ At time 0.0
 ```
 
 `frames_<date>.pdf` shows `rear_cam_link` under `base_link`, published by `default_authority` (the static broadcaster) with
-"Most recent transform: 0.0": fixed joints go to `/tf_static` once. The moving leg frames update at 10.187 Hz, the slider
-window's rate. `tf2_echo` may print `Invalid frame ID "base_link"` once before the first transform arrives.
+"Most recent transform: 0.0": fixed joints go to `/tf_static` once. The moving leg frames update at about 10 Hz (10.187 and
+10.203 Hz in two runs), the slider window's rate. `tf2_echo` may print `Invalid frame ID "base_link"` once before the first transform arrives.
 
 Check: the `.gv` line exists and the translation is (-0.25, 0, 0.06). The new link also appears in RViz as a small box at the
 rear. The simulator still uses `go2_nav.xacro` and is unchanged.
+
+![Top view of the trunk with the base_link axes pointing forward and left, and the new rear_cam_link 0.25 m behind it with its x axis pointing backwards; beside it the TF tree with rear_cam_link as the fifth child of base_link](img/c06-rear-cam.png)
+
+*The link from Task 4.1 drawn at its offset. The yaw of π flips x and y, which is the quaternion (0, 0, 1, 0) that `tf2_echo` printed.*
 
 ## Task 5: Check the names that must match
 
@@ -402,12 +415,36 @@ Only the first three names per leg are used; they become the joint order of the 
 those offsets. It does not read joint axes or limits. `gait.yaml` sets `knee_orientation: ">>"`: the first character is for the
 front legs, the second for the hind legs, and it selects the inverse kinematics solution.
 
+```bash
+grep -A4 left_front src/third_party/unitree-go2-ros2/robots/configs/go2_config/config/joints/joints.yaml
+grep -A4 left_front src/third_party/unitree-go2-ros2/robots/configs/go2_config/config/links/links.yaml
+```
+
+```
+      left_front:
+        - lf_hip_joint
+        - lf_upper_leg_joint
+        - lf_lower_leg_joint
+        - lf_foot_joint
+      left_front:
+        - lf_hip_link
+        - lf_upper_leg_link
+        - lf_lower_leg_link
+        - lf_foot_link
+```
+
+Check: `lf_hip_joint` comes first in the joint map, and every name in the link map is a link you saw in RViz in Task 2.2.
+
 | Name list | Must match | Read by |
 |---|---|---|
 | `links.yaml` (base and 16 leg links) | link names in the URDF | CHAMP, at start |
 | `joints.yaml` (first three per leg) | joint names in `ros_control.yaml` | the trajectory controller, on every message from CHAMP |
 | `ros_control.yaml` `joints` and `gains` | revolute joint names in the URDF, the `<ros2_control>` blocks | `gazebo_ros2_control` |
 | controller names `joint_states_controller`, `joint_group_effort_controller` | `ros_control.yaml` | `champ_gazebo` spawners, `sim.launch.py` |
+
+![Three boxes for the URDF, CHAMP's links.yaml and joints.yaml, and ros_control.yaml, with green lines joining the entries that must carry the same name, and the two failure modes in red below](img/c06-name-match.png)
+
+*The table above with one example name per row. A wrong link name crashes CHAMP; a wrong joint name passes CHAMP silently (Task 5.3).*
 
 ### 5.3 Check that all names agree
 
@@ -471,6 +508,20 @@ Objective: the checklist for replacing the Go2 with another robot. Run 5.3 on yo
    knees, and the velocity limits to what the robot can follow.
 7. Point `description_path`, `joints_map_path`, `links_map_path` and `gait_config_path` in `sim.launch.py` at your files, and
    set `world_init_z` a few centimetres above the standing height so the robot drops onto its feet.
+
+Step 1 is the one CHAMP does not check for you. Run it on the Go2 first to see what a correct answer looks like:
+
+```bash
+xacro src/go2_nav_sim/urdf/go2_nav.xacro | grep -A6 'type="revolute"' | grep -o 'axis xyz="[^"]*"' | sort | uniq -c
+```
+
+```
+      8 axis xyz="0 1 0"
+      4 axis xyz="1 0 0"
+```
+
+Check: on your own xacro the same command prints 4 joints on `1 0 0` (the hips) and 8 on `0 1 0`, and the Task 5.3 script
+prints four empty lists.
 
 ## Task 6: Follow the robot into Gazebo
 

@@ -1,0 +1,52 @@
+{
+  "id": "1.08",
+  "title": "Spawn in an empty Gazebo world",
+  "status": "verified",
+  "metrics": {
+    "spawned": true,
+    "controllers": [
+      "joint_group_effort_controller",
+      "joint_states_controller"
+    ],
+    "controllers_active": 2,
+    "base_z_mean_m": 0.2154313809595001,
+    "base_height_error_m": 0.0295686190404999,
+    "base_z_std_m": 0.0005218351314415597,
+    "max_tilt_rad": 0.007626369435566365,
+    "hold_sim_s": 10.0,
+    "drift_xy_m": 0.00577042798026161
+  },
+  "acceptance": "spawned equals True; controllers_active equals 2; base_height_error_m max 0.03; max_tilt_rad max 0.1; base_z_std_m max 0.01",
+  "checks": {
+    "spawned": {
+      "value": true,
+      "rule": "equals True",
+      "passed": true
+    },
+    "controllers_active": {
+      "value": 2,
+      "rule": "equals 2",
+      "passed": true
+    },
+    "base_height_error_m": {
+      "value": 0.0295686190404999,
+      "rule": "max 0.03",
+      "passed": true
+    },
+    "max_tilt_rad": {
+      "value": 0.007626369435566365,
+      "rule": "max 0.1",
+      "passed": true
+    },
+    "base_z_std_m": {
+      "value": 0.0005218351314415597,
+      "rule": "max 0.01",
+      "passed": true
+    }
+  },
+  "command": "python run.py 1.08",
+  "outputs": [
+    "figures/1-08_spawned.png"
+  ],
+  "date": "2026-11-28 11:27"
+}

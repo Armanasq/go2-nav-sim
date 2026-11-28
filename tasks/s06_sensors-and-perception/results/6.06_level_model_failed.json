@@ -1,0 +1,33 @@
+{
+  "id": "6.06",
+  "title": "Depth camera",
+  "status": "failed",
+  "metrics": {
+    "encoding": "32FC1",
+    "encoding_ok": true,
+    "camera_height_m": 0.24594074982349437,
+    "n_rows": 145,
+    "floor_depth_median_rel_error": 0.03743287501774305,
+    "floor_depth_max_rel_error": 0.16479248198641988,
+    "nan_fraction": 0.0
+  },
+  "acceptance": "encoding_ok == True; floor_depth_median_rel_error <= 0.03. Basis: at A facing +x the floor ahead is clear; floor depth on row v predicted as z = h / ((v - cy) / fy) with h = camera height from /odom_gt (base z + 0.03), median over the 40 centre columns, rows with predicted depth 0.7 to 6 m",
+  "checks": {
+    "encoding_ok": {
+      "value": true,
+      "rule": "== True",
+      "passed": true
+    },
+    "floor_depth_median_rel_error": {
+      "value": 0.03743287501774305,
+      "rule": "<= 0.03",
+      "passed": false
+    }
+  },
+  "outputs": [
+    "figures/6.06_depth.png"
+  ],
+  "command": "python3 tasks/s06_sensors-and-perception/run.py 6.06",
+  "world": "arena",
+  "wall_s": 0.8
+}

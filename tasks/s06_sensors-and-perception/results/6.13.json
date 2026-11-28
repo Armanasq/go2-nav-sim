@@ -1,0 +1,45 @@
+{
+  "id": "6.13",
+  "title": "Stop before a wall",
+  "status": "verified",
+  "metrics": {
+    "n_runs": 3,
+    "gap_final_m": [
+      0.476,
+      0.499,
+      0.486
+    ],
+    "coast_m": [
+      0.027,
+      0.019,
+      0.021
+    ],
+    "max_abs_gap_error_m": 0.02400000000000002,
+    "min_final_gap_m": 0.476,
+    "stdout": [
+      "speed_cmd=0.2 v_true=0.204 scan_age=0.084 gap_sensed=0.48 gap_true_at_trigger=0.502 gap_final=0.476 coast=0.027 t_to_still=0.58 y_end=-2.459 yaw_end_deg=0.2",
+      "speed_cmd=0.2 v_true=0.171 scan_age=0.033 gap_sensed=0.496 gap_true_at_trigger=0.518 gap_final=0.499 coast=0.019 t_to_still=0.56 y_end=-2.493 yaw_end_deg=1.5",
+      "speed_cmd=0.2 v_true=0.168 scan_age=0.053 gap_sensed=0.49 gap_true_at_trigger=0.507 gap_final=0.486 coast=0.021 t_to_still=0.56 y_end=-2.493 yaw_end_deg=3.3",
+      "wrote /home/arman/project/slam_paper/go2-nav-sim/tasks/s06_sensors-and-perception/results/6.13_p05_runs/stop.csv"
+    ]
+  },
+  "acceptance": "max_abs_gap_error_m <= 0.05; min_final_gap_m >= 0.0. Basis: p05 measure_stops.py at 0.2 m/s, 3 runs, target gap 0.5 m to the pallet's west face; p05 measured 0.479 to 0.489 m at this speed",
+  "checks": {
+    "max_abs_gap_error_m": {
+      "value": 0.02400000000000002,
+      "rule": "<= 0.05",
+      "passed": true
+    },
+    "min_final_gap_m": {
+      "value": 0.476,
+      "rule": ">= 0.0",
+      "passed": true
+    }
+  },
+  "outputs": [
+    "results/6.13_p05_runs/stop.csv"
+  ],
+  "command": "python3 tasks/s06_sensors-and-perception/run.py 6.13",
+  "world": "arena",
+  "wall_s": 72.0
+}

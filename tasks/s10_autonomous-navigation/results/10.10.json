@@ -1,0 +1,17 @@
+{
+ "id": "10.10",
+ "status": "failed",
+ "metrics": {
+  "trials": [],
+  "all_canceled": false,
+  "max_stop_s": null,
+  "max_walked_after_cancel_m": null
+ },
+ "acceptance": "all_canceled == True; max_stop_s <= 2.0; max_walked_after_cancel_m <= 0.3",
+ "checks": {
+  "all_canceled": false,
+  "max_stop_s": false,
+  "max_walked_after_cancel_m": false
+ },
+ "command": "python3 run.py 10.10  (up.sh room; nav.py cancel --n 3)"
+}

@@ -15,7 +15,10 @@ collision_monitor:
     polygons: [PolygonStop, PolygonSlow]
     PolygonStop:
       type: polygon
-      points: [0.60, 0.25, 0.60, -0.25, -0.45, -0.25, -0.45, 0.25]    # x, y pairs: 0.275 m ahead of the body, 0.10 m to each side
+      # x, y pairs: from base_footprint to 0.275 m ahead of the body, 0.10 m to each side. Front half only: with a box around the
+      # whole body (x from -0.45), the monitor stopped the robot 21 times in 31 s while Nav2 tried to recover next to the orange
+      # cylinder, and the spin recovery ran out of time (results/exercises/full_body_zone_deadlock.log).
+      points: [0.60, 0.25, 0.60, -0.25, 0.0, -0.25, 0.0, 0.25]
       action_type: stop
       max_points: 3               # more than 3 scan points inside triggers the action
       visualize: true
@@ -23,7 +26,7 @@ collision_monitor:
       enabled: true
     PolygonSlow:
       type: polygon
-      points: [1.10, 0.35, 1.10, -0.35, -0.55, -0.35, -0.55, 0.35]
+      points: [1.10, 0.35, 1.10, -0.35, 0.0, -0.35, 0.0, 0.35]
       action_type: slowdown
       max_points: 3
       slowdown_ratio: 0.3         # 0.3 m/s becomes 0.09 m/s

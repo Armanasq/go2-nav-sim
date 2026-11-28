@@ -1,0 +1,50 @@
+{
+  "id": "6.17",
+  "title": "Estimate platform height and edges",
+  "status": "failed",
+  "metrics": {
+    "height_m": 0.09073311971638104,
+    "true_height_m": 0.12,
+    "height_error_m": 0.029266880283618957,
+    "edges_est_m": {
+      "near_x": -2.7001451100036804,
+      "far_x": -0.7007903302781072,
+      "right_y": -4.897552657881817,
+      "left_y": -1.8960714967425334
+    },
+    "edges_true_m": {
+      "near_x": -2.7,
+      "far_x": -1.7000000000000002,
+      "right_y": -4.1,
+      "left_y": -2.9
+    },
+    "edge_errors_m": {
+      "near_x": -0.00014511000368022664,
+      "far_x": 0.999209669721893,
+      "right_y": -0.7975526578818171,
+      "left_y": 1.0039285032574665
+    },
+    "max_edge_error_m": 1.0039285032574665,
+    "floor_camera_height_m": 0.2475209908948694,
+    "camera_height_gt_m": 0.24495289746887886
+  },
+  "acceptance": "height_error_m <= 0.01; max_edge_error_m <= 0.05. Basis: height = top plane minus floor plane along the floor normal; edges = 1st and 99th percentiles of the top inliers in world x and y (horizontal pose from /odom_gt); true edges x -2.7, -1.7, y -4.1, -2.9",
+  "checks": {
+    "height_error_m": {
+      "value": 0.029266880283618957,
+      "rule": "<= 0.01",
+      "passed": false
+    },
+    "max_edge_error_m": {
+      "value": 1.0039285032574665,
+      "rule": "<= 0.05",
+      "passed": false
+    }
+  },
+  "outputs": [
+    "figures/6.17_platform_edges.png"
+  ],
+  "command": "python3 tasks/s06_sensors-and-perception/run.py 6.17",
+  "world": "platform",
+  "wall_s": 1.6
+}

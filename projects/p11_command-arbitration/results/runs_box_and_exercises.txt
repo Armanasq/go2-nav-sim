@@ -1,0 +1,25 @@
+### box 1 (measure.py box --keep, chase camera recorded: media/box_stop.mp4)
+box spawned: SpawnEntity: Successfully spawned entity [p11_box]; face 2.00 m ahead of base_footprint at (-2.26, -3.49)
+slowdown: cmd_vel 0.090 m/s at 0.88 m walked (box face 1.12 m from base)
+stop: first zero on cmd_vel at 1.38 m walked (box face 0.62 m from base)
+end after 14.8 s: walked 1.395 m, base 0.605 m from the box face, gap body front to box 0.280 m
+### box 2 (measure.py box --keep, then zones_snapshot.py figures/zones.png)
+box spawned: SpawnEntity: Successfully spawned entity [p11_box]; face 2.00 m ahead of base_footprint at (-0.84, -3.51)
+slowdown: cmd_vel 0.090 m/s at 0.89 m walked (box face 1.11 m from base)
+stop: first zero on cmd_vel at 1.37 m walked (box face 0.63 m from base)
+end after 14.1 s: walked 1.376 m, base 0.624 m from the box face, gap body front to box 0.299 m
+polygon_slowdown: 4 corners, 150 scan points inside
+polygon_stop: 4 corners, 24 scan points inside
+### box 3
+box spawned: SpawnEntity: Successfully spawned entity [p11_box]; face 2.00 m ahead of base_footprint at (0.55, -3.45)
+slowdown: cmd_vel 0.090 m/s at 0.90 m walked (box face 1.10 m from base)
+stop: first zero on cmd_vel at 1.37 m walked (box face 0.63 m from base)
+end after 13.7 s: walked 1.377 m, base 0.623 m from the box face, gap body front to box 0.298 m
+### exercise 1: arbitration.launch.py monitor:=false nav:=false, measure.py box --timeout 15 (exercises/box_no_monitor.csv)
+box spawned: SpawnEntity: Successfully spawned entity [p11_box]; face 2.00 m ahead of base_footprint at (-5.23, -0.89)
+stop: first zero on cmd_vel at 1.76 m walked (box face 0.24 m from base)
+end after 15.1 s: walked 1.755 m, base 0.245 m from the box face, gap body front to box -0.080 m
+### exercise 2: arbitration.launch.py deadman:=false, measure.py estop --goal 4.0 3.0 0.65 (exercises/estop_no_deadman.csv)
+lock at 113.39 s: NOT stopped 8 s after the lock, 1.91 m walked; 0 messages on cmd_vel from 0.5 s after the lock on
+unlock: no motion command within 3 s
+nav2: no RESULT line (go_to_goal.py did not finish)

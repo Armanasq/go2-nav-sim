@@ -1,0 +1,231 @@
+{
+  "id": "1.03",
+  "title": "Identify the 12 actuated joints",
+  "status": "verified",
+  "metrics": {
+    "n_actuated": 12,
+    "joints": [
+      {
+        "name": "rf_hip_joint",
+        "type": "revolute",
+        "parent": "trunk",
+        "child": "rf_hip_link",
+        "axis": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "effort": 23.7,
+        "lower": -1.0472,
+        "upper": 1.0472,
+        "velocity": 30.1
+      },
+      {
+        "name": "rf_upper_leg_joint",
+        "type": "revolute",
+        "parent": "rf_hip_link",
+        "child": "rf_upper_leg_link",
+        "axis": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "effort": 23.7,
+        "lower": -1.5708,
+        "upper": 3.4907,
+        "velocity": 30.1
+      },
+      {
+        "name": "rf_lower_leg_joint",
+        "type": "revolute",
+        "parent": "rf_upper_leg_link",
+        "child": "rf_lower_leg_link",
+        "axis": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "effort": 35.55,
+        "lower": -2.7227,
+        "upper": -0.83776,
+        "velocity": 20.06
+      },
+      {
+        "name": "lf_hip_joint",
+        "type": "revolute",
+        "parent": "trunk",
+        "child": "lf_hip_link",
+        "axis": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "effort": 23.7,
+        "lower": -1.0472,
+        "upper": 1.0472,
+        "velocity": 30.1
+      },
+      {
+        "name": "lf_upper_leg_joint",
+        "type": "revolute",
+        "parent": "lf_hip_link",
+        "child": "lf_upper_leg_link",
+        "axis": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "effort": 23.7,
+        "lower": -1.5708,
+        "upper": 3.4907,
+        "velocity": 30.1
+      },
+      {
+        "name": "lf_lower_leg_joint",
+        "type": "revolute",
+        "parent": "lf_upper_leg_link",
+        "child": "lf_lower_leg_link",
+        "axis": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "effort": 35.55,
+        "lower": -2.7227,
+        "upper": -0.83776,
+        "velocity": 20.06
+      },
+      {
+        "name": "rh_hip_joint",
+        "type": "revolute",
+        "parent": "trunk",
+        "child": "rh_hip_link",
+        "axis": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "effort": 23.7,
+        "lower": -1.0472,
+        "upper": 1.0472,
+        "velocity": 30.1
+      },
+      {
+        "name": "rh_upper_leg_joint",
+        "type": "revolute",
+        "parent": "rh_hip_link",
+        "child": "rh_upper_leg_link",
+        "axis": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "effort": 23.7,
+        "lower": -1.5708,
+        "upper": 3.4907,
+        "velocity": 30.1
+      },
+      {
+        "name": "rh_lower_leg_joint",
+        "type": "revolute",
+        "parent": "rh_upper_leg_link",
+        "child": "rh_lower_leg_link",
+        "axis": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "effort": 35.55,
+        "lower": -2.7227,
+        "upper": -0.83776,
+        "velocity": 20.06
+      },
+      {
+        "name": "lh_hip_joint",
+        "type": "revolute",
+        "parent": "trunk",
+        "child": "lh_hip_link",
+        "axis": [
+          1.0,
+          0.0,
+          0.0
+        ],
+        "effort": 23.7,
+        "lower": -1.0472,
+        "upper": 1.0472,
+        "velocity": 30.1
+      },
+      {
+        "name": "lh_upper_leg_joint",
+        "type": "revolute",
+        "parent": "lh_hip_link",
+        "child": "lh_upper_leg_link",
+        "axis": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "effort": 23.7,
+        "lower": -1.5708,
+        "upper": 3.4907,
+        "velocity": 30.1
+      },
+      {
+        "name": "lh_lower_leg_joint",
+        "type": "revolute",
+        "parent": "lh_upper_leg_link",
+        "child": "lh_lower_leg_link",
+        "axis": [
+          0.0,
+          1.0,
+          0.0
+        ],
+        "effort": 35.55,
+        "lower": -2.7227,
+        "upper": -0.83776,
+        "velocity": 20.06
+      }
+    ],
+    "names_match_champ_map": true,
+    "hip_axes_x": 4,
+    "thigh_knee_axes_y": 8,
+    "joints_with_valid_limits": 12,
+    "left_right_limits_equal": true
+  },
+  "acceptance": "n_actuated equals 12; names_match_champ_map equals True; hip_axes_x equals 4; thigh_knee_axes_y equals 8; joints_with_valid_limits equals 12; left_right_limits_equal equals True",
+  "checks": {
+    "n_actuated": {
+      "value": 12,
+      "rule": "equals 12",
+      "passed": true
+    },
+    "names_match_champ_map": {
+      "value": true,
+      "rule": "equals True",
+      "passed": true
+    },
+    "hip_axes_x": {
+      "value": 4,
+      "rule": "equals 4",
+      "passed": true
+    },
+    "thigh_knee_axes_y": {
+      "value": 8,
+      "rule": "equals 8",
+      "passed": true
+    },
+    "joints_with_valid_limits": {
+      "value": 12,
+      "rule": "equals 12",
+      "passed": true
+    },
+    "left_right_limits_equal": {
+      "value": true,
+      "rule": "equals True",
+      "passed": true
+    }
+  },
+  "command": "python run.py 1.03",
+  "outputs": [],
+  "date": "2026-11-28 11:26"
+}

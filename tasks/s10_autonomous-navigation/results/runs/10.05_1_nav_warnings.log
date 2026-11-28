@@ -1,0 +1,17 @@
+[amcl-2] [WARN] [1795853100.296003337] [amcl]: Failed to transform initial pose in time (Lookup would require extrapolation into the future.  Requested time 19.370000 but the latest data is at time 19.355000, when looking up transform from frame [base_footprint] to frame [odom])
+[controller_server-4] [WARN] [1795853103.162456894] [controller_server]: No goal checker was specified in parameter 'current_goal_checker'. Server will use only plugin loaded general_goal_checker . This warning will appear once.
+[bt_navigator-8] [WARN] [1795853112.268793003] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[planner_server-6] [ERROR] [1795853125.609583876] [planner_server]: Failed to create a plan from potential when a legal potential was found. This shouldn't happen.
+[planner_server-6] [WARN] [1795853125.609675793] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795853125.609692794] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (-0.50, -3.50)
+[planner_server-6] [WARN] [1795853125.609705075] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[planner_server-6] [WARN] [1795853125.770821928] [planner_server]: Planner loop missed its desired rate of 20.0000 Hz. Current loop rate is 7.4074 Hz
+[controller_server-4] [ERROR] [1795853178.322077353] [controller_server]: Failed to make progress
+[controller_server-4] [WARN] [1795853178.322499866] [controller_server]: [follow_path] [ActionServer] Aborting handle.
+[controller_server-4] [WARN] [1795853178.496120091] [controller_server]: Control loop missed its desired rate of 15.0000Hz
+[controller_server-4] [ERROR] [1795853203.563431637] [controller_server]: Failed to make progress
+[controller_server-4] [WARN] [1795853203.563624644] [controller_server]: [follow_path] [ActionServer] Aborting handle.
+[planner_server-6] [WARN] [1795853203.772265289] [planner_server]: Planner loop missed its desired rate of 20.0000 Hz. Current loop rate is 5.8824 Hz
+[controller_server-4] [ERROR] [1795853228.125451633] [controller_server]: Failed to make progress
+[controller_server-4] [WARN] [1795853228.125682214] [controller_server]: [follow_path] [ActionServer] Aborting handle.
+[controller_server-4] [WARN] [1795853228.295239063] [controller_server]: Control loop missed its desired rate of 15.0000Hz

@@ -1,5 +1,5 @@
 """Acceptance tests for module 01, same thresholds as validate.py (ACCEPT). Run: .venv-modules/bin/python -m pytest -q modules/m01_anatomy"""
-import json, os, pathlib, sys
+import json, pathlib, sys
 import numpy as np
 import pytest
 HERE = pathlib.Path(__file__).resolve().parent
@@ -74,8 +74,8 @@ def test_zero_momentum_loop_reverses():
 
 
 def test_camera_model_against_segmentation(models):
-    if not os.environ.get('DISPLAY'):
-        pytest.skip('offscreen rendering needs an X display')
+    if not V.can_render(models[1]):
+        pytest.skip('offscreen rendering needs MUJOCO_GL=glfw and a live X display')
     views, m, d = V.render_views(models[0], lift=0.4)
     err, n, _ = V.projection_check(m, d, views)
     assert n > 10000 and max(err.values()) <= thr('camera_projection_bbox_px')
@@ -86,7 +86,7 @@ def test_results_json_passes():
     if not p.exists():
         pytest.skip('run validate.py first')
     checks = json.loads(p.read_text())['checks']
-    assert set(checks) == set(V.ACCEPT)
+    assert set(checks) <= set(V.ACCEPT) and set(V.ACCEPT) - set(checks) <= set(V.GL_CHECKS)   # GL checks absent without a display
     assert all(c['passed'] for c in checks.values()), [k for k, c in checks.items() if not c['passed']]
 
 
@@ -96,3 +96,26 @@ def test_other_region_loop_is_point_reflection_within_knee_limits():
     q0 = V.sim.Q_STAND
     assert np.allclose(b - q0, -(a - q0))                                  # same area, same direction, other side of the stand pose
     knee = b[:, 2::3]; assert knee.min() >= -2.7227 and knee.max() <= -0.83776
+
+
+# Direct recomputation of the thresholds that test_results_json_passes would otherwise only read from a stored results.json.
+
+def test_stand_torque_within_budget(models):
+    tb = V.torque_budget(models[0])
+    assert tb['stand_torque_utilisation_max'] < thr('stand_torque_utilisation_max')
+
+
+def test_flight_drift_euler_first_order_rk4_small():
+    D, _ = V.drift(T=0.3)                       # 0.3 s instead of 0.9 s: ratio 2.00, RK4 1.9e-6 kg m^2/s at both horizons
+    lo, hi = thr('flight_drift_order_euler'); assert lo <= D['flight_drift_order_euler'] <= hi
+    assert D['flight_drift_rk4_ang_kgm2s'] < thr('flight_drift_rk4_ang_kgm2s')
+    assert all(D[k] == 0 for k in D if k.endswith('floor_contacts'))
+
+
+def test_reorientation_pitch_speed_and_region():
+    """Same runs as validate.py (5 cycles at 1 Hz, at 0.5 Hz, over the other region), about 10 s of CPU."""
+    pitch = lambda X: np.degrees(X[-1, 2] - X[0, 2])  # noqa: E731
+    pf, ph, po = (pitch(X) for X in (V.reorient(), V.reorient(f=0.5), V.reorient(region=-1.0)))
+    assert abs(pf) > thr('reorient_pitch_5_cycles_deg')
+    lo, hi = thr('reorient_half_speed_ratio'); assert lo <= ph / pf <= hi
+    assert abs(po / pf - 1) > thr('reorient_other_region_rel_diff')

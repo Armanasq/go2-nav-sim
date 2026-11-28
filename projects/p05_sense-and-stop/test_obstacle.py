@@ -43,6 +43,9 @@ def test_centre_depth_median_ignores_nan():
 
 def test_centre_depth_no_return():
     assert centre_depth(np.full((360, 640), np.nan, np.float32)) == math.inf
+    img = np.full((360, 640), np.inf, np.float32)   # nothing within the far clip ...
+    img[178:183, 318] = 7.2                          # ... except 5 of the 25 patch pixels, the edge of an object
+    assert centre_depth(img) == math.inf
 
 
 def test_should_stop_uses_front_offset():

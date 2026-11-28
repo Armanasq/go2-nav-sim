@@ -1,0 +1,6 @@
+# Task 8.10: the lateral push, applied through /apply_link_wrench (gazebo_ros force system) to the trunk.
+# Chosen before the run from one probe on the standing robot: 100 N for 0.3 s slid it 0.47 m sideways.
+link: go2::base_link
+force_y_n: 50.0       # world +y, to the robot's left at the start heading
+duration_s: 0.3       # impulse 15 N s on 15.1 kg (sum of link masses from `gz model -m go2 -i`): at most 1.0 m/s
+at_m: 1.0             # applied once /odom says the robot is this far along the line

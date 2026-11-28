@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Figures and summary for project 5.
-usage: python3 projects/p05_sense-and-stop/plot.py [--dir DIR] [--tag stop] [--snap DIR/snapshot.npz]
-Reads DIR/<tag>.csv and DIR/runs/<tag>_*.csv from measure_stops.py; prints one summary line per speed; writes
-DIR/../figures/stops.png (or DIR/stops.png when DIR is not this project's results/) and, with --snap, scan_and_depth.png."""
+usage: python3 projects/p05_sense-and-stop/plot.py [--dir DIR] [--tag stop]
+       python3 projects/p05_sense-and-stop/plot.py --snap SNAP.npz
+Reads DIR/<tag>.csv and DIR/runs/<tag>_*.csv from measure_stops.py; prints one summary line per speed; writes DIR/stops.png
+(this project's figures/stops.png when DIR is its results/, the default).
+With --snap it only draws the snapshot, to scan_and_depth.png next to SNAP.npz (figures/ again for this project's results/)."""
 import argparse, collections, csv, math, pathlib, statistics as st, sys
 
 import matplotlib
@@ -89,7 +91,7 @@ def snapshot_figure(snap, out):
     ax.plot(a[ok], r[ok], '.', ms=1.5, color='#2563eb')
     ax.fill_between(np.linspace(-half, half, 30), 0, 15, color='#d97706', alpha=0.15)
     ax.plot([b], [d], 'o', color='#d97706')
-    ax.set_rmax(8); ax.set_title(f'/scan (base_footprint), nearest in +-20 deg: {d:.2f} m at {math.degrees(b):+.1f} deg', fontsize=9)
+    ax.set_rmax(8); ax.set_title(f'/scan (base_footprint, bearing + = left), nearest in +-20 deg: {d:.2f} m at {math.degrees(b):+.1f} deg', fontsize=9)
     dep = z['depth']
     ax2 = fig.add_subplot(1, 2, 2)
     im = ax2.imshow(dep, cmap='viridis', vmin=0.3, vmax=8.0)
@@ -105,23 +107,23 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--dir', default=str(HERE / 'results')); ap.add_argument('--tag', default='stop'); ap.add_argument('--snap')
     a = ap.parse_args()
+    figdir = lambda d: HERE / 'figures' if d.resolve() == (HERE / 'results').resolve() else d   # mine go to figures/, yours stay put
+    if a.snap:
+        snapshot_figure(a.snap, figdir(pathlib.Path(a.snap).parent) / 'scan_and_depth.png')
+        return
     d = pathlib.Path(a.dir)
-    figdir = HERE / 'figures' if d.resolve() == (HERE / 'results').resolve() else d
-    figdir.mkdir(exist_ok=True)
     rows = [r for r in csv.DictReader(open(d / f'{a.tag}.csv')) if r['tag'] == a.tag]
     runs = [load_run(d / 'runs' / f"{a.tag}_{r['run']}.csv") for r in rows]
-    print('speed  n  final gap (m)        error mean  coast (m)    to still (s)  trigger: sensed-true (m)  standing bias (m)  scan age (s)')
+    print('speed  true v  n  final gap (m)  error mean  sensed-0.5  trigger sensed-true  coast   to still (s)  standing bias  scan age (s)')
     for v in sorted({float(r['speed_cmd']) for r in rows}):
         sel = [(r, u) for r, u in zip(rows, runs) if float(r['speed_cmd']) == v]
         f = lambda k: [float(r[k]) for r, _ in sel]
         g = f('gap_final')
         trig = [s - t for s, t in zip(f('gap_sensed'), f('gap_true_at_trigger'))]
-        print(f'{v:.1f}  {len(sel):2d}  {min(g):.3f}..{max(g):.3f}  {st.mean(g) - GAP:+.3f}       '
-              f'{st.mean(f("coast")):.3f}        {st.mean(f("t_to_still")):.2f}          {st.mean(trig):+.3f}'
-              f'                    {st.mean(static_bias(u) for _, u in sel):+.3f}             {st.mean(f("scan_age")):.3f}')
-    stops_figure(rows, runs, figdir / f'{a.tag}s.png' if a.tag != 'stop' else figdir / 'stops.png')
-    if a.snap:
-        snapshot_figure(a.snap, figdir / 'scan_and_depth.png')
+        print(f'{v:.1f}    {st.mean(f("v_true")):.3f}  {len(sel)}  {min(g):.3f}..{max(g):.3f}  {st.mean(g) - GAP:+.3f}      '
+              f'{st.mean(f("gap_sensed")) - GAP:+.3f}      {st.mean(trig):+.3f}               {st.mean(f("coast")):.3f}   '
+              f'{st.mean(f("t_to_still")):.2f}          {st.mean(static_bias(u) for _, u in sel):+.3f}         {st.mean(f("scan_age")):.3f}')
+    stops_figure(rows, runs, figdir(d) / (f'{a.tag}s.png' if a.tag != 'stop' else 'stops.png'))
 
 
 if __name__ == '__main__':

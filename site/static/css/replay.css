@@ -1,4 +1,4 @@
-/* Run replay component (static/js/replay.js). Uses base.css tokens only. */
+/* Run replay component (static/js/replay.js). Uses site.css tokens only. */
 .replay { display: grid; gap: var(--s3); }
 .replay.card { background: none; border: 0; border-radius: 0; padding: 0; }   /* sits on the page, not in a box */
 .replay:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

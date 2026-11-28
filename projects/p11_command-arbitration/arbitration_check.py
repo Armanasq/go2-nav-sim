@@ -27,6 +27,11 @@ def first_after(log, t0, pred):
     return next(((t, v) for t, v in log if t >= t0 and pred(v)), None)
 
 
+def is_key(vx, wz, key_wz=1.0, ratio=0.3):
+    """True for the 'j' key command (vx 0, wz 1.0 rad/s) as it leaves the mux, or as the slowdown zone scales it (wz * ratio)."""
+    return abs(vx) < 1e-3 and min(abs(wz - key_wz), abs(wz - key_wz * ratio)) < 1e-3
+
+
 def stop_gap(robot_x, box_face_x, body_front=BODY_FRONT):
     """Free space between the front of the body and the box face, both on the walking axis."""
     return box_face_x - (robot_x + body_front)

@@ -4,6 +4,10 @@
 | square_closed | 0.01 0.01 0.05 0.02 | 0.02 0.01 0.04 0.03 | 0.12 | 1.1 | -1.5 | 0.05 | -2.6 | 50.1 |
 | figure8_open | 0.06 | 0.06 | 0.17 | -0.8 | 1.5 | 0.03 | 2.2 | 33.0 |
 | figure8_closed | 0.07 | 0.07 | 0.05 | 3.9 | 6.4 | 0.02 | 2.5 | 39.7 |
+
+Try this runs (results/square_open_calibrated.csv, results/square_closed_on_odom_gt.csv)
+| Run | Corner (square) or crossing (figure-eight) errors, m | The same on /odom, m | Final position error, m | Final heading error, deg | /odom end heading, deg | /odom displacement error at end, m | /odom yaw drift in run, deg | Time, s |
+|---|---|---|---|---|---|---|---|---|
 | square_open_calibrated | 0.07 0.14 0.15 0.06 | 0.07 0.14 0.16 0.06 | 0.13 | -7.1 | -3.7 | 0.01 | 3.4 | 54.4 |
 | square_closed_on_odom_gt | 0.02 0.01 0.01 0.01 | 0.02 0.01 0.01 0.01 | 0.13 | -1.9 | -1.9 | 0.00 | 0.0 | 49.6 |
 
@@ -15,10 +19,17 @@ Repeat runs (results/repeats/)
 | repeats/figure8_closed_4 | 0.08 | 0.06 | 0.06 | 2.2 | 6.2 | 0.01 | 4.0 | 39.6 |
 | repeats/figure8_closed_5 | 0.06 | 0.06 | 0.06 | 5.3 | 3.3 | 0.01 | -2.1 | 40.1 |
 | repeats/figure8_closed_6 | 0.05 | 0.06 | 0.03 | 8.0 | 5.9 | 0.05 | -2.1 | 40.6 |
+| repeats/figure8_closed_7 | 0.05 | 0.08 | 0.09 | 8.3 | 9.4 | 0.03 | 1.1 | 41.0 |
+| repeats/figure8_closed_8 | 0.08 | 0.08 | 0.08 | 8.1 | 11.5 | 0.02 | 3.3 | 40.0 |
 | repeats/figure8_open_2 | 0.02 | 0.03 | 0.13 | 0.8 | -2.2 | 0.05 | -3.0 | 33.0 |
 | repeats/figure8_open_3 | 0.05 | 0.04 | 0.17 | -0.8 | -0.9 | 0.01 | -0.2 | 33.0 |
 | repeats/figure8_open_4 | 0.08 | 0.07 | 0.19 | 4.6 | 3.1 | 0.01 | -1.5 | 33.0 |
+| repeats/figure8_open_5 | 0.06 | 0.07 | 0.21 | -0.1 | -1.2 | 0.01 | -1.1 | 33.0 |
+| repeats/figure8_open_6 | 0.04 | 0.04 | 0.20 | -6.5 | -5.9 | 0.00 | 0.6 | 33.0 |
 | repeats/square_closed_2 | 0.01 0.02 0.04 0.03 | 0.02 0.01 0.02 0.02 | 0.15 | 0.1 | -1.0 | 0.06 | -1.2 | 50.2 |
+| repeats/square_closed_3 | 0.02 0.03 0.01 0.01 | 0.02 0.02 0.01 0.01 | 0.13 | 2.1 | 0.2 | 0.01 | -1.9 | 50.4 |
+| repeats/square_closed_4 | 0.03 0.01 0.02 0.04 | 0.03 0.01 0.01 0.02 | 0.17 | 3.3 | -0.5 | 0.06 | -3.9 | 49.8 |
+| repeats/square_closed_5 | 0.01 0.02 0.02 0.03 | 0.01 0.01 0.02 0.01 | 0.16 | 4.3 | -0.4 | 0.01 | -4.6 | 50.9 |
 | repeats/square_closed_on_odom_gt_2 | 0.01 0.00 0.02 0.01 | 0.01 0.00 0.02 0.01 | 0.14 | -1.4 | -1.4 | 0.00 | 0.0 | 51.1 |
 | repeats/square_open_2 | 0.06 0.19 0.19 0.02 | 0.05 0.19 0.23 0.03 | 0.16 | -10.1 | -3.4 | 0.01 | 6.7 | 51.8 |
 | repeats/square_open_3 | 0.07 0.16 0.15 0.15 | 0.05 0.18 0.13 0.18 | 0.26 | -14.4 | -5.4 | 0.07 | 9.1 | 51.8 |
@@ -32,9 +43,9 @@ Repeat runs (results/repeats/)
 Spread over all runs of each kind (results/<kind>.csv and results/repeats/<kind>_N.csv): mean (min to max)
 | Kind | Runs | Corner or crossing errors, m | Final position error, m | Final heading error, deg | /odom end heading, deg | /odom yaw drift in run, deg |
 |---|---|---|---|---|---|---|
-| figure8_closed | 6 | 0.07 (0.05 to 0.10) | 0.05 (0.03 to 0.08) | 6.2 (2.2 to 11.2) | 7.1 (3.3 to 12.3) | 0.9 (-2.1 to 4.0) |
-| figure8_open | 4 | 0.05 (0.02 to 0.08) | 0.16 (0.13 to 0.19) | 1.0 (-0.8 to 4.6) | 0.4 (-2.2 to 3.1) | -0.6 (-3.0 to 2.2) |
-| square_closed | 2 | 0.01 (0.01 to 0.01); 0.02 (0.01 to 0.02); 0.05 (0.04 to 0.05); 0.02 (0.02 to 0.03) | 0.14 (0.12 to 0.15) | 0.6 (0.1 to 1.1) | -1.3 (-1.5 to -1.0) | -1.9 (-2.6 to -1.2) |
+| figure8_closed | 8 | 0.07 (0.05 to 0.10) | 0.06 (0.03 to 0.09) | 6.7 (2.2 to 11.2) | 7.9 (3.3 to 12.3) | 1.2 (-2.1 to 4.0) |
+| figure8_open | 6 | 0.05 (0.02 to 0.08) | 0.18 (0.13 to 0.21) | -0.5 (-6.5 to 4.6) | -0.9 (-5.9 to 3.1) | -0.5 (-3.0 to 2.2) |
+| square_closed | 5 | 0.01 (0.01 to 0.03); 0.02 (0.01 to 0.03); 0.03 (0.01 to 0.05); 0.02 (0.01 to 0.04) | 0.15 (0.12 to 0.17) | 2.2 (0.1 to 4.3) | -0.6 (-1.5 to 0.2) | -2.8 (-4.6 to -1.2) |
 | square_closed_on_odom_gt | 2 | 0.01 (0.01 to 0.02); 0.01 (0.00 to 0.01); 0.01 (0.01 to 0.02); 0.01 (0.01 to 0.01) | 0.13 (0.13 to 0.14) | -1.7 (-1.9 to -1.4) | -1.7 (-1.9 to -1.4) | 0.0 (0.0 to 0.0) |
 | square_open | 5 | 0.07 (0.05 to 0.08); 0.18 (0.16 to 0.20); 0.18 (0.15 to 0.21); 0.07 (0.01 to 0.15) | 0.17 (0.13 to 0.26) | -9.2 (-14.4 to -4.7) | -3.7 (-5.4 to -0.6) | 5.5 (2.8 to 9.1) |
 | square_open_calibrated | 5 | 0.04 (0.02 to 0.07); 0.10 (0.05 to 0.14); 0.15 (0.08 to 0.21); 0.09 (0.06 to 0.16) | 0.08 (0.05 to 0.13) | -4.8 (-7.1 to -3.5) | -1.5 (-3.7 to 0.4) | 3.3 (2.7 to 4.0) |

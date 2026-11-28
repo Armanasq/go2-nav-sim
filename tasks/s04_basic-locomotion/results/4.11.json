@@ -1,0 +1,29 @@
+{
+  "id": "4.11",
+  "title": "Turn 180 deg",
+  "status": "failed",
+  "metrics": {
+    "final_heading_deg": 175.05515023830975,
+    "heading_error_deg": -4.94484976169025,
+    "position_drift_m": 0.16398158506477548
+  },
+  "acceptance": "|heading_error_deg| <= 18.0; position_drift_m <= 0.15",
+  "checks": {
+    "heading_error_deg": {
+      "value": -4.94484976169025,
+      "rule": "|heading_error_deg| <= 18.0",
+      "passed": true
+    },
+    "position_drift_m": {
+      "value": 0.16398158506477548,
+      "rule": "position_drift_m <= 0.15",
+      "passed": false
+    }
+  },
+  "command": "python3 run.py 4.11",
+  "outputs": [
+    "figures/4-09_turns.png"
+  ],
+  "gait": "default",
+  "wall_s": 9.8
+}

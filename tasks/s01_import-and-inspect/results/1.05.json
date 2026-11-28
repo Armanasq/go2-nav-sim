@@ -1,0 +1,48 @@
+{
+  "id": "1.05",
+  "title": "Move the three joints of one leg",
+  "status": "verified",
+  "metrics": {
+    "n_configurations": 25,
+    "foot_max_error_m": 2.801672398692115e-16,
+    "link_max_error_m": 2.801672398692115e-16,
+    "screenshot_pose": {
+      "lf_hip_joint": 0.6,
+      "lf_upper_leg_joint": -0.4,
+      "lf_lower_leg_joint": -0.9,
+      "rf_hip_joint": 0.0,
+      "rf_upper_leg_joint": 0.0,
+      "rf_lower_leg_joint": -1.78023,
+      "lh_hip_joint": 0.0,
+      "lh_upper_leg_joint": 0.0,
+      "lh_lower_leg_joint": -1.78023,
+      "rh_hip_joint": 0.0,
+      "rh_upper_leg_joint": 0.0,
+      "rh_lower_leg_joint": -1.78023
+    }
+  },
+  "acceptance": "foot_max_error_m max 1e-06; link_max_error_m max 1e-06; n_configurations min 25",
+  "checks": {
+    "foot_max_error_m": {
+      "value": 2.801672398692115e-16,
+      "rule": "max 1e-06",
+      "passed": true
+    },
+    "link_max_error_m": {
+      "value": 2.801672398692115e-16,
+      "rule": "max 1e-06",
+      "passed": true
+    },
+    "n_configurations": {
+      "value": 25,
+      "rule": "min 25",
+      "passed": true
+    }
+  },
+  "command": "python run.py 1.05",
+  "outputs": [
+    "figures/1-05_leg_poses.png",
+    "figures/1-05_rviz_leg.png"
+  ],
+  "date": "2026-11-28 11:27"
+}

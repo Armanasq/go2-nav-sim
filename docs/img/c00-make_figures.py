@@ -327,17 +327,17 @@ def fig_leg_geometry():
     a2.text(-0.03, 0.0, 'trunk', fontsize=7.8, color=C['muted'], ha='center', va='center')
     hp = np.array([0.0465, 0.0])                         # hip_offset_y (const.xacro), seen from the front: robot's left = right
     a2.add_patch(Wedge(hp, 0.16, 270 - 60, 270 + 60, width=0.01, fc=LEGS['FL'], alpha=0.3, ec='none'))
-    for th, alpha in ((0.5, 0.3), (-0.5, 0.3), (0.0, 1.0)):
+    for th, alpha in ((1.047, 0.3), (-1.047, 0.3), (0.0, 1.0)):                # the two limits and zero (leg.xacro)
         R = np.array([[np.cos(th), -np.sin(th)], [np.sin(th), np.cos(th)]])
         lat = hp + R @ [0.0955, 0]
         ft = lat + R @ [0, -0.3]
         a2.plot(*np.c_[hp, lat], color=C['muted'], lw=2.2, alpha=alpha)
         a2.plot(*np.c_[lat, ft], color=LEGS['FL'], lw=4, alpha=alpha, solid_capstyle='round')
     a2.add_patch(Circle(hp, 0.012, fc='white', ec=C['ink'], lw=1, zorder=5))
-    a2.text(hp[0] - 0.02, 0.06, 'hip abduction, axis x\n-1.047 to 1.047 rad, 23.7 N·m', fontsize=7.6, color=LEGS['FL'])
+    a2.text(0.17, -0.2, 'hip abduction, axis x\n-1.047 to 1.047 rad\n23.7 N·m', fontsize=7.6, color=LEGS['FL'], va='center')
     a2.text(hp[0] + 0.105, 0.0, 'offset\n0.0955 m', fontsize=7.0, color=C['muted'], ha='left', va='center')
     a2.set_title("front view: robot's left leg (on the right)", fontsize=9)
-    a2.set_xlim(-0.15, 0.36); a2.set_ylim(foot[1] - 0.03 + 0.0, 0.1)
+    a2.set_xlim(-0.26, 0.42); a2.set_ylim(foot[1] - 0.03 + 0.0, 0.1)
     save(fig, '01-leg-geometry')
 
 
@@ -623,7 +623,7 @@ def fig_setup_flow():
     line(ax, [(1.28, 0.12), (1.43, 0.12), (1.43, 0.36)])
     ax.text(0.17, 0.3, 'src/third_party/unitree-go2-ros2', ha='center', fontsize=7, color=C['muted'], family='DejaVu Sans Mono')
     ax.text(0.57, 0.3, 'skipped if already applied', ha='center', fontsize=7.2, color=C['muted'])
-    ax.text(1.43, 0.55, 'about 5 minutes in total', ha='center', fontsize=7.4, color=C['muted'])
+    ax.text(1.43, 0.55, 'build: 2 min 51 s here (32 threads, shared)', ha='center', fontsize=7.4, color=C['muted'])
     save(fig, '03-setup-flow')
 
 
@@ -676,6 +676,147 @@ def fig_patch():
     save(fig, '03-patch')
 
 
+# ----------------------------------------------------------------------------------------------------------------- added
+def fig_scoring_pipeline():
+    """Chapter 0, task 1.1: what happens to a run after the robot stops. Topics from scripts/record_bag.sh, outputs from the
+    usage lines of bag_metrics.py, render_dashboard.py and export_run.py."""
+    fig, ax = fs.diagram(7.8, 3.5, (0, 1.66), (0, 0.72), equal=False)
+    box(ax, 0.01, 0.42, 0.25, 0.2, 'running stack\n(scripts/up.sh)', 'sim', fs_=8)
+    box(ax, 0.36, 0.42, 0.25, 0.2, 'scripts/record_bag.sh\nros2 bag record\nMCAP, zstd, 10.5 MiB\nper simulated second', 'ours', fs_=7.4)
+    box(ax, 0.71, 0.42, 0.2, 0.2, 'bags/<name>/\none MCAP bag', 'upstream', fs_=7.6)
+    outs = [(0.56, 'bag_metrics.py', 'results/run_wN.json\nATE, RPE, AMCL RMSE, goal error'),
+            (0.32, 'render_dashboard.py', 'dashboard video (1080p)\nmedia/go2_a2b_dashboard.mp4'),
+            (0.08, 'export_run.py', 'site/data/runs/wN/\nrun.json (10 Hz), imu.json, map')]
+    for y, script, out in outs:
+        box(ax, 1.0, y, 0.28, 0.12, script, 'ours', fs_=7.4, family='DejaVu Sans Mono')
+        ax.text(1.31, y + 0.06, out, fontsize=7.0, va='center', color=C['ink'], linespacing=1.3)
+        line(ax, [(0.91, 0.52), (0.95, 0.52), (0.95, y + 0.06), (1.0, y + 0.06)])
+    line(ax, [(0.26, 0.52), (0.36, 0.52)]); line(ax, [(0.61, 0.52), (0.71, 0.52)])
+    groups = ['sensors  /lidar/points /scan /imu/data /camera/*', 'estimates  /odom /lidar_odom /amcl_pose',
+              'navigation  /plan /cmd_vel /slam/map', 'frames  /clock /tf /tf_static']
+    for i, g in enumerate(groups):
+        ax.text(0.33, 0.34 - i * 0.05, g, fontsize=6.8, color=C['muted'], family='DejaVu Sans Mono')
+    ax.text(0.33, 0.34 - 4 * 0.05, 'truth  /odom_gt', fontsize=6.8, color=C['bad'], family='DejaVu Sans Mono', fontweight='bold')
+    ax.text(0.33, 0.39, 'recorded topics', fontsize=7.4, color=C['ink'])
+    ax.text(0.01, 0.06, '/odom_gt is recorded for scoring.\nThe robot never reads it, except once:\ngo_to_goal.py initialises AMCL from it.',
+            fontsize=7.0, color=C['bad'], va='bottom', linespacing=1.3)
+    legend_origin(ax, 0.0, 0.97, ['sim', 'upstream', 'ours'], dx=0.25)
+    save(fig, '00-scoring-pipeline')
+
+
+def fig_final_approach():
+    """Chapter 0 exercise and chapter 3 exercise: where each recorded run really stopped and where its last AMCL pose put it.
+    Trajectories from site/data/runs/wN/run.json, goal errors from results/run_wN.json."""
+    fig, axs = plt.subplots(1, 3, figsize=(7.8, 3.0), sharey=True)
+    for ax, w in zip(axs, ('w1', 'w2', 'w3')):
+        run = json.loads((ROOT / f'site/data/runs/{w}/run.json').read_text())
+        res = json.loads((ROOT / f'results/run_{w}.json').read_text())
+        B, tol = np.array(run['arena']['B']), res['goal_tolerance_m']
+        gt = np.array([p['gt'][:2] for p in run['samples']])
+        am = np.array([p['amcl'][:2] for p in run['samples'] if p.get('amcl')])
+        d_gt, d_am = np.linalg.norm(gt[-1] - B), np.linalg.norm(am[-1] - B)
+        assert abs(d_gt - res['goal_error_m']) < 0.01, (w, d_gt)
+        ax.add_patch(Circle(B, tol, fc=C['fill'], ec=C['bad'], ls='--', lw=1))
+        ax.plot(*B, '+', color=C['bad'], ms=9)
+        ax.plot(*gt.T, color=C['gt'], lw=1.8, label='ground truth')
+        ax.plot(*am.T, color=C['est2'], lw=0.9, ls='--', label='/amcl_pose')
+        ax.plot(*gt[-1], 'o', color=C['gt'], ms=6); ax.plot(*am[-1], 'o', color=C['est2'], ms=5, mfc='white')
+        out = d_gt > tol
+        ax.set_title(f'run {w}', fontsize=9)
+        ax.text(0.03, 0.97, f'truth {d_gt:.2f} m from B ({"outside" if out else "inside"})\nlast AMCL pose {d_am:.2f} m',
+                transform=ax.transAxes, fontsize=7.2, color=C['bad'] if out else C['ink'], va='top')
+        ax.set_xlim(B[0] - 0.75, B[0] + 0.4); ax.set_ylim(B[1] - 0.75, B[1] + 0.4); ax.set_aspect('equal')
+        ax.set_xlabel('x [m]')
+    axs[0].set_ylabel('y [m]')
+    axs[0].legend(loc='lower right', fontsize=7.0)
+    axs[1].text(B[0], B[1] - tol - 0.06, f'tolerance {tol} m', ha='center', fontsize=7.0, color=C['bad'])
+    save(fig, '00-final-approach')
+
+
+def fig_route():
+    """Chapter 0, task 2.1: the route as cumulative hours (the table in 00-overview.md; * = estimate not in gap-plan;
+    ~ = not yet published, no README.md in its folder or no chapter file)."""
+    steps = [('0  What you will build', 0.5), ('1  Legged robot foundations', 1.5), ('2, 3  Prerequisites, install', 2),
+             ('4  ROS 2 from scratch', 4), ('p01  First steps', 2), ('5  Frames and TF2', 2.5), ('6  Import the Go2', 2),
+             ('7  Make it walk', 2), ('p02  Teleop and safety', 3), ('p03  Move in shapes', 2), ('p04  Go to pose *', 2),
+             ('8  Robot and sensors', 2), ('p05  Sense and stop ~', 2), ('9, 11  Estimation, record', 4),
+             ('10  Mapping and navigation', 4.5), ('p11  Command arbitration *', 2), ('p12  Tune Nav2 ~', 2.5),
+             ('p13  Behaviour trees', 1.5), ('p14  Test the stack', 1.5), ('13  Toward the real Go2', 2.5),
+             ('p  Capstone ~', 3)]
+    t0 = np.cumsum([0] + [h for _, h in steps])
+    assert t0[-1] == 49 and t0[5] == 10
+    fig, ax = plt.subplots(figsize=(7.6, 4.8))
+    for i, ((name, h), s) in enumerate(zip(steps, t0)):
+        proj = name.startswith('p')
+        ax.barh(i, h, left=s, height=0.7, color=C['plan'] if proj else C['est'], alpha=0.3 if '~' in name else 0.85,
+                hatch='///' if '*' in name else None, edgecolor='white', lw=0.5)
+        ax.text(s - 0.4, i, name.replace(' ~', '').replace('p  ', ''), ha='right', va='center', fontsize=7.2,
+                color=C['muted'] if '~' in name else C['ink'])
+    ax.axvspan(0, 10, color=C['good'], alpha=0.07, lw=0)
+    ax.text(5, -1.3, 'first 10 h: a running stack you can inspect and drive', ha='center', fontsize=7.4, color=C['good'])
+    ax.set_ylim(len(steps) - 0.4, -1.8); ax.set_yticks([]); ax.set_xlim(-19, 50)
+    ax.set_xticks(range(0, 50, 5)); ax.set_xlabel('cumulative hours (49 h; the gap plan\'s 45 h without the two * steps)')
+    ax.spines['left'].set_visible(False); ax.grid(axis='y', visible=False)
+    from matplotlib.patches import Patch
+    ax.legend(handles=[Patch(color=C['est'], label='chapter'), Patch(color=C['plan'], label='project'),
+                       Patch(fc=C['plan'], ec='white', hatch='///', label='* hours estimated by comparison'),
+                       Patch(color=C['gt'], alpha=0.3, label='not yet published')],
+              loc='upper right', fontsize=7.2)
+    save(fig, '00-route')
+
+
+def fig_scan_band():
+    """Chapter 1 exercise: the /scan height band of scan.yaml in base_footprint, next to the floor that sits 0.209 m above it."""
+    floor, base = 0.426 - 0.217, 0.426                    # tf2_echo 0.426 m; trunk 0.217 m above the floor (chapter 1, task 4.2)
+    fig, ax = plt.subplots(figsize=(6.6, 3.8))
+    ax.axhspan(-0.1, floor, color=C['fill'], lw=0); ax.axhline(floor, color=C['ink'], lw=1.2)
+    ax.axhline(0, color=C['bad'], lw=1, ls='--')
+    ax.text(3.95, 0.0 - 0.025, 'base_footprint (z = 0)', color=C['bad'], fontsize=7.4, ha='right', va='top', family='DejaVu Sans Mono')
+    ax.text(3.95, floor + 0.012, f'real floor, z = {floor:.3f} m', fontsize=7.4, ha='right', va='bottom')
+    # robot sketch: trunk at base_link, two legs to the floor
+    ax.add_patch(FancyBboxPatch((0.15, base - 0.04), 0.9, 0.08, boxstyle='round,pad=0,rounding_size=0.02', fc='white', ec=C['ink'], lw=0.9))
+    ax.text(0.6, base, 'base_link 0.426', fontsize=7, ha='center', va='center', family='DejaVu Sans Mono')
+    for x in (0.25, 0.95):
+        ax.plot([x, x - 0.1, x], [base - 0.04, (base + floor) / 2, floor + 0.01], color=LEGS['FL'], lw=2.5)
+    cols = [(1.5, 0.30, 0.90, 'scan.yaml\nmin_height 0.30', C['est']), (2.8, 0.05, 0.90, 'min_height 0.05\n(wheeled default)', C['bad'])]
+    for x, lo, hi, name, col in cols:
+        ax.add_patch(Rectangle((x, lo), 0.9, hi - lo, fc=col, alpha=0.15, ec=col, lw=1))
+        ax.text(x + 0.45, hi + 0.02, name, ha='center', va='bottom', fontsize=7.4, color=col)
+        span = f'{lo - floor:.2f} to {hi - floor:.2f} m' if lo > floor else f'{floor - lo:.2f} m below to\n{hi - floor:.2f} m'
+        ax.text(x + 0.45, (max(lo, floor) + hi) / 2, f'{span}\nabove the floor',
+                ha='center', va='center', fontsize=7.2, color=C['ink'])
+    ax.plot([2.8, 3.7], [floor, floor], color=C['bad'], lw=3)
+    ax.text(3.25, (0.05 + floor) / 2, 'floor inside the band:\nevery floor return is\nan obstacle in /scan', ha='center', va='center',
+            fontsize=7.0, color=C['bad'])
+    ax.set_xlim(0, 4.0); ax.set_ylim(-0.1, 1.05); ax.set_xticks([])
+    ax.set_ylabel('height in base_footprint [m]'); ax.spines['bottom'].set_visible(False); ax.grid(axis='x', visible=False)
+    save(fig, '01-scan-band')
+
+
+def fig_sensor_rates():
+    """Chapter 3, task 2.2: measured rates (ros2 topic hz -s, outputs in the chapter) against the configured ones
+    (sensors.xacro, upstream gazebo.xacro, ekf.yaml), and the same lidar rate measured in wall-clock time."""
+    rows = [('/imu/data', 100, 97.925, 'gazebo.xacro', '97.925'), ('/odom (EKF)', 50, 50.000, 'ekf.yaml', '50.000'),
+            ('/lidar/points', 10, 10.027, 'sensors.xacro', '10.027'), ('/scan', 10, 9.984, 'follows the lidar', '9.984'),
+            ('/camera/image_raw', 10, 1 / 0.29, 'sensors.xacro', '3.4 (one image per 0.29 s, busy GPU)')]
+    fig, (a1, a2) = plt.subplots(1, 2, figsize=(7.8, 2.9), gridspec_kw=dict(width_ratios=[1.7, 1]))
+    y = np.arange(len(rows))
+    a1.barh(y + 0.18, [r[1] for r in rows], height=0.34, color=C['gt'], alpha=0.5, label='configured')
+    a1.barh(y - 0.18, [r[2] for r in rows], height=0.34, color=C['est'], label='measured, simulated time')
+    for i, (_, cfg, meas, src, txt) in enumerate(rows):
+        a1.text(meas * 1.08, i - 0.18, f'{txt} Hz' if i < 4 else f'{txt}', va='center', fontsize=7, color=C['est'] if i < 4 else C['bad'])
+        a1.text(cfg * 1.08, i + 0.18, f'{cfg} Hz  ({src})', va='center', fontsize=6.6, color=C['muted'])
+    a1.set_xscale('log'); a1.set_xlim(1, 2000); a1.set_yticks(y, [r[0] for r in rows], fontsize=7.6, family='DejaVu Sans Mono')
+    a1.invert_yaxis(); a1.set_xlabel('rate [Hz], log scale')
+    a1.legend(loc='lower center', bbox_to_anchor=(0.5, 1.0), ncol=2, fontsize=7)
+    a2.bar([0, 1], [10.03, 5.99], color=[C['est'], C['bad']], width=0.6)
+    for x, v in ((0, 10.03), (1, 5.99)):
+        a2.text(x, v + 0.2, f'{v} Hz', ha='center', fontsize=7.4)
+    a2.set_xticks([0, 1], ['hz -s\n(sim time)', 'hz\n(wall clock)'], fontsize=7.4)
+    a2.set_ylim(0, 12); a2.set_ylabel('/lidar/points [Hz]'); a2.set_title('same lidar, real-time factor ~0.58', fontsize=8.5)
+    save(fig, '03-sensor-rates')
+
+
 # ----------------------------------------------------------------------------------------------------------------- clips
 def clip(name, start, dur, vf):
     src, out = MEDIA / 'go2_a2b_dashboard.mp4', MEDIA / f'c00-{name}.mp4'
@@ -691,7 +832,8 @@ if __name__ == '__main__':
     run = json.loads((ROOT / 'site/data/runs/w2/run.json').read_text())
     figs = [fig_go2_render, fig_go2_joints, fig_ros_graph, lambda: fig_arena(run), fig_leg_geometry, fig_layers, fig_trot,
             lambda: print('swing peak [m]', round(fig_foot_trajectory(), 4)), fig_champ_loop, fig_tf_tree, fig_footprint_offset,
-            fig_software_stack, fig_env_traps, fig_setup_flow, fig_up_sequence, fig_patch, lambda: fig_goal_run(run)]
+            fig_software_stack, fig_env_traps, fig_setup_flow, fig_up_sequence, fig_patch, lambda: fig_goal_run(run),
+            fig_scoring_pipeline, fig_final_approach, fig_route, fig_scan_band, fig_sensor_rates]
     only = [a for a in sys.argv[1:] if not a.startswith('--')]          # e.g. "trot" runs only fig_trot
     for f in figs:
         if not only or any(o in (f.__name__ + ' '.join(f.__code__.co_names)) for o in only):

@@ -1,0 +1,33 @@
+{
+  "id": "6.07",
+  "title": "Distance to a wall from depth and from the scan",
+  "status": "verified",
+  "metrics": {
+    "true_gap_m": 2.088032074836261,
+    "scan_range_m": 2.342597484588623,
+    "scan_gap_m": 2.062597484588623,
+    "depth_gap_m": 2.089712142944336,
+    "scan_gap_error_m": 0.025434590247638056,
+    "depth_gap_error_m": 0.0016800681080750834,
+    "yaw_deg": 2.115181965050671
+  },
+  "acceptance": "scan_gap_error_m <= 0.05; depth_gap_error_m <= 0.03. Basis: p05 lane start (true gap about 2 m to the pallet's flat west face); scan gap = nearest return in +-20 deg minus 0.28 m, depth = median 5x5 centre patch (p05 obstacle.py); true gap from /odom_gt",
+  "checks": {
+    "scan_gap_error_m": {
+      "value": 0.025434590247638056,
+      "rule": "<= 0.05",
+      "passed": true
+    },
+    "depth_gap_error_m": {
+      "value": 0.0016800681080750834,
+      "rule": "<= 0.03",
+      "passed": true
+    }
+  },
+  "outputs": [
+    "results/6.07_snapshot.npz"
+  ],
+  "command": "python3 tasks/s06_sensors-and-perception/run.py 6.07",
+  "world": "arena",
+  "wall_s": 30.3
+}

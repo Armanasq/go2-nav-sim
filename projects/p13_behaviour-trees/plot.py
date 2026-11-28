@@ -32,22 +32,24 @@ def timeline():
 
 
 def patrol():
-    rows = list(csv.DictReader(open(R / 'patrol_gt.csv')))
-    x, y = [float(r['x']) for r in rows], [float(r['y']) for r in rows]
     img = plt.imread(str(HERE.parents[1] / 'src/go2_nav_sim/maps/arena.pgm'))
-    fig, ax = plt.subplots(figsize=(6.4, 5.4))
-    ax.imshow(img, cmap='gray', vmin=0, vmax=255, extent=(-6.5, -6.5 + img.shape[1] * 0.05, -5.5, -5.5 + img.shape[0] * 0.05))
-    ax.plot(x, y, color='0.3', lw=1.5, label='ground truth (/odom_gt), two laps')
-    for (wx, wy, yaw), name in zip(bt_tools.waypoints(HERE / 'trees/patrol.xml'), ('W1', 'W2', 'A (home)')):
-        ax.plot(wx, wy, 'o', ms=9, mfc='#d9902f', mec='black')
-        ax.annotate('', (wx + 0.5 * math.cos(yaw), wy + 0.5 * math.sin(yaw)), (wx, wy), arrowprops=dict(arrowstyle='->', lw=1.2))
-        ax.text(wx + 0.25, wy - 0.45, name, fontsize=10)
-    ax.set_xlim(-6.2, 2.0); ax.set_ylim(-5.2, 1.0); ax.set_aspect('equal')
-    ax.set_xlabel('x (m, map)'); ax.set_ylabel('y (m, map)'); ax.legend(loc='upper right', fontsize=9)
-    fig.tight_layout(); fig.savefig(F / 'patrol_path.png', dpi=110)
+    runs = [('first try: W2 at (-3.0, -1.0), stopped after 590 s', 'patrol_first_try_gt.csv', 'patrol_tight_w2.xml'),
+            ('W2 moved to (-3.5, -1.5): two laps in 154 s', 'patrol_gt.csv', 'patrol.xml')]
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4.6), sharey=True)
+    for ax, (title, csv_name, tree) in zip(axes, runs):
+        rows = list(csv.DictReader(open(R / csv_name)))
+        ax.imshow(img, cmap='gray', vmin=0, vmax=255, extent=(-6.5, -6.5 + img.shape[1] * 0.05, -5.5, -5.5 + img.shape[0] * 0.05))
+        ax.plot([float(r['x']) for r in rows], [float(r['y']) for r in rows], color='0.3', lw=1.2, label='ground truth (/odom_gt)')
+        for (wx, wy, yaw), name in zip(bt_tools.waypoints(HERE / 'trees' / tree), ('W1', 'W2', 'A (home)')):
+            ax.plot(wx, wy, 'o', ms=9, mfc='#d9902f', mec='black')
+            ax.annotate('', (wx + 0.5 * math.cos(yaw), wy + 0.5 * math.sin(yaw)), (wx, wy), arrowprops=dict(arrowstyle='->', lw=1.2))
+            ax.text(wx + 0.25, wy - 0.45, name, fontsize=10)
+        ax.set_xlim(-6.2, 2.0); ax.set_ylim(-5.2, 1.0); ax.set_aspect('equal'); ax.set_title(title, fontsize=10)
+        ax.set_xlabel('x (m, map)')
+    axes[0].set_ylabel('y (m, map)'); axes[1].legend(loc='upper right', fontsize=9)
+    fig.tight_layout(); fig.savefig(F / 'patrol_path.png', dpi=100)
 
 
 if __name__ == '__main__':
     timeline()
-    if (R / 'patrol_gt.csv').exists():
-        patrol()
+    patrol()

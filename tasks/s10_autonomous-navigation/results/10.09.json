@@ -1,0 +1,49 @@
+{
+ "id": "10.09",
+ "status": "verified",
+ "metrics": {
+  "goals": [
+   [
+    -2.5,
+    -2.0,
+    0.0
+   ],
+   [
+    8.0,
+    8.0,
+    0.0
+   ]
+  ],
+  "status": [
+   6,
+   6
+  ],
+  "status_name": [
+   "ABORTED",
+   "ABORTED"
+  ],
+  "time_to_abort_s": [
+   17.03,
+   21.74
+  ],
+  "displacement_m": [
+   0.473,
+   0.542
+  ],
+  "all_aborted": true,
+  "max_time_to_abort_s": 21.74,
+  "max_displacement_m": 0.542,
+  "planner_log": [
+   "Aborting handle.",
+   "Goal failed",
+   "off the global costmap. Planning will always fail to this goal."
+  ]
+ },
+ "acceptance": "all_aborted == True; max_time_to_abort_s <= 60.0; max_displacement_m <= 0.6",
+ "checks": {
+  "all_aborted": true,
+  "max_time_to_abort_s": true,
+  "max_displacement_m": true
+ },
+ "command": "python3 run.py 10.09  (up.sh one_obstacle; nav.py reject -2.5 -2.0 0 8 8 0)"
+}

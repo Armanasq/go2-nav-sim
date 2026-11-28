@@ -1,0 +1,31 @@
+{
+  "id": "8.02",
+  "title": "Reach the same point with odometry feedback",
+  "status": "verified",
+  "metrics": {
+    "final_pos_err_m": 0.006100120634556136,
+    "err_8_01_m": 0.22815399152156202,
+    "better_than_8_01": true,
+    "odom_final_err_m": 0.014437977726684684,
+    "odom_gap_m": 0.008750159048707422,
+    "time_s": 11.0
+  },
+  "acceptance": "final_pos_err_m <= 0.08; better_than_8_01 == True",
+  "checks": {
+    "final_pos_err_m": {
+      "value": 0.006100120634556136,
+      "rule": "final_pos_err_m <= 0.08",
+      "passed": true
+    },
+    "better_than_8_01": {
+      "value": true,
+      "rule": "better_than_8_01 == True",
+      "passed": true
+    }
+  },
+  "command": "python3 run.py 8.02",
+  "outputs": [
+    "figures/s8_02.png"
+  ],
+  "wall_s": 34.3
+}

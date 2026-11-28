@@ -1,0 +1,76 @@
+{
+  "id": "3.05",
+  "title": "Raise the body",
+  "status": "verified",
+  "checks": {
+    "max_steady_height_error_m": {
+      "value": 7.5452673223841416e-06,
+      "rule": "max 0.004",
+      "passed": true
+    },
+    "unreachable_request_rejected": {
+      "value": true,
+      "rule": "equals True",
+      "passed": true
+    },
+    "motion_during_rejected_m": {
+      "value": 4.107087862436666e-06,
+      "rule": "max 0.0005",
+      "passed": true
+    }
+  },
+  "measured": {
+    "start_height_m": 0.274635178240642,
+    "targets_m": [
+      0.294635178240642,
+      0.31463517824064197,
+      0.334635178240642
+    ],
+    "measured_m": [
+      0.2946319439025819,
+      0.3146291939801612,
+      0.3346276329733196
+    ],
+    "steady_errors_m": [
+      3.2343380600985405e-06,
+      5.984260480762504e-06,
+      7.5452673223841416e-06
+    ],
+    "max_steady_height_error_m": 7.5452673223841416e-06,
+    "max_reachable_height_m": 0.3983782075047464,
+    "request_m": 0.42,
+    "rejected_reason": "too_far",
+    "unreachable_request_rejected": true,
+    "motion_during_rejected_m": 4.107087862436666e-06,
+    "contact_fraction": 1.0,
+    "foot_force_end_N": {
+      "FL": [
+        0.03,
+        -0.03,
+        37.03
+      ],
+      "FR": [
+        0.03,
+        0.03,
+        37.03
+      ],
+      "RL": [
+        -0.03,
+        -0.11,
+        37.55
+      ],
+      "RR": [
+        -0.03,
+        0.11,
+        37.55
+      ]
+    }
+  },
+  "outputs": [
+    "figures/3-05_raise.png"
+  ],
+  "command": "python run.py 3.05",
+  "mujoco": "3.17.0",
+  "wall_s": 46.2,
+  "load_avg_1min": 59.9
+}

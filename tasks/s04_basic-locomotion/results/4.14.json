@@ -1,0 +1,54 @@
+{
+  "id": "4.14",
+  "title": "Different speeds",
+  "status": "failed",
+  "metrics": {
+    "steps": [
+      {
+        "cmd": 0.05,
+        "speed": 0.0019936334811558386,
+        "error_pct": -96.01273303768832
+      },
+      {
+        "cmd": 0.1,
+        "speed": 0.05746409600139687,
+        "error_pct": -42.53590399860313
+      },
+      {
+        "cmd": 0.15,
+        "speed": 0.1136825775331989,
+        "error_pct": -24.211614977867402
+      },
+      {
+        "cmd": 0.2,
+        "speed": 0.17644669465506133,
+        "error_pct": -11.776652672469343
+      },
+      {
+        "cmd": 0.25,
+        "speed": 0.24524441084018958,
+        "error_pct": -1.9022356639241678
+      },
+      {
+        "cmd": 0.3,
+        "speed": 0.30472810935442024,
+        "error_pct": 1.576036451473417
+      }
+    ],
+    "max_tracking_error_pct": 96.01273303768832
+  },
+  "acceptance": "max_tracking_error_pct <= 20.0",
+  "checks": {
+    "max_tracking_error_pct": {
+      "value": 96.01273303768832,
+      "rule": "max_tracking_error_pct <= 20.0",
+      "passed": false
+    }
+  },
+  "command": "python3 run.py 4.14",
+  "outputs": [
+    "figures/4-14_speeds.png"
+  ],
+  "gait": "default",
+  "wall_s": 40.4
+}

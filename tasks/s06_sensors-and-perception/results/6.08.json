@@ -1,0 +1,46 @@
+{
+  "id": "6.08",
+  "title": "Lidar point cloud",
+  "status": "verified",
+  "metrics": {
+    "frame_id": "lidar_link",
+    "frame_ok": true,
+    "fields": [
+      "x",
+      "y",
+      "z",
+      "intensity"
+    ],
+    "xyz_fields_ok": true,
+    "n_points": 12699,
+    "n_low_beam": 900,
+    "lidar_height_m": 0.3158539620460006,
+    "ring_radius_pred_m": 1.178783034127606,
+    "ring_radius_median_m": 1.1709828314920665,
+    "ring_radius_error_m": 0.007800202635539488
+  },
+  "acceptance": "frame_ok == True; xyz_fields_ok == True; ring_radius_error_m <= 0.03. Basis: lowest beam (-15 deg) meets the floor at h / tan(15 deg), h = lidar height from /odom_gt (base z + 0.10); median over all azimuths",
+  "checks": {
+    "frame_ok": {
+      "value": true,
+      "rule": "== True",
+      "passed": true
+    },
+    "xyz_fields_ok": {
+      "value": true,
+      "rule": "== True",
+      "passed": true
+    },
+    "ring_radius_error_m": {
+      "value": 0.007800202635539488,
+      "rule": "<= 0.03",
+      "passed": true
+    }
+  },
+  "outputs": [
+    "figures/6.08_cloud.png"
+  ],
+  "command": "python3 tasks/s06_sensors-and-perception/run.py 6.08",
+  "world": "arena",
+  "wall_s": 0.6
+}

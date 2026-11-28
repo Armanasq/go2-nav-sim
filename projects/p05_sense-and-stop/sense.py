@@ -3,12 +3,13 @@
   /scan                  -> /front_range   (sensor_msgs/Range, base_footprint): nearest return within +-half_angle of straight ahead
   /camera/depth/image_raw -> /centre_depth (sensor_msgs/Range, camera_optical): median depth of the 5x5 patch at the image centre
 usage: python3 projects/p05_sense-and-stop/sense.py [--ros-args -p half_angle:=20.0]"""
-import math, os, sys
+import math, os, signal, sys
 
 import numpy as np
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, qos_profile_sensor_data
+from rclpy.signals import SignalHandlerOptions
 from sensor_msgs.msg import Image, LaserScan, Range
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -53,11 +54,15 @@ class Sense(Node):
 
 
 def main():
-    rclpy.init()
-    try:
-        rclpy.spin(Sense())
-    except KeyboardInterrupt:
-        pass
+    # Ctrl-C (or the launch's SIGINT) only sets a flag; the loop sees it within 0.1 s and returns. rclpy's own handler shuts the
+    # context down under the running spin, and an exception raised from a handler can land inside rclpy's C++ code; both end in
+    # a traceback (RCLError, ExternalShutdownException or RuntimeError, depending on timing).
+    rclpy.init(signal_handler_options=SignalHandlerOptions.NO)
+    node, stop = Sense(), []
+    for s in (signal.SIGINT, signal.SIGTERM):
+        signal.signal(s, lambda *_: stop.append(1))
+    while not stop:
+        rclpy.spin_once(node, timeout_sec=0.1)
 
 
 if __name__ == '__main__':

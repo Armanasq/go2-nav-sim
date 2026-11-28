@@ -1,0 +1,245 @@
+[amcl-2] [WARN] [1795846640.182006534] [amcl]: Failed to transform initial pose in time (Lookup would require extrapolation into the future.  Requested time 154.670000 but the latest data is at time 154.653000, when looking up transform from frame [base_footprint] to frame [odom])
+[controller_server-4] [WARN] [1795846643.091251258] [controller_server]: No goal checker was specified in parameter 'current_goal_checker'. Server will use only plugin loaded general_goal_checker . This warning will appear once.
+[bt_navigator-8] [WARN] [1795846697.379446424] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[bt_navigator-8] [WARN] [1795846715.599598525] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[bt_navigator-8] [WARN] [1795846746.159280952] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[bt_navigator-8] [WARN] [1795846748.180574339] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[bt_navigator-8] [WARN] [1795846750.460603972] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[bt_navigator-8] [WARN] [1795846755.869254535] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[bt_navigator-8] [WARN] [1795846757.239209201] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[bt_navigator-8] [WARN] [1795846797.149627053] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[bt_navigator-8] [WARN] [1795846801.214344533] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[bt_navigator-8] [WARN] [1795846816.099237373] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[bt_navigator-8] [WARN] [1795846818.909240315] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[bt_navigator-8] [WARN] [1795846843.010324343] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[bt_navigator-8] [WARN] [1795846865.869199881] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[bt_navigator-8] [WARN] [1795846874.446080168] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[bt_navigator-8] [WARN] [1795846874.456335153] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[bt_navigator-8] [WARN] [1795846874.458905709] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[bt_navigator-8] [WARN] [1795846874.518534017] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[bt_navigator-8] [WARN] [1795846885.608652528] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[bt_navigator-8] [WARN] [1795846900.411771307] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[bt_navigator-8] [WARN] [1795846937.159366766] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[bt_navigator-8] [WARN] [1795846946.310034307] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[bt_navigator-8] [WARN] [1795846961.416655157] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[bt_navigator-8] [WARN] [1795846975.511193174] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[bt_navigator-8] [WARN] [1795847024.512639513] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[bt_navigator-8] [WARN] [1795847026.830276998] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[bt_navigator-8] [WARN] [1795847039.669029687] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[bt_navigator-8] [WARN] [1795847049.968727954] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[bt_navigator-8] [WARN] [1795847073.012232285] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[bt_navigator-8] [WARN] [1795847082.983601221] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[controller_server-4] [ERROR] [1795847120.021301229] [controller_server]: Failed to make progress
+[controller_server-4] [WARN] [1795847120.021467953] [controller_server]: [follow_path] [ActionServer] Aborting handle.
+[controller_server-4] [WARN] [1795847142.460735839] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847143.662087620] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847144.060993225] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847144.327466293] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847144.394741828] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847144.860729855] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847144.928695529] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847145.060758286] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847145.127389961] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847145.727472433] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847145.860818819] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847146.527608308] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847146.597091770] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847146.662572552] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847147.460755790] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847147.527407466] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847147.794094028] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[bt_navigator-8] [WARN] [1795847147.837590694] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[controller_server-4] [WARN] [1795847147.860953344] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847148.194321872] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847148.262358168] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847149.061207109] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847149.194993642] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847149.262669591] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847149.862377436] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847150.527503809] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847151.594854089] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847151.661263019] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847152.127444956] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847152.194110070] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847152.394084385] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847152.460765498] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847152.661371229] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847152.727668754] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847152.794373537] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847156.527425656] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847157.194143058] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847157.260749592] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847157.460781065] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847158.329233492] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847158.395012697] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847158.461269007] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847159.261542842] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847160.260793636] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847163.661607581] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847163.795172972] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847163.860810743] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847164.995496299] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847165.061593915] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847165.261580501] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847167.063308697] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847169.527879254] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847169.595693425] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847169.660757838] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847170.394585779] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847170.460827095] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847170.527846065] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847170.594080808] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847170.660735443] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847174.128390468] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847174.195937920] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847174.260745445] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847174.394043322] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847174.460716438] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847176.061978338] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847176.933125079] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847176.994108938] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847177.060809358] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847178.660996339] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847183.927402493] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847183.995274968] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847184.060734942] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847184.127472151] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847184.194318349] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847184.261211820] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847185.461024729] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[bt_navigator-8] [WARN] [1795847186.180549316] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[controller_server-4] [WARN] [1795847187.260833999] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847187.396159984] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847187.994785367] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847188.062934476] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847188.327536460] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847188.395810747] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847188.462706008] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847188.662204211] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847189.795066146] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847189.862202630] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847190.460789617] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847190.527430228] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847193.461738491] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847193.527841783] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847193.594499781] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847193.661533031] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847193.727484300] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847193.797857355] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847193.862159339] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847194.860900008] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847195.530284666] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847195.594475041] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847195.661954378] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847196.330462520] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847196.394170122] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847197.862908003] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847197.930810665] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847197.997547149] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847198.061011690] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847198.327543718] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847198.395635868] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847198.527907199] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847198.595397888] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847198.661048224] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847198.727485551] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847200.062049534] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847200.128294007] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847200.260708279] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847200.395482938] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847200.460836293] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847200.861117004] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847201.861434872] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847201.929495744] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847202.194644768] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847202.260948696] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847202.395803570] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847203.194584090] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847204.794057311] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847204.860704226] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847205.401655374] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847205.460728093] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847205.527806037] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847205.594223918] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847205.660808672] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847206.327477861] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847206.394139426] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847206.460951759] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847207.127400356] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847207.196786694] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847207.260843799] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847208.594353033] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847208.660771504] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847208.796072987] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847208.861447471] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847209.661580809] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847209.794997555] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847209.861643218] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847209.927992043] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847211.127423465] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847211.194123683] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847211.261675847] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847212.260722307] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847213.394053381] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847213.460812503] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847213.529005635] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847214.727553894] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847214.998503898] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847215.128059326] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847215.195644222] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847215.261562761] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847215.727491385] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847215.794195672] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847215.860743724] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847216.460967613] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847217.394611624] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847217.460704407] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847217.528346515] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847217.861483254] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847218.727397074] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847218.860701147] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847219.394165459] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847219.527434396] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847219.595425284] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847219.660930768] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847220.660856298] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847220.795084131] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847220.860709670] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847221.594140135] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847221.660806050] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847221.727940800] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847222.729505069] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847222.795183666] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847223.261480256] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847223.395759803] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847223.460731824] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847223.527402837] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847224.860689322] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847226.194117544] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847226.260723423] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847226.727426081] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847226.794633272] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847226.861991808] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847226.927547244] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847227.260737246] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847227.394061612] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847227.460690312] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847227.928935664] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847227.994072124] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847228.060735067] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847228.261518841] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847228.794067782] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847228.864378928] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847229.061527344] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[controller_server-4] [WARN] [1795847229.794332818] [controller_server]: RegulatedPurePursuitController detected collision ahead!
+[planner_server-6] [WARN] [1795847232.621524361] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795847232.621606728] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (-4.50, -3.50)
+[planner_server-6] [WARN] [1795847232.621624990] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[planner_server-6] [WARN] [1795847232.640431900] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795847232.640496200] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (-4.50, -3.50)
+[planner_server-6] [WARN] [1795847232.640510555] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[planner_server-6] [WARN] [1795847232.662236980] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795847232.662334014] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (-4.50, -3.50)
+[planner_server-6] [WARN] [1795847232.662349926] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[bt_navigator-8] [WARN] [1795847232.690209524] [bt_navigator]: [navigate_to_pose] [ActionServer] Aborting handle.
+[bt_navigator-8] [ERROR] [1795847232.690424232] [bt_navigator]: Goal failed

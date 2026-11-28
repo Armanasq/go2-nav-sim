@@ -1,0 +1,10 @@
+[amcl-2] [WARN] [1795853602.299410382] [amcl]: Failed to transform initial pose in time (Lookup would require extrapolation into the future.  Requested time 16.565000 but the latest data is at time 16.559000, when looking up transform from frame [base_footprint] to frame [odom])
+[controller_server-4] [WARN] [1795853605.164053666] [controller_server]: No goal checker was specified in parameter 'current_goal_checker'. Server will use only plugin loaded general_goal_checker . This warning will appear once.
+[planner_server-6] [WARN] [1795853622.758917233] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795853622.759016787] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (-0.75, 1.00)
+[planner_server-6] [WARN] [1795853622.759032658] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[planner_server-6] [WARN] [1795853622.870189405] [planner_server]: Planner loop missed its desired rate of 20.0000 Hz. Current loop rate is 12.5000 Hz
+[planner_server-6] [WARN] [1795853624.927937434] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795853624.927991018] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (-0.75, 1.00)
+[planner_server-6] [WARN] [1795853624.928001972] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[planner_server-6] [WARN] [1795853625.069430460] [planner_server]: Planner loop missed its desired rate of 20.0000 Hz. Current loop rate is 8.3333 Hz

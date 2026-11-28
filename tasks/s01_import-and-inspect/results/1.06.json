@@ -1,0 +1,42 @@
+{
+  "id": "1.06",
+  "title": "Modify a joint limit in a copy of the URDF",
+  "status": "verified",
+  "metrics": {
+    "copy": "urdf/go2_rig.urdf",
+    "copy_parsed": true,
+    "copy_limit_upper_rad": 0.3,
+    "limited_joint_max_rad": 0.30082147505226686,
+    "limited_joint_final_rad": 0.30050473277716444,
+    "unlimited_joint_reached_rad": 0.5867754372076969,
+    "n_samples": 1004
+  },
+  "acceptance": "copy_parsed equals True; copy_limit_upper_rad equals 0.3; limited_joint_max_rad max 0.32; unlimited_joint_reached_rad min 0.57",
+  "checks": {
+    "copy_parsed": {
+      "value": true,
+      "rule": "equals True",
+      "passed": true
+    },
+    "copy_limit_upper_rad": {
+      "value": 0.3,
+      "rule": "equals 0.3",
+      "passed": true
+    },
+    "limited_joint_max_rad": {
+      "value": 0.30082147505226686,
+      "rule": "max 0.32",
+      "passed": true
+    },
+    "unlimited_joint_reached_rad": {
+      "value": 0.5867754372076969,
+      "rule": "min 0.57",
+      "passed": true
+    }
+  },
+  "command": "python run.py 1.06",
+  "outputs": [
+    "figures/1-06_limit.png"
+  ],
+  "date": "2026-11-28 11:27"
+}

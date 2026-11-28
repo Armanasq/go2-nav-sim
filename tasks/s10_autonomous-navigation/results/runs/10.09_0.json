@@ -1,0 +1,54 @@
+{
+ "mode": "reject",
+ "world": "one_obstacle",
+ "localise": [
+  "RESULT SUCCEEDED  sim_time 2.1 s  ground-truth final error 0.05 m  final pos (-4.45, -3.49)"
+ ],
+ "legs": [
+  {
+   "timed_out": false,
+   "result": "FAILED",
+   "status": 6,
+   "status_name": "ABORTED",
+   "sim_time_s": 17.03,
+   "t_start": 22.405,
+   "t_end": 39.435,
+   "goal": [
+    -2.5,
+    -2.0,
+    0.0
+   ],
+   "final_error_m": 2.727,
+   "path_m": 0.56,
+   "straight_m": 2.45,
+   "min_clearance_m": 0.936,
+   "max_displacement_m": 0.473,
+   "amcl_rmse_m": 0.078,
+   "amcl_max_m": 0.119,
+   "odom_end_error_m": 0.043
+  },
+  {
+   "timed_out": false,
+   "result": "FAILED",
+   "status": 6,
+   "status_name": "ABORTED",
+   "sim_time_s": 21.74,
+   "t_start": 41.445,
+   "t_end": 63.185,
+   "goal": [
+    8.0,
+    8.0,
+    0.0
+   ],
+   "final_error_m": 16.692,
+   "path_m": 0.71,
+   "straight_m": 17.23,
+   "min_clearance_m": 0.949,
+   "max_displacement_m": 0.542,
+   "amcl_rmse_m": 0.109,
+   "amcl_max_m": 0.147,
+   "odom_end_error_m": 0.028
+  }
+ ],
+ "after_end_walked_m": 0.009
+}

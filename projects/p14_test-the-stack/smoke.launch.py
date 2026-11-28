@@ -47,7 +47,7 @@ def generate_test_description():
 
 class TestStackComesUp(unittest.TestCase):
     def test_sensors_odometry_and_tf(self):
-        rclpy.init()
+        rclpy.init(args=[])                                   # not sys.argv: launch_test passes the launch arguments there
         node = rclpy.create_node('smoke_probe', parameter_overrides=[rclpy.parameter.Parameter('use_sim_time', value=True)])
         t0, first, stamps, tf_seen = time.monotonic(), {}, {t: [] for t in TOPICS}, None
 

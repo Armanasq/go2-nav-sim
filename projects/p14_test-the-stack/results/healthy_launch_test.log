@@ -1,0 +1,322 @@
+[INFO] [launch]: All log files can be found below /home/arman/.ros/log/2026-11-28-10-19-52-582508-arman-Titan-GT77HX-13VI-498334
+[INFO] [launch]: Default logging verbosity is set to INFO
+test_sensors_odometry_and_tf (smoke.launch.TestStackComesUp) ... [INFO] [robot_state_publisher-1]: process started with pid [498458]
+[INFO] [quadruped_controller_node-2]: process started with pid [498460]
+[INFO] [state_estimation_node-3]: process started with pid [498462]
+[INFO] [ekf_node-4]: process started with pid [498464]
+[INFO] [gzserver-5]: process started with pid [498479]
+[INFO] [spawn_entity.py-6]: process started with pid [498508]
+[INFO] [spawner-7]: process started with pid [498511]
+[INFO] [spawner-8]: process started with pid [498514]
+[INFO] [pointcloud_to_laserscan_node-9]: process started with pid [498516]
+[INFO] [lidar_odom.py-10]: process started with pid [498518]
+[INFO] [ekf_node-11]: process started with pid [498520]
+[INFO] [map_server-12]: process started with pid [498522]
+[INFO] [amcl-13]: process started with pid [498524]
+[INFO] [lifecycle_manager-14]: process started with pid [498526]
+[ekf_node-4] [WARN] [1795848593.697311321] [base_to_footprint_ekf]: Warning: Some linear velocity entries in parameter imu0_config are listed true, but an sensor_msgs/Imu contains no information about linear velocities
+[ekf_node-4] Warning: imu/data is listed as an input topic, but all its update variables are false
+[robot_state_publisher-1] [INFO] [1795848593.729744988] [robot_state_publisher]: got segment base_link
+[robot_state_publisher-1] [INFO] [1795848593.729903625] [robot_state_publisher]: got segment camera_link
+[robot_state_publisher-1] [INFO] [1795848593.729922542] [robot_state_publisher]: got segment camera_optical
+[robot_state_publisher-1] [INFO] [1795848593.729936295] [robot_state_publisher]: got segment chase_cam
+[robot_state_publisher-1] [INFO] [1795848593.729947857] [robot_state_publisher]: got segment imu_link
+[robot_state_publisher-1] [INFO] [1795848593.729958663] [robot_state_publisher]: got segment lf_foot_link
+[robot_state_publisher-1] [INFO] [1795848593.729969927] [robot_state_publisher]: got segment lf_hip_link
+[robot_state_publisher-1] [INFO] [1795848593.729980788] [robot_state_publisher]: got segment lf_lower_leg_link
+[robot_state_publisher-1] [INFO] [1795848593.729991978] [robot_state_publisher]: got segment lf_upper_leg_link
+[robot_state_publisher-1] [INFO] [1795848593.730003027] [robot_state_publisher]: got segment lh_foot_link
+[robot_state_publisher-1] [INFO] [1795848593.730013957] [robot_state_publisher]: got segment lh_hip_link
+[robot_state_publisher-1] [INFO] [1795848593.730024856] [robot_state_publisher]: got segment lh_lower_leg_link
+[robot_state_publisher-1] [INFO] [1795848593.730035565] [robot_state_publisher]: got segment lh_upper_leg_link
+[robot_state_publisher-1] [INFO] [1795848593.730046147] [robot_state_publisher]: got segment lidar_link
+[robot_state_publisher-1] [INFO] [1795848593.730056914] [robot_state_publisher]: got segment lidar_visual
+[robot_state_publisher-1] [INFO] [1795848593.730067649] [robot_state_publisher]: got segment rf_foot_link
+[robot_state_publisher-1] [INFO] [1795848593.730078256] [robot_state_publisher]: got segment rf_hip_link
+[robot_state_publisher-1] [INFO] [1795848593.730088863] [robot_state_publisher]: got segment rf_lower_leg_link
+[robot_state_publisher-1] [INFO] [1795848593.730099415] [robot_state_publisher]: got segment rf_upper_leg_link
+[robot_state_publisher-1] [INFO] [1795848593.730109934] [robot_state_publisher]: got segment rh_foot_link
+[robot_state_publisher-1] [INFO] [1795848593.730120650] [robot_state_publisher]: got segment rh_hip_link
+[robot_state_publisher-1] [INFO] [1795848593.730131708] [robot_state_publisher]: got segment rh_lower_leg_link
+[robot_state_publisher-1] [INFO] [1795848593.730142376] [robot_state_publisher]: got segment rh_upper_leg_link
+[robot_state_publisher-1] [INFO] [1795848593.730153042] [robot_state_publisher]: got segment trunk
+[quadruped_controller_node-2] [INFO] [1795848593.733182839] [rclcpp]: Successfully parsed urdf file
+[pointcloud_to_laserscan_node-9] [INFO] [1795848593.735311233] [pointcloud_to_laserscan]: Got a subscriber to laserscan, starting pointcloud subscriber
+[lifecycle_manager-14] [INFO] [1795848593.741127131] [lifecycle_manager_localization]: Creating
+[state_estimation_node-3] [INFO] [1795848593.741609258] [rclcpp]: Successfully parsed urdf file
+[lifecycle_manager-14] [INFO] [1795848593.743070213] [lifecycle_manager_localization]: [34m[1mCreating and initializing lifecycle service clients[0m[0m
+[map_server-12] [INFO] [1795848593.755057805] [map_server]: 
+[map_server-12] 	map_server lifecycle node launched. 
+[map_server-12] 	Waiting on external lifecycle transitions to activate
+[map_server-12] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[map_server-12] [INFO] [1795848593.755183536] [map_server]: Creating
+[amcl-13] [INFO] [1795848593.780016722] [amcl]: 
+[amcl-13] 	amcl lifecycle node launched. 
+[amcl-13] 	Waiting on external lifecycle transitions to activate
+[amcl-13] 	See https://design.ros2.org/articles/node_lifecycle.html for more information.
+[amcl-13] [INFO] [1795848593.780805953] [amcl]: Creating
+[lifecycle_manager-14] [INFO] [1795848593.862940427] [lifecycle_manager_localization]: [34m[1mStarting managed nodes bringup...[0m[0m
+[lifecycle_manager-14] [INFO] [1795848593.863003994] [lifecycle_manager_localization]: [34m[1mConfiguring map_server[0m[0m
+[map_server-12] [INFO] [1795848593.863275598] [map_server]: Configuring
+[map_server-12] [INFO] [1795848593.863390355] [map_io]: Loading yaml file: /home/arman/project/slam_paper/go2-nav-sim/install/go2_nav_sim/share/go2_nav_sim/maps/arena.yaml
+[map_server-12] [INFO] [1795848593.863772342] [map_io]: resolution: 0.05
+[map_server-12] [INFO] [1795848593.863785812] [map_io]: origin[0]: -6.5
+[map_server-12] [INFO] [1795848593.863794124] [map_io]: origin[1]: -5.5
+[map_server-12] [INFO] [1795848593.863801242] [map_io]: origin[2]: 0
+[map_server-12] [INFO] [1795848593.863808496] [map_io]: free_thresh: 0.25
+[map_server-12] [INFO] [1795848593.863816203] [map_io]: occupied_thresh: 0.65
+[map_server-12] [INFO] [1795848593.863824433] [map_io]: mode: trinary
+[map_server-12] [INFO] [1795848593.863832697] [map_io]: negate: 0
+[map_server-12] [INFO] [1795848593.864362982] [map_io]: Loading image_file: /home/arman/project/slam_paper/go2-nav-sim/install/go2_nav_sim/share/go2_nav_sim/maps/arena.pgm
+[map_server-12] [INFO] [1795848593.871530257] [map_io]: Read map /home/arman/project/slam_paper/go2-nav-sim/install/go2_nav_sim/share/go2_nav_sim/maps/arena.pgm: 260 X 220 map @ 0.05 m/cell
+[lifecycle_manager-14] [INFO] [1795848593.877074985] [lifecycle_manager_localization]: [34m[1mConfiguring amcl[0m[0m
+[amcl-13] [INFO] [1795848593.878168736] [amcl]: Configuring
+[amcl-13] [INFO] [1795848593.878303228] [amcl]: initTransforms
+[amcl-13] [INFO] [1795848593.894728501] [amcl]: initPubSub
+[amcl-13] [INFO] [1795848593.898199638] [amcl]: Subscribed to map topic.
+[lifecycle_manager-14] [INFO] [1795848593.903453231] [lifecycle_manager_localization]: [34m[1mActivating map_server[0m[0m
+[map_server-12] [INFO] [1795848593.903717079] [map_server]: Activating
+[amcl-13] [INFO] [1795848593.904220698] [amcl]: Received a 260 X 220 map @ 0.050 m/pix
+[map_server-12] [INFO] [1795848593.905656529] [map_server]: Creating bond (map_server) to lifecycle manager.
+[lifecycle_manager-14] [INFO] [1795848594.009002371] [lifecycle_manager_localization]: Server map_server connected with bond.
+[lifecycle_manager-14] [INFO] [1795848594.009075023] [lifecycle_manager_localization]: [34m[1mActivating amcl[0m[0m
+[amcl-13] [INFO] [1795848594.009436395] [amcl]: Activating
+[amcl-13] [INFO] [1795848594.009504368] [amcl]: initialPoseReceived
+[amcl-13] [INFO] [1795848594.009666774] [amcl]: Setting pose (0.000000): -4.500 -3.500 0.000
+[amcl-13] [INFO] [1795848594.010591881] [amcl]: Creating bond (amcl) to lifecycle manager.
+[lifecycle_manager-14] [INFO] [1795848594.123212058] [lifecycle_manager_localization]: Server amcl connected with bond.
+[lifecycle_manager-14] [INFO] [1795848594.123310192] [lifecycle_manager_localization]: [34m[1mManaged nodes are active[0m[0m
+[lifecycle_manager-14] [INFO] [1795848594.123329639] [lifecycle_manager_localization]: [34m[1mCreating bond timer...[0m[0m
+[spawner-8] [INFO] [1795848594.196014333] [spawner_joint_group_effort_controller]: waiting for service /controller_manager/list_controllers to become available...
+[spawner-7] [INFO] [1795848594.251774028] [spawner_joint_states_controller]: waiting for service /controller_manager/list_controllers to become available...
+[spawn_entity.py-6] [INFO] [1795848594.334473160] [spawn_entity]: Spawn Entity started
+[spawn_entity.py-6] [INFO] [1795848594.334764434] [spawn_entity]: Loading entity published on topic /robot_description
+[spawn_entity.py-6] [INFO] [1795848594.337224546] [spawn_entity]: Waiting for entity xml on /robot_description
+[spawn_entity.py-6] [INFO] [1795848594.339181219] [spawn_entity]: Waiting for service /spawn_entity, timeout = 30
+[spawn_entity.py-6] [INFO] [1795848594.339460032] [spawn_entity]: Waiting for service /spawn_entity
+[spawn_entity.py-6] [INFO] [1795848595.345863180] [spawn_entity]: Calling service /spawn_entity
+[gzserver-5] [INFO] [1795848596.106978460] [FFMPEGPublisher]: using libav encoder: libx264
+[gzserver-5] [WARN] [1795848596.107523879] [spectator.spectator_plugin]: gop_size not set, defaulting to 10. This may severely affect lag and performance!
+[gzserver-5] [INFO] [1795848596.107948391] [FFMPEGPublisher]: setting cv_bridge_target_format: bgr8
+[gzserver-5] [INFO] [1795848596.123900576] [spectator.spectator_plugin]: Publishing camera info to [/spectator/cam/camera_info]
+[spawn_entity.py-6] [INFO] [1795848596.255301728] [spawn_entity]: Spawn status: SpawnEntity: Successfully spawned entity [go2]
+[gzserver-5] [INFO] [1795848596.261397552] [FFMPEGPublisher]: using libav encoder: libx264
+[gzserver-5] [WARN] [1795848596.261732933] [rgbd_plugin]: gop_size not set, defaulting to 10. This may severely affect lag and performance!
+[gzserver-5] [INFO] [1795848596.262021216] [FFMPEGPublisher]: setting cv_bridge_target_format: bgr8
+[gzserver-5] [INFO] [1795848596.263385959] [rgbd_plugin]: Publishing camera info to [/camera/camera_info]
+[gzserver-5] [INFO] [1795848596.264928008] [FFMPEGPublisher]: using libav encoder: libx264
+[gzserver-5] [WARN] [1795848596.265350700] [rgbd_plugin]: gop_size not set, defaulting to 10. This may severely affect lag and performance!
+[gzserver-5] [INFO] [1795848596.265749159] [FFMPEGPublisher]: setting cv_bridge_target_format: bgr8
+[gzserver-5] [INFO] [1795848596.267193723] [rgbd_plugin]: Publishing depth camera info to [/camera/depth/camera_info]
+[gzserver-5] [INFO] [1795848596.267804240] [rgbd_plugin]: Publishing pointcloud to [/camera/points]
+[gzserver-5] [INFO] [1795848596.275795599] [FFMPEGPublisher]: using libav encoder: libx264
+[gzserver-5] [WARN] [1795848596.276072998] [chase.chase_plugin]: gop_size not set, defaulting to 10. This may severely affect lag and performance!
+[gzserver-5] [INFO] [1795848596.276337088] [FFMPEGPublisher]: setting cv_bridge_target_format: bgr8
+[gzserver-5] [INFO] [1795848596.277679516] [chase.chase_plugin]: Publishing camera info to [/chase/cam/camera_info]
+[gzserver-5] [INFO] [1795848596.387190084] [gazebo_ros2_control]: Loading gazebo_ros2_control plugin
+[gzserver-5] [INFO] [1795848596.391368705] [gazebo_ros2_control]: Starting gazebo_ros2_control plugin in namespace: /
+[gzserver-5] [INFO] [1795848596.391410509] [gazebo_ros2_control]: Starting gazebo_ros2_control plugin in ros 2 node: gazebo_ros2_control
+[gzserver-5] [INFO] [1795848596.394896523] [gazebo_ros2_control]: connected to service!! robot_state_publisher
+[gzserver-5] [INFO] [1795848596.395619190] [gazebo_ros2_control]: Received urdf from param server, parsing...
+[gzserver-5] [INFO] [1795848596.395687428] [gazebo_ros2_control]: Loading parameter files /home/arman/project/slam_paper/go2-nav-sim/install/go2_description/share/go2_description/config/ros_control/ros_control.yaml
+[gzserver-5] [INFO] [1795848596.404855782] [gazebo_ros2_control]: Loading joint: rf_hip_joint
+[gzserver-5] [INFO] [1795848596.404900099] [gazebo_ros2_control]: 	State:
+[gzserver-5] [INFO] [1795848596.404911429] [gazebo_ros2_control]: 		 position
+[gzserver-5] [INFO] [1795848596.404920387] [gazebo_ros2_control]: 		 velocity
+[gzserver-5] [INFO] [1795848596.404927634] [gazebo_ros2_control]: 	Command:
+[gzserver-5] [INFO] [1795848596.404956512] [gazebo_ros2_control]: 		 effort
+[gzserver-5] [INFO] [1795848596.404966066] [gazebo_ros2_control]: Loading joint: rf_upper_leg_joint
+[gzserver-5] [INFO] [1795848596.404973767] [gazebo_ros2_control]: 	State:
+[gzserver-5] [INFO] [1795848596.404980813] [gazebo_ros2_control]: 		 position
+[gzserver-5] [INFO] [1795848596.404987908] [gazebo_ros2_control]: 		 velocity
+[gzserver-5] [INFO] [1795848596.404994832] [gazebo_ros2_control]: 	Command:
+[gzserver-5] [INFO] [1795848596.405004451] [gazebo_ros2_control]: 		 effort
+[gzserver-5] [INFO] [1795848596.405013098] [gazebo_ros2_control]: Loading joint: rf_lower_leg_joint
+[gzserver-5] [INFO] [1795848596.405019698] [gazebo_ros2_control]: 	State:
+[gzserver-5] [INFO] [1795848596.405026057] [gazebo_ros2_control]: 		 position
+[gzserver-5] [INFO] [1795848596.405032851] [gazebo_ros2_control]: 		 velocity
+[gzserver-5] [INFO] [1795848596.405039458] [gazebo_ros2_control]: 	Command:
+[gzserver-5] [INFO] [1795848596.405048459] [gazebo_ros2_control]: 		 effort
+[gzserver-5] [INFO] [1795848596.405091629] [resource_manager]: Initialize hardware 'rf' 
+[gzserver-5] [INFO] [1795848596.405229601] [resource_manager]: Successful initialization of hardware 'rf'
+[gzserver-5] [INFO] [1795848596.405330287] [resource_manager]: 'configure' hardware 'rf' 
+[gzserver-5] [INFO] [1795848596.405341046] [resource_manager]: Successful 'configure' of hardware 'rf'
+[gzserver-5] [INFO] [1795848596.405347293] [resource_manager]: 'activate' hardware 'rf' 
+[gzserver-5] [INFO] [1795848596.405353431] [resource_manager]: Successful 'activate' of hardware 'rf'
+[gzserver-5] [ERROR] [1795848596.405429061] [gazebo_ros2_control]: Parameter 'hold_joints' has already been declared, parameter 'hold_joints' has already been declared
+[gzserver-5] [INFO] [1795848596.405461532] [gazebo_ros2_control]: Loading joint: lf_hip_joint
+[gzserver-5] [INFO] [1795848596.405467023] [gazebo_ros2_control]: 	State:
+[gzserver-5] [INFO] [1795848596.405471804] [gazebo_ros2_control]: 		 position
+[gzserver-5] [INFO] [1795848596.405476623] [gazebo_ros2_control]: 		 velocity
+[gzserver-5] [INFO] [1795848596.405481341] [gazebo_ros2_control]: 	Command:
+[gzserver-5] [INFO] [1795848596.405493656] [gazebo_ros2_control]: 		 effort
+[gzserver-5] [INFO] [1795848596.405498679] [gazebo_ros2_control]: Loading joint: lf_upper_leg_joint
+[gzserver-5] [INFO] [1795848596.405502970] [gazebo_ros2_control]: 	State:
+[gzserver-5] [INFO] [1795848596.405507208] [gazebo_ros2_control]: 		 position
+[gzserver-5] [INFO] [1795848596.405512520] [gazebo_ros2_control]: 		 velocity
+[gzserver-5] [INFO] [1795848596.405516686] [gazebo_ros2_control]: 	Command:
+[gzserver-5] [INFO] [1795848596.405522295] [gazebo_ros2_control]: 		 effort
+[gzserver-5] [INFO] [1795848596.405526993] [gazebo_ros2_control]: Loading joint: lf_lower_leg_joint
+[gzserver-5] [INFO] [1795848596.405531250] [gazebo_ros2_control]: 	State:
+[gzserver-5] [INFO] [1795848596.405535392] [gazebo_ros2_control]: 		 position
+[gzserver-5] [INFO] [1795848596.405542409] [gazebo_ros2_control]: 		 velocity
+[gzserver-5] [INFO] [1795848596.405548309] [gazebo_ros2_control]: 	Command:
+[gzserver-5] [INFO] [1795848596.405555900] [gazebo_ros2_control]: 		 effort
+[gzserver-5] [INFO] [1795848596.405561017] [resource_manager]: Initialize hardware 'lf' 
+[gzserver-5] [INFO] [1795848596.405570288] [resource_manager]: Successful initialization of hardware 'lf'
+[gzserver-5] [INFO] [1795848596.405579131] [resource_manager]: 'configure' hardware 'lf' 
+[gzserver-5] [INFO] [1795848596.405582905] [resource_manager]: Successful 'configure' of hardware 'lf'
+[gzserver-5] [INFO] [1795848596.405586674] [resource_manager]: 'activate' hardware 'lf' 
+[gzserver-5] [INFO] [1795848596.405589851] [resource_manager]: Successful 'activate' of hardware 'lf'
+[gzserver-5] [ERROR] [1795848596.405604616] [gazebo_ros2_control]: Parameter 'hold_joints' has already been declared, parameter 'hold_joints' has already been declared
+[gzserver-5] [INFO] [1795848596.405614373] [gazebo_ros2_control]: Loading joint: rh_hip_joint
+[gzserver-5] [INFO] [1795848596.405619126] [gazebo_ros2_control]: 	State:
+[gzserver-5] [INFO] [1795848596.405623430] [gazebo_ros2_control]: 		 position
+[gzserver-5] [INFO] [1795848596.405627772] [gazebo_ros2_control]: 		 velocity
+[gzserver-5] [INFO] [1795848596.405631937] [gazebo_ros2_control]: 	Command:
+[gzserver-5] [INFO] [1795848596.405641520] [gazebo_ros2_control]: 		 effort
+[gzserver-5] [INFO] [1795848596.405646820] [gazebo_ros2_control]: Loading joint: rh_upper_leg_joint
+[gzserver-5] [INFO] [1795848596.405651086] [gazebo_ros2_control]: 	State:
+[gzserver-5] [INFO] [1795848596.405655276] [gazebo_ros2_control]: 		 position
+[gzserver-5] [INFO] [1795848596.405659544] [gazebo_ros2_control]: 		 velocity
+[gzserver-5] [INFO] [1795848596.405663716] [gazebo_ros2_control]: 	Command:
+[gzserver-5] [INFO] [1795848596.405669079] [gazebo_ros2_control]: 		 effort
+[gzserver-5] [INFO] [1795848596.405674261] [gazebo_ros2_control]: Loading joint: rh_lower_leg_joint
+[gzserver-5] [INFO] [1795848596.405678809] [gazebo_ros2_control]: 	State:
+[gzserver-5] [INFO] [1795848596.405683347] [gazebo_ros2_control]: 		 position
+[gzserver-5] [INFO] [1795848596.405687722] [gazebo_ros2_control]: 		 velocity
+[gzserver-5] [INFO] [1795848596.405691934] [gazebo_ros2_control]: 	Command:
+[gzserver-5] [INFO] [1795848596.405698097] [gazebo_ros2_control]: 		 effort
+[gzserver-5] [INFO] [1795848596.405702529] [resource_manager]: Initialize hardware 'rh' 
+[gzserver-5] [INFO] [1795848596.405709351] [resource_manager]: Successful initialization of hardware 'rh'
+[gzserver-5] [INFO] [1795848596.405716376] [resource_manager]: 'configure' hardware 'rh' 
+[gzserver-5] [INFO] [1795848596.405720114] [resource_manager]: Successful 'configure' of hardware 'rh'
+[gzserver-5] [INFO] [1795848596.405724056] [resource_manager]: 'activate' hardware 'rh' 
+[gzserver-5] [INFO] [1795848596.405727248] [resource_manager]: Successful 'activate' of hardware 'rh'
+[gzserver-5] [ERROR] [1795848596.405739306] [gazebo_ros2_control]: Parameter 'hold_joints' has already been declared, parameter 'hold_joints' has already been declared
+[gzserver-5] [INFO] [1795848596.405746837] [gazebo_ros2_control]: Loading joint: lh_hip_joint
+[gzserver-5] [INFO] [1795848596.405751302] [gazebo_ros2_control]: 	State:
+[gzserver-5] [INFO] [1795848596.405755656] [gazebo_ros2_control]: 		 position
+[gzserver-5] [INFO] [1795848596.405760685] [gazebo_ros2_control]: 		 velocity
+[gzserver-5] [INFO] [1795848596.405764915] [gazebo_ros2_control]: 	Command:
+[gzserver-5] [INFO] [1795848596.405774378] [gazebo_ros2_control]: 		 effort
+[gzserver-5] [INFO] [1795848596.405779067] [gazebo_ros2_control]: Loading joint: lh_upper_leg_joint
+[gzserver-5] [INFO] [1795848596.405783325] [gazebo_ros2_control]: 	State:
+[gzserver-5] [INFO] [1795848596.405787430] [gazebo_ros2_control]: 		 position
+[gzserver-5] [INFO] [1795848596.405791761] [gazebo_ros2_control]: 		 velocity
+[gzserver-5] [INFO] [1795848596.405795916] [gazebo_ros2_control]: 	Command:
+[gzserver-5] [INFO] [1795848596.405801559] [gazebo_ros2_control]: 		 effort
+[gzserver-5] [INFO] [1795848596.405806305] [gazebo_ros2_control]: Loading joint: lh_lower_leg_joint
+[gzserver-5] [INFO] [1795848596.405810467] [gazebo_ros2_control]: 	State:
+[gzserver-5] [INFO] [1795848596.405814561] [gazebo_ros2_control]: 		 position
+[gzserver-5] [INFO] [1795848596.405818863] [gazebo_ros2_control]: 		 velocity
+[gzserver-5] [INFO] [1795848596.405823124] [gazebo_ros2_control]: 	Command:
+[gzserver-5] [INFO] [1795848596.405828316] [gazebo_ros2_control]: 		 effort
+[gzserver-5] [INFO] [1795848596.405832559] [resource_manager]: Initialize hardware 'lh' 
+[gzserver-5] [INFO] [1795848596.405839305] [resource_manager]: Successful initialization of hardware 'lh'
+[gzserver-5] [INFO] [1795848596.405846149] [resource_manager]: 'configure' hardware 'lh' 
+[gzserver-5] [INFO] [1795848596.405849343] [resource_manager]: Successful 'configure' of hardware 'lh'
+[gzserver-5] [INFO] [1795848596.405853200] [resource_manager]: 'activate' hardware 'lh' 
+[gzserver-5] [INFO] [1795848596.405856183] [resource_manager]: Successful 'activate' of hardware 'lh'
+[gzserver-5] [INFO] [1795848596.405917040] [gazebo_ros2_control]: Loading controller_manager
+[gzserver-5] [WARN] [1795848596.419230433] [gazebo_ros2_control]:  Desired controller update period (0.004 s) is slower than the gazebo simulation period (0.001 s).
+[gzserver-5] [INFO] [1795848596.419501239] [gazebo_ros2_control]: Loaded gazebo_ros2_control.
+[gzserver-5] [INFO] [1795848596.451919687] [controller_manager]: Loading controller 'joint_group_effort_controller'
+[gzserver-5] [WARN] [1795848596.479770558] [joint_group_effort_controller]: [Deprecated]: "allow_nonzero_velocity_at_trajectory_end" is set to true. The default behavior will change to false.
+[spawner-8] [INFO] [1795848596.481910830] [spawner_joint_group_effort_controller]: [94mLoaded [1mjoint_group_effort_controller[0m
+[gzserver-5] [INFO] [1795848596.482992342] [controller_manager]: Configuring controller 'joint_group_effort_controller'
+[gzserver-5] [INFO] [1795848596.483382735] [joint_group_effort_controller]: No specific joint names are used for command interfaces. Using 'joints' parameter.
+[gzserver-5] [INFO] [1795848596.483432537] [joint_group_effort_controller]: Command interfaces are [effort] and state interfaces are [position velocity].
+[gzserver-5] [INFO] [1795848596.483462618] [joint_group_effort_controller]: Using 'splines' interpolation method.
+[gzserver-5] [INFO] [1795848596.484209497] [joint_group_effort_controller]: Controller state will be published at 50.00 Hz.
+[gzserver-5] [INFO] [1795848596.490958102] [joint_group_effort_controller]: Action status changes will be monitored at 20.00 Hz.
+[spawner-8] [INFO] [1795848596.507365657] [spawner_joint_group_effort_controller]: [92mConfigured and activated [1mjoint_group_effort_controller[0m
+[gzserver-5] [INFO] [1795848596.507980572] [controller_manager]: Loading controller 'joint_states_controller'
+[INFO] [spawn_entity.py-6]: process has finished cleanly [pid 498508]
+[spawner-7] [INFO] [1795848596.524444674] [spawner_joint_states_controller]: [94mLoaded [1mjoint_states_controller[0m
+[gzserver-5] [INFO] [1795848596.525719532] [controller_manager]: Configuring controller 'joint_states_controller'
+[gzserver-5] [INFO] [1795848596.525909048] [joint_states_controller]: 'joints' or 'interfaces' parameter is empty. All available state interfaces will be published
+[spawner-7] [INFO] [1795848596.540870460] [spawner_joint_states_controller]: [92mConfigured and activated [1mjoint_states_controller[0m
+[INFO] [spawner-8]: process has finished cleanly [pid 498514]
+[INFO] [spawner-7]: process has finished cleanly [pid 498511]
+[amcl-13] [INFO] [1795848598.161728533] [amcl]: createLaserObject
+
+smoke: topic          first msg (s)   rate (Hz)   expected (Hz)
+smoke: /scan                    4.5        10.0              10
+smoke: /imu/data                2.7        99.8             100
+smoke: /odom                    2.8        50.0              50
+smoke: map -> base_footprint  5.4 s
+[lidar_odom.py-10] [INFO] [1795848603.382286666] [lidar_odom]: #50 pose=(0.01,-0.02,0deg) matches=261 rms=0.020 map=262 fails=0
+ok
+
+----------------------------------------------------------------------
+Ran 1 test in 9.837s
+
+OK
+[INFO] [lifecycle_manager-14]: sending signal 'SIGINT' to process[lifecycle_manager-14]
+[INFO] [amcl-13]: sending signal 'SIGINT' to process[amcl-13]
+[INFO] [map_server-12]: sending signal 'SIGINT' to process[map_server-12]
+[INFO] [ekf_node-11]: sending signal 'SIGINT' to process[ekf_node-11]
+[INFO] [lidar_odom.py-10]: sending signal 'SIGINT' to process[lidar_odom.py-10]
+[INFO] [pointcloud_to_laserscan_node-9]: sending signal 'SIGINT' to process[pointcloud_to_laserscan_node-9]
+[INFO] [gzserver-5]: sending signal 'SIGINT' to process[gzserver-5]
+[INFO] [ekf_node-4]: sending signal 'SIGINT' to process[ekf_node-4]
+[INFO] [state_estimation_node-3]: sending signal 'SIGINT' to process[state_estimation_node-3]
+[INFO] [quadruped_controller_node-2]: sending signal 'SIGINT' to process[quadruped_controller_node-2]
+[INFO] [robot_state_publisher-1]: sending signal 'SIGINT' to process[robot_state_publisher-1]
+[lifecycle_manager-14] [INFO] [1795848603.500591451] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[lifecycle_manager-14] [INFO] [1795848603.500773597] [lifecycle_manager_localization]: Running Nav2 LifecycleManager rcl preshutdown (lifecycle_manager_localization)
+[lifecycle_manager-14] [INFO] [1795848603.500818150] [lifecycle_manager_localization]: [34m[1mTerminating bond timer...[0m[0m
+[amcl-13] [INFO] [1795848603.502320318] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[amcl-13] [INFO] [1795848603.502421882] [amcl]: Running Nav2 LifecycleNode rcl preshutdown (amcl)
+[amcl-13] [INFO] [1795848603.502500032] [amcl]: Deactivating
+[amcl-13] [INFO] [1795848603.502528539] [amcl]: Destroying bond (amcl) to lifecycle manager.
+[map_server-12] [INFO] [1795848603.503874832] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[map_server-12] [INFO] [1795848603.503992307] [map_server]: Running Nav2 LifecycleNode rcl preshutdown (map_server)
+[map_server-12] [INFO] [1795848603.504036183] [map_server]: Deactivating
+[map_server-12] [INFO] [1795848603.504047616] [map_server]: Destroying bond (map_server) to lifecycle manager.
+[ekf_node-11] [INFO] [1795848603.505393438] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[lidar_odom.py-10] Traceback (most recent call last):
+[lidar_odom.py-10]   File "/home/arman/project/slam_paper/go2-nav-sim/install/go2_nav_sim/lib/go2_nav_sim/lidar_odom.py", line 142, in <module>
+[lidar_odom.py-10]     main()
+[lidar_odom.py-10]   File "/home/arman/project/slam_paper/go2-nav-sim/install/go2_nav_sim/lib/go2_nav_sim/lidar_odom.py", line 138, in main
+[lidar_odom.py-10]     ex = MultiThreadedExecutor(num_threads=3); ex.add_node(node); ex.spin()
+[lidar_odom.py-10]   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/executors.py", line 323, in spin
+[lidar_odom.py-10]     self.spin_once()
+[lidar_odom.py-10]   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/executors.py", line 867, in spin_once
+[lidar_odom.py-10]     self._spin_once_impl(timeout_sec)
+[lidar_odom.py-10]   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/executors.py", line 848, in _spin_once_impl
+[lidar_odom.py-10]     handler, entity, node = self.wait_for_ready_callbacks(
+[lidar_odom.py-10]   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/executors.py", line 784, in wait_for_ready_callbacks
+[lidar_odom.py-10]     return next(self._cb_iter)
+[lidar_odom.py-10]   File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/executors.py", line 681, in _wait_for_ready_callbacks
+[lidar_odom.py-10]     wait_set.wait(timeout_nsec)
+[lidar_odom.py-10] KeyboardInterrupt
+[pointcloud_to_laserscan_node-9] [INFO] [1795848603.508626071] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[ekf_node-4] [INFO] [1795848603.512396573] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[amcl-13] [INFO] [1795848603.512949218] [amcl]: Cleaning up
+[state_estimation_node-3] [INFO] [1795848603.513472079] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[map_server-12] [INFO] [1795848603.514257236] [map_server]: Cleaning up
+[map_server-12] [INFO] [1795848603.514323778] [map_server]: Destroying bond (map_server) to lifecycle manager.
+[quadruped_controller_node-2] [INFO] [1795848603.518289679] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[robot_state_publisher-1] [INFO] [1795848603.518335262] [rclcpp]: signal_handler(SIGINT/SIGTERM)
+[amcl-13] [INFO] [1795848603.519001192] [amcl]: Destroying bond (amcl) to lifecycle manager.
+[map_server-12] [INFO] [1795848603.522664970] [map_server]: Destroying
+[amcl-13] [INFO] [1795848603.527969686] [amcl]: Destroying
+[lifecycle_manager-14] [INFO] [1795848603.531139928] [lifecycle_manager_localization]: Destroying lifecycle_manager_localization
+[INFO] [lifecycle_manager-14]: process has finished cleanly [pid 498526]
+[INFO] [ekf_node-11]: process has finished cleanly [pid 498520]
+[INFO] [pointcloud_to_laserscan_node-9]: process has finished cleanly [pid 498516]
+[INFO] [state_estimation_node-3]: process has finished cleanly [pid 498462]
+[INFO] [ekf_node-4]: process has finished cleanly [pid 498464]
+[INFO] [map_server-12]: process has finished cleanly [pid 498522]
+[INFO] [robot_state_publisher-1]: process has finished cleanly [pid 498458]
+[ERROR] [lidar_odom.py-10]: process has died [pid 498518, exit code -2, cmd '/home/arman/project/slam_paper/go2-nav-sim/install/go2_nav_sim/lib/go2_nav_sim/lidar_odom.py --ros-args -r __node:=lidar_odom --params-file /tmp/launch_params_w29ibvju'].
+[INFO] [quadruped_controller_node-2]: process has finished cleanly [pid 498460]
+[INFO] [amcl-13]: process has finished cleanly [pid 498524]
+[INFO] [gzserver-5]: process has finished cleanly [pid 498479]
+
+----------------------------------------------------------------------
+Ran 0 tests in 0.000s
+
+OK

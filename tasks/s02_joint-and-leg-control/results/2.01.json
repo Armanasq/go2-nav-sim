@@ -1,0 +1,48 @@
+{
+  "id": "2.01",
+  "title": "Rotate a single hip joint",
+  "status": "verified",
+  "checks": {
+    "rms_error_rad": {
+      "value": 0.01075578620339001,
+      "rule": "max 0.02",
+      "passed": true
+    },
+    "max_error_rad": {
+      "value": 0.013887644789683906,
+      "rule": "max 0.03",
+      "passed": true
+    },
+    "hold_error_vs_gravity_over_kp_rad": {
+      "value": 0.0009277020094814936,
+      "rule": "max 0.003",
+      "passed": true
+    }
+  },
+  "measured": {
+    "kp": 100.0,
+    "kd": 2.0,
+    "rms_error_rad": 0.01075578620339001,
+    "max_error_rad": 0.013887644789683906,
+    "holds": [
+      {
+        "q_ref_rad": 0.3,
+        "measured_rad": -0.01303531782627506,
+        "predicted_rad": -0.012262323227722019
+      },
+      {
+        "q_ref_rad": -0.3,
+        "measured_rad": -0.007154517377253253,
+        "predicted_rad": -0.008082219386734747
+      }
+    ],
+    "hold_error_vs_gravity_over_kp_rad": 0.0009277020094814936,
+    "max_abs_torque_nm": 2.4760709696237404
+  },
+  "outputs": [
+    "figures/2-01_hip_tracking.png"
+  ],
+  "command": "python run.py 2.01",
+  "mujoco": "3.17.0",
+  "wall_s": 4.3
+}

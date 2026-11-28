@@ -1,0 +1,40 @@
+{
+  "id": "6.14",
+  "title": "Stop before a newly spawned obstacle",
+  "status": "verified",
+  "metrics": {
+    "spawn_ok": true,
+    "gap_at_spawn_m": 0.9993561106661327,
+    "final_gap_m": 0.5003233021886766,
+    "abs_gap_error_m": 0.00032330218867659966,
+    "gap_to_pallet_at_end_m": 1.2003233021886766,
+    "stop_line": [
+      "STOP t=280.31 range=0.774 gap=0.494 age=0.107"
+    ]
+  },
+  "acceptance": "gap_at_spawn_m >= 0.8; abs_gap_error_m <= 0.06; final_gap_m >= 0.0. Basis: p05 stop_at_obstacle.py at 0.2 m/s from the lane start; worlds/new_box.sdf spawned 1 s after walking starts, west face x = 1.2; target gap 0.5 m",
+  "checks": {
+    "gap_at_spawn_m": {
+      "value": 0.9993561106661327,
+      "rule": ">= 0.8",
+      "passed": true
+    },
+    "abs_gap_error_m": {
+      "value": 0.00032330218867659966,
+      "rule": "<= 0.06",
+      "passed": true
+    },
+    "final_gap_m": {
+      "value": 0.5003233021886766,
+      "rule": ">= 0.0",
+      "passed": true
+    }
+  },
+  "outputs": [
+    "figures/6.14_new_obstacle.png",
+    "media/6.14_new_obstacle.mp4"
+  ],
+  "command": "python3 tasks/s06_sensors-and-perception/run.py 6.14",
+  "world": "arena",
+  "wall_s": 32.4
+}

@@ -128,8 +128,11 @@ def main():
             ax.set_title(f'{shape}, {mode} loop: final error {final:.2f} m')
             ax.legend(loc='upper right', fontsize=8)
     fig.tight_layout(); fig.savefig(HERE / 'figures/shapes.png', dpi=110)
-    for name in ('square_open_calibrated', 'square_closed_on_odom_gt'):       # the "Try this" runs, if you made them
-        if (HERE / 'results' / f'{name}.csv').exists():
+    tries = [n for n in ('square_open_calibrated', 'square_closed_on_odom_gt') if (HERE / 'results' / f'{n}.csv').exists()]
+    if tries:                                  # the "Try this" runs, in their own table so the first one is always four rows
+        print('\nTry this runs (results/square_open_calibrated.csv, results/square_closed_on_odom_gt.csv)')
+        print(HEADER)
+        for name in tries:
             print_row(name, 'square')
     repeats = sorted((HERE / 'results').glob('repeats/*.csv'))
     if repeats:                                # more runs of the same shapes, to see how much single runs vary

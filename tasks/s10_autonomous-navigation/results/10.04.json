@@ -1,0 +1,47 @@
+{
+ "id": "10.04",
+ "status": "verified",
+ "metrics": {
+  "runs": [
+   {
+    "status_name": "SUCCEEDED",
+    "sim_time_s": 41.09,
+    "final_error_m": 0.231,
+    "path_m": 6.46,
+    "straight_m": 4.93,
+    "min_clearance_m": 0.417,
+    "amcl_rmse_m": 0.096
+   },
+   {
+    "status_name": "SUCCEEDED",
+    "sim_time_s": 39.25,
+    "final_error_m": 0.196,
+    "path_m": 6.11,
+    "straight_m": 4.97,
+    "min_clearance_m": 0.445,
+    "amcl_rmse_m": 0.124
+   },
+   {
+    "status_name": "SUCCEEDED",
+    "sim_time_s": 46.76,
+    "final_error_m": 0.282,
+    "path_m": 6.06,
+    "straight_m": 4.96,
+    "min_clearance_m": 0.451,
+    "amcl_rmse_m": 0.093
+   }
+  ],
+  "n_runs": 3,
+  "success_rate": 1.0,
+  "max_final_error_m": 0.282,
+  "min_clearance_m": 0.417,
+  "mean_sim_time_s": 42.4
+ },
+ "acceptance": "success_rate >= 1.0; max_final_error_m <= 0.5; min_clearance_m >= 0.25",
+ "checks": {
+  "success_rate": true,
+  "max_final_error_m": true,
+  "min_clearance_m": true
+ },
+ "command": "python3 run.py 10.04  (up.sh narrow_passage ; nav.py goto -0.5 -0.5 0.6435) x 3"
+}

@@ -1,4 +1,4 @@
-/* Architecture explorer (static/js/arch.js). Colours only from base.css tokens, so theme switches need no redraw. */
+/* Architecture explorer (static/js/arch.js). Colours only from site.css tokens, so theme switches need no redraw. */
 .arch { container-type: inline-size; }
 .arch-stage { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
 .arch-svg { width: 100%; height: auto; overflow: visible; }

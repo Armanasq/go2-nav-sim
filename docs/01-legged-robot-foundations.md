@@ -114,15 +114,35 @@ twice per stride (measured on `/odom_gt`).
 
 Objective: know why sensor data from a legged robot shakes.
 
+`site/data/runs/w2/imu.json` holds the IMU of recorded run w2 at about 20 samples per second, timed in seconds from the start
+of the recording. The robot stood until about 10 s and walked from then on. This compares 6 s of standing with 20 s of walking:
+
+```bash
+python3 - <<'EOF'
+import json
+d = json.load(open('site/data/runs/w2/imu.json')); f = d['fields']
+for name, t0, t1 in (('standing', 2, 8), ('walking', 20, 40)):
+    rows = [r for r in d['rows'] if t0 <= r[0] < t1]
+    print(name, '  '.join('%s %.1f to %.1f' % (k, min(r[f.index(k)] for r in rows), max(r[f.index(k)] for r in rows))
+                         for k in ('az', 'gy', 'pitch_deg')))
+EOF
+```
+
+```
+standing az 7.0 to 12.4  gy -0.1 to 0.2  pitch_deg -0.5 to 0.0
+walking az 4.6 to 18.8  gy -0.8 to 0.6  pitch_deg -2.8 to 1.1
+```
+
+Check: walking, the vertical acceleration `az` (m/s²) spans 14.2 m/s² against 5.4 m/s² standing, and the pitch rate `gy`
+(rad/s) and the pitch angle span several times their standing range.
+
 Walking at 0.2 m/s, the trunk height varied between 0.206 and 0.219 m, roll between -2.1 and 3.6 degrees and pitch between -2.0
-and 1.9 degrees ([chapter 7](07-make-it-walk.md#how-the-trunk-moves) has the command). A sensor bolted to the trunk sees all
+and 1.9 degrees ([chapter 7](07-make-it-walk.md#44-measure-how-the-trunk-moves-while-walking) has the command). A sensor bolted to the trunk sees all
 of that.
 
 <video controls muted playsinline src="../media/c00-01-trunk-motion.mp4"></video>
 
 *Ten seconds of the dashboard (`media/go2_a2b_dashboard.mp4` from 0:40) while walking: the bottom row is the IMU on the trunk, and every step shows up in acceleration, angular rate and attitude.*
-
-Check: in the video, the IMU traces repeat at the step rate.
 
 There is no wheel odometry either. Joint encoders tell you where the feet are relative to the trunk; they tell you how the
 trunk moved only if you know which feet are on the ground and that they did not slip. That needs contact sensing, which this
@@ -188,13 +208,36 @@ is a neural network trained in simulation that maps the command and propriocepti
 state, which CHAMP does not. All four take the same `/cmd_vel` and drive the same ros2_control joints, so Nav2 and everything
 above it would not change. None of the other three is part of this repository.
 
-Check: in the figure, only the CHAMP column reads nothing about the trunk.
+Check: `update_rate` is 250 Hz. At that rate ros2_control runs the joint PID under every column of the figure; CHAMP sends new
+joint targets at 200 Hz (`loop_rate` in 3.1) and, in the figure, is the only column that reads nothing about the trunk.
 
 ## Task 4: Find where the trunk frame sits
 
 ### 4.1 Read the frame table
 
 Objective: know which node publishes each frame.
+
+The fixed frames come from the URDF you made in 1.1. This prints each fixed joint as parent and child, without the four feet:
+
+```bash
+python3 - <<'EOF'
+import xml.etree.ElementTree as ET
+r = ET.parse('/tmp/go2.urdf').getroot()
+for j in r.findall('joint'):
+    if j.get('type') == 'fixed' and 'foot' not in j.get('name'):
+        print(j.find('parent').get('link'), '->', j.find('child').get('link'))
+EOF
+```
+
+```
+base_link -> trunk
+trunk -> imu_link
+base_link -> lidar_link
+lidar_link -> lidar_visual
+base_link -> camera_link
+camera_link -> camera_optical
+base_link -> chase_cam
+```
 
 | Frame | Meaning | Published by |
 |---|---|---|
@@ -212,7 +255,8 @@ Objective: know which node publishes each frame.
 The usual split is that `odom` to `base_footprint` carries x, y and yaw, and `base_footprint` to `base_link` carries the trunk
 height, roll and pitch, so that TF can level a lidar mounted on `base_link`.
 
-Check: every moving edge in the figure has exactly one publisher in the table.
+Check: `imu_link` hangs from `trunk`, and the lidar and camera from `base_link`, as in the figure. No line contains `map`,
+`odom` or `base_footprint`: those edges move, so a node publishes them (the table), not the URDF.
 
 ### 4.2 Measure base_footprint to base_link
 
@@ -257,6 +301,10 @@ value of `min_height: 0.05`, common on wheeled robots, do here?
 Answer: the floor is 0.209 m above `base_footprint` (0.426 − 0.217 m), so the band is about 0.09 to 0.69 m above the floor. With
 `min_height: 0.05` the floor itself, at 0.21 m in `base_footprint`, falls inside the band, and every floor return becomes an
 obstacle in `/scan`. The comment at the top of `scan.yaml` gives the same numbers.
+
+![Heights in base_footprint: the real floor at 0.209 m, the scan.yaml band 0.30 to 0.90 m above it, and a 0.05 m band that contains the floor](img/c00-01-scan-band.png)
+
+*The two bands of the exercise drawn in `base_footprint`, with the floor where 4.2 puts it.*
 
 ## Further reading
 

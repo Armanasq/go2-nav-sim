@@ -1,0 +1,35 @@
+{
+  "id": "2.08",
+  "title": "Foot to a Cartesian position (IK)",
+  "status": "verified",
+  "checks": {
+    "algebraic_max_error_m": {
+      "value": 2.9504581591051765e-16,
+      "rule": "max 1e-09",
+      "passed": true
+    },
+    "settled_max_error_m": {
+      "value": 0.00028612763930417303,
+      "rule": "max 0.002",
+      "passed": true
+    }
+  },
+  "measured": {
+    "n_targets_per_leg": 27,
+    "algebraic_max_error_m": 2.9504581591051765e-16,
+    "settled_max_error_m": 0.00028612763930417303,
+    "settled_median_error_m": 0.00011457008415577584,
+    "settled_max_error_by_leg_m": {
+      "FL": 0.0002770177564781959,
+      "FR": 0.00028612763930417303,
+      "RL": 0.0002770177564783348,
+      "RR": 0.00028612763930414424
+    }
+  },
+  "outputs": [
+    "figures/2-08_ik_settled.png"
+  ],
+  "command": "python run.py 2.08",
+  "mujoco": "3.17.0",
+  "wall_s": 22.2
+}

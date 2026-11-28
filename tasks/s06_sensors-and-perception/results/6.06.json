@@ -1,0 +1,85 @@
+{
+  "id": "6.06",
+  "title": "Depth camera",
+  "status": "verified",
+  "metrics": {
+    "encoding": "32FC1",
+    "encoding_ok": true,
+    "n_frames": 5,
+    "camera_height_m": [
+      0.2454562300260545,
+      0.2468092977676386,
+      0.2465988160401052,
+      0.24698368809547397,
+      0.24605519885006738
+    ],
+    "pitch_at_stamp_deg": [
+      -0.020160020210988297,
+      -0.21753065340710587,
+      -0.24255449820117264,
+      -0.21001961510978978,
+      -0.05688178449823468
+    ],
+    "n_rows": 146,
+    "frame_median_rel_errors": [
+      0.011437463134486797,
+      0.012133350813747213,
+      0.011771272929794276,
+      0.011390435326560283,
+      0.010875437559332868
+    ],
+    "level_model_median_rel_errors": [
+      0.009595592632416518,
+      0.007206378538320403,
+      0.009883523148046932,
+      0.007357224580224078,
+      0.0057807617132046366
+    ],
+    "floor_depth_median_rel_error": 0.012133350813747213,
+    "floor_depth_max_rel_error": 0.051850941263522105,
+    "nan_fraction": 0.0
+  },
+  "acceptance": "encoding_ok == True; floor_depth_median_rel_error <= 0.03; in each of 5 runs, each on a fresh simulator. Basis: at A facing +x the floor ahead is clear; floor depth on row v predicted as z = h / (((v - cy) / fy) cos(pitch) + sin(pitch)) with h and pitch of the camera from /odom_gt interpolated at the image's stamp; per frame the median over the 40 centre columns of rows with predicted depth 0.7 to 6 m; the checked value is the worst of 5 consecutive frames",
+  "checks": {
+    "encoding_ok": {
+      "value": true,
+      "rule": "== True",
+      "passed": true
+    },
+    "floor_depth_median_rel_error": {
+      "value": 0.012133350813747213,
+      "rule": "<= 0.03",
+      "passed": true
+    }
+  },
+  "runs_passed": 5,
+  "runs_total": 5,
+  "per_run": [
+    {
+      "encoding_ok": true,
+      "floor_depth_median_rel_error": 0.012052330846293986
+    },
+    {
+      "encoding_ok": true,
+      "floor_depth_median_rel_error": 0.01440360285965311
+    },
+    {
+      "encoding_ok": true,
+      "floor_depth_median_rel_error": 0.011586076560886435
+    },
+    {
+      "encoding_ok": true,
+      "floor_depth_median_rel_error": 0.012585373581550144
+    },
+    {
+      "encoding_ok": true,
+      "floor_depth_median_rel_error": 0.012133350813747213
+    }
+  ],
+  "outputs": [
+    "figures/6.06_depth.png"
+  ],
+  "command": "python3 tasks/s06_sensors-and-perception/run.py 6.06",
+  "world": "arena",
+  "wall_s": 98.5
+}

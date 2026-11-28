@@ -46,8 +46,9 @@ def generate_launch_description():
         Node(package='nav2_lifecycle_manager', executable='lifecycle_manager', name='lifecycle_manager_monitor', output='screen',
              parameters=[{'use_sim_time': True, 'autostart': True, 'node_names': ['collision_monitor']}], condition=IfCondition(monitor)),
         # The lock silences twist_mux, and CHAMP walks on its last command when nothing arrives (p02). A dead-man in the last link
-        # turns silence into a stop. a_max is set high so it only times out and does not ramp; v_max is above CHAMP's limits.
+        # turns silence into a stop. a_max is set so high (5 m/s and 5 rad/s per 50 ms tick) that it passes commands through
+        # unramped and only times out; v_max is above CHAMP's limits.
         ExecuteProcess(cmd=['python3', SAFETY, '--ros-args', '-r', 'teleop/cmd_vel:=cmd_vel_cm', '-p', 'timeout:=0.6',
-                            '-p', 'v_max:=[0.5, 0.5, 1.0]', '-p', 'a_max:=[10.0, 10.0, 20.0]'],
+                            '-p', 'v_max:=[0.5, 0.5, 1.0]', '-p', 'a_max:=[100.0, 100.0, 100.0]'],
                        output='screen', condition=IfCondition(deadman)),
     ])

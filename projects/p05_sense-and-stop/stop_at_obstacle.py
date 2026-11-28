@@ -3,7 +3,8 @@
 Needs sense.py running (it publishes /front_range). Exits once it has stopped.
 usage: python3 projects/p05_sense-and-stop/stop_at_obstacle.py [--ros-args -p speed:=0.3 -p gap:=0.5 -p front:=0.28]
   topic   /front_range (scan) or /centre_depth (depth camera; then use front:=0.0, the camera is the front)
-  lead    extra metres added to `gap` at the trigger, to cancel a known overshoot (exercise 1)"""
+  lead    extra metres added to `gap` at the trigger, to cancel a known overshoot (exercise 1)
+  timeout s of simulated time without a reading while walking before it stops anyway (default 0.5; the scan comes at 10 Hz)"""
 import os, signal, sys
 
 import rclpy
@@ -15,14 +16,13 @@ from sensor_msgs.msg import Range
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from obstacle import FRONT, should_stop
 
-SENSOR_TIMEOUT = 0.5      # s of simulated time without a reading while walking -> stop (the scan comes at 10 Hz)
-
 
 class StopAtObstacle(Node):
     def __init__(self):
         super().__init__('stop_at_obstacle', parameter_overrides=[rclpy.parameter.Parameter('use_sim_time', value=True)])
         p = lambda name, default: self.declare_parameter(name, default).value
         self.speed, self.gap, self.front, self.lead = p('speed', 0.3), p('gap', 0.5), p('front', FRONT), p('lead', 0.0)
+        self.timeout = p('timeout', 0.5)
         topic = p('topic', '/front_range')
         self.pub = self.create_publisher(Twist, 'cmd_vel', 10)
         self.create_subscription(Range, topic, self.on_range, 10)
@@ -50,8 +50,8 @@ class StopAtObstacle(Node):
     def on_timer(self):
         t = self.now()
         if self.state == 'walk':
-            if t - self.t_reading > SENSOR_TIMEOUT:                # no news is not good news: stop
-                self.get_logger().warn(f'no reading for {SENSOR_TIMEOUT} s: stopping')
+            if t - self.t_reading > self.timeout:                  # no news is not good news: stop
+                print(f'TIMEOUT t={t:.2f}: no reading for {t - self.t_reading:.2f} s, stopping', flush=True)
                 self.state, self.t_stop = 'stopped', t
                 self.send(0.0)
             else:

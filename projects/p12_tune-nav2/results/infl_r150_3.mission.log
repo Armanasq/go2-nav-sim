@@ -1,0 +1,15 @@
+[INFO] [1795849025.619504753] [basic_navigator]: goal -> (4.00, 3.00, yaw 0.65)
+[INFO] [1795849025.620440003] [basic_navigator]: Navigating to goal: 4.0 3.0...
+[INFO] [1795849025.864535890] [basic_navigator]: distance remaining 11.35 m, recoveries 0
+[INFO] [1795849030.892737573] [basic_navigator]: distance remaining 11.27 m, recoveries 0
+[INFO] [1795849036.067972509] [basic_navigator]: distance remaining 10.19 m, recoveries 0
+[INFO] [1795849041.082854564] [basic_navigator]: distance remaining 9.24 m, recoveries 0
+[INFO] [1795849046.179439335] [basic_navigator]: distance remaining 8.12 m, recoveries 0
+[INFO] [1795849051.317519366] [basic_navigator]: distance remaining 6.85 m, recoveries 0
+[INFO] [1795849056.349077438] [basic_navigator]: distance remaining 5.72 m, recoveries 0
+[INFO] [1795849061.361629756] [basic_navigator]: distance remaining 4.87 m, recoveries 0
+[INFO] [1795849066.531309041] [basic_navigator]: distance remaining 3.67 m, recoveries 0
+[INFO] [1795849071.587720165] [basic_navigator]: distance remaining 2.62 m, recoveries 0
+[INFO] [1795849076.695875679] [basic_navigator]: distance remaining 1.55 m, recoveries 0
+[INFO] [1795849081.720795722] [basic_navigator]: distance remaining 0.42 m, recoveries 0
+RESULT SUCCEEDED  sim_time 55.4 s  ground-truth final error 0.29 m  final pos (3.72, 2.94)

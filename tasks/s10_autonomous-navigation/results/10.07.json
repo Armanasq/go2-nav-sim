@@ -1,0 +1,47 @@
+{
+ "id": "10.07",
+ "status": "failed",
+ "metrics": {
+  "runs": [
+   {
+    "status_name": "SUCCEEDED",
+    "sim_time_s": 119.47,
+    "final_error_m": 0.259,
+    "path_m": 10.89,
+    "straight_m": 6.97,
+    "min_clearance_m": 0.466,
+    "amcl_rmse_m": 0.086
+   },
+   {
+    "status_name": "ABORTED",
+    "sim_time_s": 113.4,
+    "final_error_m": 0.276,
+    "path_m": 10.63,
+    "straight_m": 7.05,
+    "min_clearance_m": 0.457,
+    "amcl_rmse_m": 0.099
+   },
+   {
+    "status_name": "ABORTED",
+    "sim_time_s": 159.49,
+    "final_error_m": 0.313,
+    "path_m": 11.26,
+    "straight_m": 7.05,
+    "min_clearance_m": 0.418,
+    "amcl_rmse_m": 0.109
+   }
+  ],
+  "n_runs": 3,
+  "success_rate": 0.333,
+  "max_final_error_m": 0.313,
+  "min_clearance_m": 0.418,
+  "mean_sim_time_s": 130.8
+ },
+ "acceptance": "success_rate >= 1.0; max_final_error_m <= 0.5; min_clearance_m >= 0.25",
+ "checks": {
+  "success_rate": false,
+  "max_final_error_m": true,
+  "min_clearance_m": true
+ },
+ "command": "python3 run.py 10.07  (up.sh rooms ; nav.py goto 0.0 2.0 3.1416) x 3"
+}

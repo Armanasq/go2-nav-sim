@@ -1,0 +1,60 @@
+{
+  "id": "6.05",
+  "title": "RGB camera",
+  "status": "verified",
+  "metrics": {
+    "width": 640,
+    "height": 360,
+    "encoding": "rgb8",
+    "encoding_ok": true,
+    "frame_id": "camera_optical",
+    "frame_ok": true,
+    "fx": 467.74270306499267,
+    "fy": 467.74270306499267,
+    "cx": 320.5,
+    "cy": 180.5,
+    "fx_expected": 467.74270306499267,
+    "fx_error_px": 0.0,
+    "pixel_std": 70.83350254177269,
+    "rate_hz_sim": 10.010010010010005
+  },
+  "acceptance": "width == 640; height == 360; encoding_ok == True; frame_ok == True; fx_error_px <= 1.0; pixel_std >= 10. Basis: sensors.xacro: 640x360, 1.2 rad horizontal FOV, so fx = 320 / tan(0.6) = 467.7 px; frame camera_optical",
+  "checks": {
+    "width": {
+      "value": 640,
+      "rule": "== 640",
+      "passed": true
+    },
+    "height": {
+      "value": 360,
+      "rule": "== 360",
+      "passed": true
+    },
+    "encoding_ok": {
+      "value": true,
+      "rule": "== True",
+      "passed": true
+    },
+    "frame_ok": {
+      "value": true,
+      "rule": "== True",
+      "passed": true
+    },
+    "fx_error_px": {
+      "value": 0.0,
+      "rule": "<= 1.0",
+      "passed": true
+    },
+    "pixel_std": {
+      "value": 70.83350254177269,
+      "rule": ">= 10",
+      "passed": true
+    }
+  },
+  "outputs": [
+    "figures/6.05_rgb.png"
+  ],
+  "command": "python3 tasks/s06_sensors-and-perception/run.py 6.05",
+  "world": "arena",
+  "wall_s": 1.5
+}

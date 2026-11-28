@@ -1,0 +1,15 @@
+[amcl-2] [WARN] [1795853274.019056781] [amcl]: Failed to transform initial pose in time (Lookup would require extrapolation into the future.  Requested time 15.845000 but the latest data is at time 15.831000, when looking up transform from frame [base_footprint] to frame [odom])
+[controller_server-4] [WARN] [1795853276.860958422] [controller_server]: No goal checker was specified in parameter 'current_goal_checker'. Server will use only plugin loaded general_goal_checker . This warning will appear once.
+[planner_server-6] [ERROR] [1795853283.902311687] [planner_server]: Failed to create a plan from potential when a legal potential was found. This shouldn't happen.
+[planner_server-6] [WARN] [1795853283.902556642] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795853283.902582598] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (-0.50, -3.50)
+[planner_server-6] [WARN] [1795853283.902692654] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[planner_server-6] [WARN] [1795853284.112637588] [planner_server]: GridBased: failed to create plan with tolerance 0.30.
+[planner_server-6] [WARN] [1795853284.112761401] [planner_server]: Planning algorithm GridBased failed to generate a valid path to (-0.50, -3.50)
+[planner_server-6] [WARN] [1795853284.112789811] [planner_server]: [compute_path_to_pose] [ActionServer] Aborting handle.
+[bt_navigator-8] [WARN] [1795853284.141896252] [BehaviorTreeEngine]: Behavior Tree tick rate 100.00 was exceeded!
+[planner_server-6] [WARN] [1795853284.303236104] [planner_server]: Planner loop missed its desired rate of 20.0000 Hz. Current loop rate is 6.8966 Hz
+[controller_server-4] [ERROR] [1795853356.855149761] [controller_server]: Failed to make progress
+[controller_server-4] [WARN] [1795853356.855312630] [controller_server]: [follow_path] [ActionServer] Aborting handle.
+[controller_server-4] [ERROR] [1795853378.006374378] [controller_server]: Failed to make progress
+[controller_server-4] [WARN] [1795853378.006569109] [controller_server]: [follow_path] [ActionServer] Aborting handle.

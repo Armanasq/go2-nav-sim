@@ -1,0 +1,116 @@
+{
+  "id": "1.10",
+  "title": "Read joint states",
+  "status": "failed",
+  "metrics": {
+    "n_messages": 1249,
+    "names": [
+      "rf_hip_joint",
+      "lf_lower_leg_joint",
+      "rf_lower_leg_joint",
+      "lf_upper_leg_joint",
+      "rh_hip_joint",
+      "rf_upper_leg_joint",
+      "rh_upper_leg_joint",
+      "rh_lower_leg_joint",
+      "lh_hip_joint",
+      "lf_hip_joint",
+      "lh_upper_leg_joint",
+      "lh_lower_leg_joint"
+    ],
+    "n_names": 12,
+    "rate_sim_hz": 248.40764331210195,
+    "rate_sim_hz_error": 1.5923566878980466,
+    "rate_wall_hz": 194.25404864215474,
+    "position_len": 12,
+    "velocity_len": 12,
+    "effort_len": 12,
+    "position_finite_fraction": 1.0,
+    "velocity_finite_fraction": 1.0,
+    "effort_finite_fraction": 0.0,
+    "effort_sample": [
+      "nan",
+      "nan",
+      "nan"
+    ],
+    "rig": {
+      "effort_finite_fraction": 1.0,
+      "joints": [
+        "lf_hip_joint",
+        "lf_upper_leg_joint",
+        "lf_lower_leg_joint",
+        "rf_hip_joint",
+        "rf_upper_leg_joint",
+        "rf_lower_leg_joint",
+        "lh_hip_joint",
+        "lh_upper_leg_joint",
+        "lh_lower_leg_joint",
+        "rh_hip_joint",
+        "rh_upper_leg_joint",
+        "rh_lower_leg_joint"
+      ],
+      "effort_mean_nm": [
+        1.2143,
+        0.4416,
+        -0.1716,
+        -1.2281,
+        0.4475,
+        -0.1703,
+        1.2272,
+        0.3953,
+        -0.1828,
+        -0.8372,
+        0.6107,
+        -0.1823
+      ],
+      "effort_gravity_predicted_nm": [
+        1.0288,
+        0.4129,
+        -0.1994,
+        -1.0317,
+        0.4128,
+        -0.1994,
+        1.0287,
+        0.4132,
+        -0.1993,
+        -1.0347,
+        0.4116,
+        -0.1998
+      ],
+      "effort_vs_gravity_max_error_nm": 0.19906293937663383
+    }
+  },
+  "acceptance": "n_names equals 12; rate_sim_hz_error max 10; position_finite_fraction min 1.0; velocity_finite_fraction min 1.0; effort_finite_fraction min 1.0",
+  "checks": {
+    "n_names": {
+      "value": 12,
+      "rule": "equals 12",
+      "passed": true
+    },
+    "rate_sim_hz_error": {
+      "value": 1.5923566878980466,
+      "rule": "max 10",
+      "passed": true
+    },
+    "position_finite_fraction": {
+      "value": 1.0,
+      "rule": "min 1.0",
+      "passed": true
+    },
+    "velocity_finite_fraction": {
+      "value": 1.0,
+      "rule": "min 1.0",
+      "passed": true
+    },
+    "effort_finite_fraction": {
+      "value": 0.0,
+      "rule": "min 1.0",
+      "passed": false
+    }
+  },
+  "command": "python run.py 1.10",
+  "outputs": [
+    "figures/1-10_effort.png"
+  ],
+  "date": "2026-11-28 11:28"
+}

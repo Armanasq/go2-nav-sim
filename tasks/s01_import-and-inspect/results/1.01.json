@@ -1,0 +1,43 @@
+{
+  "id": "1.01",
+  "title": "Import the Go2 model",
+  "status": "verified",
+  "metrics": {
+    "check_urdf_parsed": true,
+    "check_urdf_head": [
+      "robot name is: go2",
+      "---------- Successfully Parsed XML ---------------",
+      "root Link: base_link has 4 child(ren)"
+    ],
+    "root_link": "base_link",
+    "n_links": 24,
+    "n_revolute": 12,
+    "n_fixed": 11
+  },
+  "acceptance": "check_urdf_parsed equals True; root_link equals base_link; n_links equals 24; n_revolute equals 12",
+  "checks": {
+    "check_urdf_parsed": {
+      "value": true,
+      "rule": "equals True",
+      "passed": true
+    },
+    "root_link": {
+      "value": "base_link",
+      "rule": "equals base_link",
+      "passed": true
+    },
+    "n_links": {
+      "value": 24,
+      "rule": "equals 24",
+      "passed": true
+    },
+    "n_revolute": {
+      "value": 12,
+      "rule": "equals 12",
+      "passed": true
+    }
+  },
+  "command": "python run.py 1.01",
+  "outputs": [],
+  "date": "2026-11-28 11:26"
+}

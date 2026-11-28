@@ -19,7 +19,7 @@
         <Wait name="AtW1" wait_duration="2"/>
         <RecoveryNode number_of_retries="2" name="LegW2">
           <Sequence>
-            <ComputePathToPose goal="0;map;-3.0;-1.0;0;0;0;0.952;0.305" path="{path}" planner_id="GridBased"/>
+            <ComputePathToPose goal="0;map;-3.5;-1.5;0;0;0;0.973;0.230" path="{path}" planner_id="GridBased"/>
             <FollowPath path="{path}" controller_id="FollowPath"/>
           </Sequence>
           <ClearEntireCostmap name="ClearLocalW2" service_name="local_costmap/clear_entirely_local_costmap"/>
@@ -27,7 +27,7 @@
         <Wait name="AtW2" wait_duration="2"/>
         <RecoveryNode number_of_retries="2" name="LegHome">
           <Sequence>
-            <ComputePathToPose goal="0;map;-4.5;-3.5;0;0;0;-0.871;0.491" path="{path}" planner_id="GridBased"/>
+            <ComputePathToPose goal="0;map;-4.5;-3.5;0;0;0;-0.851;0.526" path="{path}" planner_id="GridBased"/>
             <FollowPath path="{path}" controller_id="FollowPath"/>
           </Sequence>
           <ClearEntireCostmap name="ClearLocalHome" service_name="local_costmap/clear_entirely_local_costmap"/>

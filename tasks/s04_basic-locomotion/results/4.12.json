@@ -1,0 +1,31 @@
+{
+  "id": "4.12",
+  "title": "Walk a curve",
+  "status": "failed",
+  "metrics": {
+    "radius_m": 0.6666666666666667,
+    "max_radial_deviation_m": 0.12678848655135433,
+    "rms_radial_deviation_m": 0.07930776553943221,
+    "end_heading_error_deg": 3.609845186364126,
+    "end_angle_on_arc_deg": 85.48682385414655
+  },
+  "acceptance": "max_radial_deviation_m <= 0.1; |end_heading_error_deg| <= 10.0",
+  "checks": {
+    "max_radial_deviation_m": {
+      "value": 0.12678848655135433,
+      "rule": "max_radial_deviation_m <= 0.1",
+      "passed": false
+    },
+    "end_heading_error_deg": {
+      "value": 3.609845186364126,
+      "rule": "|end_heading_error_deg| <= 10.0",
+      "passed": true
+    }
+  },
+  "command": "python3 run.py 4.12",
+  "outputs": [
+    "figures/4-12_curve.png"
+  ],
+  "gait": "default",
+  "wall_s": 8.3
+}

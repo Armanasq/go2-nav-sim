@@ -3,6 +3,7 @@
 For each run: walk (keeping the lane y = -2.5, the pallet's centre line, and heading +x) until the true gap to the pallet's west
 face is `--start` m, stand still, run stop_at_obstacle.py, record /odom_gt, /front_range and /cmd_vel, and report where the robot really stopped.
 usage: python3 projects/p05_sense-and-stop/measure_stops.py --speeds 0.1,0.2,0.3 --runs 3 --out ~/p05_runs [-- -p lead:=0.05]
+       python3 projects/p05_sense-and-stop/measure_stops.py --goto-start    (only walk to the start gap and stand)
 Arguments after `--` go to stop_at_obstacle.py. Needs the stack and sense.py running, and the robot west of the pallet, facing +x."""
 import argparse, csv, math, os, pathlib, re, subprocess, sys, time
 
@@ -81,16 +82,19 @@ def reposition(n, start):
 def run_once(n, v, extra):
     n.gt.clear(); n.rng.clear(); n.cmd.clear()
     cmd = [sys.executable, str(HERE / 'stop_at_obstacle.py'), '--ros-args', '-p', f'speed:={v}'] + extra
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     t_wall = time.time()
     while proc.poll() is None:
         rclpy.spin_once(n, timeout_sec=0.05)
         if time.time() - t_wall > 300:
             proc.terminate()
-    m = re.search(r'STOP t=(\S+) range=(\S+) gap=(\S+) age=(\S+)', proc.stdout.read())
+    out = proc.stdout.read()
+    m = re.search(r'STOP t=(\S+) range=(\S+) gap=(\S+) age=(\S+)', out)
     n.send(0.0)
     n.spin_for(2.0)                                            # keep recording while the gait comes to rest
     if not m:
+        why = re.search(r'TIMEOUT.*', out)
+        print(f'v={v}: no STOP line ({why.group(0) if why else "no TIMEOUT line either"}); true gap at the end {n.gt[-1][4]:.3f} m')
         return None
     t_trig, rng, gap_sensed, age = map(float, m.groups())
     gt = n.gt
@@ -117,9 +121,15 @@ def main():
     ap.add_argument('--speeds', default='0.1,0.2,0.3'); ap.add_argument('--runs', type=int, default=3)
     ap.add_argument('--start', type=float, default=2.0, help='true gap (m) at which each run starts')
     ap.add_argument('--out', default=os.path.expanduser('~/p05_runs')); ap.add_argument('--tag', default='stop')
+    ap.add_argument('--goto-start', action='store_true', help='walk to the start gap, stand, and exit')
     a = ap.parse_args(argv[:argv.index('--')] if '--' in argv else argv)
     out = pathlib.Path(a.out); (out / 'runs').mkdir(parents=True, exist_ok=True)
-    rclpy.init(); n = Rec()
+    rclpy.init(args=[]); n = Rec()                            # args=[]: the arguments after -- are not ours
+    if a.goto_start:
+        reposition(n, a.start)
+        _, x, y, yaw, gap = n.gt[-1]
+        print(f'at the start: x={x:.3f} y={y:.3f} yaw={math.degrees(yaw):+.1f} deg, true gap {gap:.3f} m')
+        return
     table = out / f'{a.tag}.csv'
     new = not table.exists()
     with open(table, 'a', newline='') as f:
@@ -129,7 +139,7 @@ def main():
                 reposition(n, a.start)
                 r = run_once(n, v, extra)
                 if r is None:
-                    print(f'v={v} run {k}: stop_at_obstacle.py printed no STOP line'); continue
+                    continue
                 row, (gt, rng, cmd) = r
                 print(' '.join(f'{key}={val}' for key, val in row.items()), flush=True)
                 if w is None:

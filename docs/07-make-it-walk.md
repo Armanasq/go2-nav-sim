@@ -9,7 +9,9 @@
 
 This chapter starts only the simulator and the gait controller: no estimation and no Nav2. Outputs in Tasks 1 and 3 are from
 one session on the test machine (32 threads) at a real-time factor of 1.00. Tasks 2, 4 and 5 were run later on the same
-machine with other simulators running, at a real-time factor of 0.81 to 0.86. Every command runs from the repository root after
+machine with other simulators running, at a real-time factor of 0.81 to 0.86; Tasks 4.3 and 5 were repeated at 0.48 to 0.79
+and gave the same numbers within the spread stated there. The Task 2.1 output, the second Task 3.1 run, the parameter test in
+Task 5.1 and the Exercise come from a later session at 0.67 to 0.93. Every command runs from the repository root after
 `source env.sh`, one terminal per long-running command.
 
 ## Task 1: Start the simulator and check the controllers
@@ -67,11 +69,14 @@ ros2 run tf2_ros tf2_echo odom base_link
 ```
 
 ```
-- Translation: [0.479, -0.207, 0.426]
-- Rotation: in RPY (radian) [0.000, 0.000, -0.709]
+At time 8.821000000
+- Translation: [0.057, 0.012, 0.426]
+- Rotation: in Quaternion (xyzw) [0.000, 0.000, -0.006, 1.000]
+- Rotation: in RPY (radian) [0.000, 0.000, -0.012]
 ```
 
-(That robot had already turned and moved during Task 4.) There is no map yet, so the Map, costmap, Plan and Footprint displays
+That is a robot standing where it landed after the spawn: x and y are the few centimetres it slid, and z is the constant
+0.426 m explained below. There is no map yet, so the Map, costmap, Plan and Footprint displays
 warn and stay empty. LaserScan stays empty too: `/scan` comes from `estimation.launch.py`.
 
 ![RViz in the odom frame: the Go2 model with axis triads at its joints, standing above the grid, with lidar rings on the arena walls behind it](img/c07-rviz-sim.png)
@@ -80,7 +85,7 @@ warn and stay empty. LaserScan stays empty too: `/scan` comes from `estimation.l
 `odom` plane at `base_footprint` height, and the trunk is drawn level.*
 
 `base_footprint` to `base_link` is a constant 0.426 m with no rotation here (CHAMP gets no foot contacts, so it assumes straight
-legs; [chapter 1](01-legged-robot-foundations.md#frames)). The real trunk stands about 0.216 m above the floor (Task 4), so RViz
+legs; [chapter 1](01-legged-robot-foundations.md#42-measure-base_footprint-to-base_link)). The real trunk stands about 0.216 m above the floor (Task 4), so RViz
 draws the robot about 0.21 m too high. `gt_odom.py` publishes `odom` to `base_footprint` with yaw only, so TF does not carry the
 trunk's roll, pitch or height. Use `/odom_gt` for those.
 
@@ -113,7 +118,9 @@ the robot walked slightly longer than 10 s.
 
 *Twelve seconds of the recorded A-to-B run (`media/go2_a2b_dashboard.mp4` from 0:11; Nav2 drives it, not teleop). The robot stands while the plan appears, then starts stepping: the IMU traces in the bottom row go from flat to a periodic pattern, and the speed tile climbs to about 0.25 m/s.*
 
-Check: x grows by about 1.8 m and z stays near 0.216 m.
+Check: `timeout 10` counts wall-clock seconds, so the distance depends on the real-time factor. Read it first with
+`timeout 5 gz stats -d 1 | head -n 1`; x should grow by about 0.18 m/s × 10 s × factor, and z stays near 0.216 m. At a factor
+of 1.00 x grew by 1.84 m (above); at 0.67 to 0.89 the same commands moved it from 0.062 to 1.525 m, 1.46 m.
 
 Common mistakes:
 
@@ -297,6 +304,10 @@ Below about -0.08 m the height stops changing. `body_controller.h` clamps the fo
 lowest commanded height is 0.426 - 0.277 = 0.149 m; the trunk sat at 0.138 m, 1.1 cm lower, which is the same sag as standing
 (0.216 m against the 0.225 m `nominal_height`).
 
+![Left: commanded roll, pitch and yaw against the measured trunk change, roll and pitch on the diagonal, yaw at about 0.28 of the command. Right: commanded z against trunk height, following the standing line from +0.075 down to -0.05 m and stopping at 0.138 m under the 0.149 m clamp](img/c06-posture-sweep.png)
+
+*The Task 4.3 table as two plots. The shaded band above z +0.075 m is where the trunk pitched or flipped (the common mistakes below).*
+
 Check: your roll and pitch rows match the command to about 0.01 rad, and z -0.10 and -0.20 give the same height.
 
 Common mistakes:
@@ -343,8 +354,8 @@ height 0.206 to 0.219 m   roll -2.1 to 3.6 deg   pitch -2.0 to 1.9 deg
 Standing, the trunk is at 0.216 m with roll and pitch within about 0.5 degrees of level. Walking, the height oscillates at
 4.0 Hz at every speed tested, twice per 0.5 s stride. The trunk sits about 1.6 cm lower over its feet than `nominal_height`
 (foot at -0.209 m in `base_link` while standing, against 0.225 m commanded); the likely cause is the PID tracking error under the
-robot's weight. Why the trunk moves this way, and the stroke and Bézier foot-path derivations, are in
-[m09 locomotion](../modules/m09_locomotion/README.md).
+robot's weight. The trot timing and the commanded foot path behind the 4.0 Hz bounce are drawn in
+[chapter 1, Task 2](01-legged-robot-foundations.md#task-2-see-how-a-trot-moves-the-feet-and-the-trunk).
 
 Check: the walking roll and pitch ranges are a few degrees, larger than the 0.5 degrees standing.
 
@@ -361,7 +372,7 @@ Objective: know what each key in `gait.yaml` does before changing one.
 | `max_linear_velocity_x` | 0.3 | forward/backward command clipped to ±0.3 m/s (`leg_controller.h`) |
 | `max_linear_velocity_y` | 0.25 | sideways clip, m/s |
 | `max_angular_velocity_z` | 0.5 | yaw clip, rad/s |
-| `stance_duration` | 0.25 | stance time per step, s; also sets the stroke, 0.25 × velocity (derivation in [m09](../modules/m09_locomotion/README.md)). Swing time is fixed at 0.25 s in `phase_generator.h` |
+| `stance_duration` | 0.25 | stance time per step, s; also sets the stroke: `raibertHeuristic` in `leg_controller.h` returns 0.25 / 2 × velocity and `transformLeg` doubles it, so the stroke is 0.25 × velocity. Swing time is fixed at 0.25 s in `phase_generator.h` |
 | `swing_height` | 0.04 | foot lift in swing, m |
 | `stance_depth` | 0.01 | how far the stance foot is pressed below nominal, m |
 | `nominal_height` | 0.225 | target height of `base_link` above the feet, m |
@@ -374,16 +385,19 @@ Objective: know what each key in `gait.yaml` does before changing one.
 
 *Stance and swing per leg, computed by re-running the logic of `phase_generator.h` with `stance_duration` 0.25 s and its fixed 0.25 s swing. For the first 0.125 s after a command the `has_swung_` rule holds every foot; the trot then starts half-way through a stance.*
 
-![Foot paths for 0.1, 0.2 and 0.3 m/s: solid cosine dips 1 cm deep for stance, dashed Bézier loops up to 4.1 cm for swing, with a red line at the 3.2 cm foot travel measured in this chapter](img/c06-foot-trajectory.png)
+![Foot paths for 0.1, 0.2 and 0.3 m/s: solid cosine dips 1 cm deep for stance, dashed Bézier loops up to 4.1 cm for swing, with a red line at the 3.1 cm mean foot travel measured in Task 5.4](img/c06-foot-trajectory.png)
 
-*The commanded foot path relative to its nominal point, from the control points in `trajectory_planner.h` scaled by `swing_height` and the stroke of 0.25 × velocity. The swing loop reaches past the stroke at both ends. The measured 3.2 cm of foot travel is less than the commanded 4.1 + 1 cm.*
+*The commanded foot path relative to its nominal point, from the control points in `trajectory_planner.h` scaled by `swing_height` and the stroke of 0.25 × velocity. The swing loop reaches past the stroke at both ends. The mean measured foot travel at `swing_height` 0.04 (3.1 cm, Task 5.4) is less than the commanded 4.1 + 1 cm.*
 
 <video controls muted playsinline src="../media/c06-trot-kinematic.mp4"></video>
 
 *The same gait on the MuJoCo Go2 at half speed, 0.2 m/s, with the timing strip above and a cursor. Foot paths from the two headers, joint angles from the closed-form IK in `modules/m04_kinematics`, trunk moved at the commanded speed at a fixed height. Kinematics only: no physics and no CHAMP code runs, so there is no slip and no trunk bounce. Made by `docs/img/c06-videos.py`.*
 
 The keys are read once, when the node starts. `ros2 param set /quadruped_controller_node gait.swing_height 0.10` reports
-`Set parameter successful`, but the foot lift stayed at 3.2 cm.
+`Set parameter successful`, and `ros2 param get` then prints `Double value is: 0.1`, but the gait did not change. In one
+session `foot_lift.py` (Task 5.2) measured 3.0 cm of travel just before the `param set` and 3.5 cm after it (3.6 cm in a
+second session), close to the 2.9 to 3.4 cm of the 0.04 m runs in Task 5.4 and far from the 7.2 cm that 0.08 gave from the
+YAML.
 
 Check: `grep swing_height src/third_party/unitree-go2-ros2/robots/configs/go2_config/config/gait/gait.yaml` shows `0.04`.
 
@@ -432,8 +446,8 @@ python3 foot_lift.py; ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist "{}
 foot z in base_link -0.214 to -0.185 m (travel 2.9 cm), speed 0.168 m/s
 ```
 
-A second run gave 2.9 cm and 0.162 m/s. These are lower than the 3.2 cm and 0.181 m/s above, which came from the run at a
-real-time factor of 1.00.
+A second run gave 2.9 cm and 0.162 m/s, and a third, at a real-time factor of 0.48, 3.4 cm and 0.183 m/s. Expect a few
+millimetres and a few cm/s of spread between runs on a busy machine.
 
 Check: a travel near 3 cm, well under the 5 cm that `swing_height` plus `stance_depth` ask for.
 
@@ -477,25 +491,40 @@ python3 foot_lift.py; ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist "{}
 foot z in base_link -0.216 to -0.143 m (travel 7.3 cm), speed 0.186 m/s
 ```
 
-| `swing_height` | Foot travel (two runs) | Asked for (`swing_height` + `stance_depth`) | Speed at 0.2 m/s command |
+| `swing_height` | Foot travel (three runs) | Asked for (`swing_height` + `stance_depth`) | Speed at 0.2 m/s command |
 |---|---|---|---|
-| 0.04 m | 2.9, 2.9 cm | 5 cm | 0.168, 0.162 m/s |
-| 0.08 m | 7.3, 7.2 cm | 9 cm | 0.186, 0.190 m/s |
+| 0.04 m | 2.9, 2.9, 3.4 cm | 5 cm | 0.168, 0.162, 0.183 m/s |
+| 0.08 m | 7.3, 7.2, 7.2 cm | 9 cm | 0.186, 0.190, 0.188 m/s |
 
-Doubling `swing_height` raised the measured travel by 4.4 cm, about the 4 cm added, and the robot came closer to the commanded
-0.2 m/s. Two runs per setting on a loaded machine are not enough to say why the speed changed.
+Doubling `swing_height` raised the mean measured travel from 3.07 to 7.23 cm, by 4.2 cm for the 4 cm added. The robot also came closer to
+the commanded 0.2 m/s, but the third 0.04 m run (0.183 m/s) is within 3 mm/s of the slowest 0.08 m run, so three runs per
+setting on a loaded machine do not show that the speed changed.
 
-Check: the travel grows by about 4 cm. Stop the launch and use `sim.launch.py` again for the next chapters.
+![Bars of measured foot travel inside dashed outlines of the travel asked for: a mean of 3.1 of 5 cm at swing_height 0.04 and 7.2 of 9 cm at 0.08; beside them the body speed, three runs per setting, below the 0.2 m/s command](img/c06-swing-height.png)
+
+*All three runs per setting of the Task 5.4 table. The gap between asked and measured stays near 2 cm at both settings.*
+
+Check: the travel grows by about 4 cm. Keep `docs/exercises/sim_gait.launch.py` for the Exercise, then stop the launch and
+use `sim.launch.py` again for the next chapters.
 
 ## Exercise
 
-Predict the trunk height for `python3 posture.py -0.20 0 0 0` from the clamp in
-`champ/champ/include/champ/body_controller/body_controller.h`, then measure it.
+Predict the foot travel that `foot_lift.py` measures with `swing_height : 0.06`, using only the Task 5.4 table. Then set 0.06
+in `docs/exercises/gait.yaml`, start `docs/exercises/sim_gait.launch.py odom:=gt` as in Task 5.3, check the value with
+`ros2 param get`, and measure it three times.
 
-Answer: `poseCommand` limits the foot shift to `0.65 × -zero_stance().Z()`. With straight legs the foot is 0.426 m below
-`base_link`, so the shift is at most 0.277 m and the lowest commanded height is 0.426 - 0.277 = 0.149 m, whatever z you send
-below -0.076 m. The measurement gave 0.138 m for both z -0.10 and z -0.20 (Task 4.3), 1.1 cm below the prediction, the same
-offset as the standing trunk (0.216 m against 0.225 m).
+Answer: at both settings in the table the foot travelled about 2 cm less than `swing_height` + `stance_depth` (1.9 cm at 0.04,
+1.8 cm at 0.08), so 0.06 + 0.01 m asks for 7 cm and the prediction is about 5.1 cm. Three runs at a real-time factor of 0.76 to
+0.88 gave:
+
+```
+foot z in base_link -0.217 to -0.164 m (travel 5.3 cm), speed 0.187 m/s
+foot z in base_link -0.215 to -0.164 m (travel 5.1 cm), speed 0.188 m/s
+foot z in base_link -0.215 to -0.164 m (travel 5.1 cm), speed 0.189 m/s
+```
+
+The top of the swing moved up by 2.1 cm from the 0.04 m runs (-0.185 m) for the 2 cm added, and the bottom stayed near
+-0.215 m, so the gap of about 2 cm sits in the stance part of the path and does not depend on `swing_height`.
 
 ## Further reading
 

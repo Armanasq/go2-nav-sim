@@ -1,0 +1,74 @@
+{
+  "id": "6.17",
+  "title": "Estimate platform height and edges",
+  "status": "verified",
+  "metrics": {
+    "height_m": 0.11836298260921843,
+    "true_height_m": 0.12,
+    "height_error_m": 0.0016370173907815644,
+    "edges_est_m": {
+      "near_x": -2.699388379243372,
+      "far_x": -1.7464593388638998,
+      "right_y": -4.082773183238569,
+      "left_y": -2.9068128434174842
+    },
+    "edges_true_m": {
+      "near_x": -2.7,
+      "far_x": -1.7000000000000002,
+      "right_y": -4.1,
+      "left_y": -2.9
+    },
+    "edge_errors_m": {
+      "near_x": 0.0006116207566280174,
+      "far_x": -0.046459338863899635,
+      "right_y": 0.017226816761430896,
+      "left_y": -0.006812843417484338
+    },
+    "max_edge_error_m": 0.046459338863899635,
+    "floor_camera_height_m": 0.24717864550214003,
+    "camera_height_gt_m": 0.2462263112058768
+  },
+  "acceptance": "height_error_m <= 0.01; max_edge_error_m <= 0.05; in each of 5 runs, each on a fresh simulator. Basis: height = top plane minus floor plane along the floor normal; edges = 1st and 99th percentiles of the top inliers in world x and y (horizontal pose from /odom_gt); true edges x -2.7, -1.7, y -4.1, -2.9",
+  "checks": {
+    "height_error_m": {
+      "value": 0.0016370173907815644,
+      "rule": "<= 0.01",
+      "passed": true
+    },
+    "max_edge_error_m": {
+      "value": 0.046459338863899635,
+      "rule": "<= 0.05",
+      "passed": true
+    }
+  },
+  "runs_passed": 5,
+  "runs_total": 5,
+  "per_run": [
+    {
+      "height_error_m": 0.0016971190563265515,
+      "max_edge_error_m": 0.02150246198782213
+    },
+    {
+      "height_error_m": 0.0012437603766258243,
+      "max_edge_error_m": 0.017593713691253843
+    },
+    {
+      "height_error_m": 0.0018611054893667156,
+      "max_edge_error_m": 0.017876817255028987
+    },
+    {
+      "height_error_m": 0.0035871474902840206,
+      "max_edge_error_m": 0.04694947676966654
+    },
+    {
+      "height_error_m": 0.0016370173907815644,
+      "max_edge_error_m": 0.046459338863899635
+    }
+  ],
+  "outputs": [
+    "figures/6.17_platform_edges.png"
+  ],
+  "command": "python3 tasks/s06_sensors-and-perception/run.py 6.17",
+  "world": "platform",
+  "wall_s": 127.0
+}

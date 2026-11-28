@@ -1,0 +1,71 @@
+{
+  "id": "3.04",
+  "title": "Crouch",
+  "status": "verified",
+  "checks": {
+    "rms_height_error_m": {
+      "value": 0.00036608837009664884,
+      "rule": "max 0.004",
+      "passed": true
+    },
+    "max_height_error_m": {
+      "value": 0.0008123259822935269,
+      "rule": "max 0.008",
+      "passed": true
+    },
+    "max_abs_roll_pitch_deg": {
+      "value": 0.2715854707517826,
+      "rule": "max 1.0",
+      "passed": true
+    },
+    "final_height_error_m": {
+      "value": 1.552788870418098e-05,
+      "rule": "max 0.003",
+      "passed": true
+    },
+    "contact_fraction": {
+      "value": 1.0,
+      "rule": "min 1.0",
+      "passed": true
+    }
+  },
+  "measured": {
+    "start_height_m": 0.274635178240642,
+    "crouch_height_m": 0.18,
+    "rms_height_error_m": 0.00036608837009664884,
+    "max_height_error_m": 0.0008123259822935269,
+    "max_abs_roll_pitch_deg": 0.2715854707517826,
+    "final_height_error_m": 1.552788870418098e-05,
+    "contact_fraction": 1.0,
+    "max_torque_fraction": 0.19926074048802267,
+    "foot_force_end_N": {
+      "FL": [
+        -0.03,
+        0.02,
+        37.03
+      ],
+      "FR": [
+        -0.03,
+        -0.02,
+        37.03
+      ],
+      "RL": [
+        0.03,
+        0.15,
+        37.56
+      ],
+      "RR": [
+        0.03,
+        -0.15,
+        37.56
+      ]
+    }
+  },
+  "outputs": [
+    "figures/3-04_crouch.png"
+  ],
+  "command": "python run.py 3.04",
+  "mujoco": "3.17.0",
+  "wall_s": 36.1,
+  "load_avg_1min": 53.7
+}

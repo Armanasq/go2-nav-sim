@@ -1,0 +1,49 @@
+{
+  "id": "2.11",
+  "title": "Foot along a triangle",
+  "status": "verified",
+  "checks": {
+    "rms_error_m": {
+      "value": 0.001264559510789408,
+      "rule": "max 0.004",
+      "passed": true
+    },
+    "max_error_m": {
+      "value": 0.003254865049528437,
+      "rule": "max 0.01",
+      "passed": true
+    },
+    "path_rms_error_m": {
+      "value": 0.0004964236330055294,
+      "rule": "max 0.003",
+      "passed": true
+    },
+    "max_vertex_miss_m": {
+      "value": 0.00032262890684496163,
+      "rule": "max 0.005",
+      "passed": true
+    }
+  },
+  "measured": {
+    "edge_speed_m_s": 0.3,
+    "rms_error_m": 0.001264559510789408,
+    "max_error_m": 0.003254865049528437,
+    "path_rms_error_m": 0.0004964236330055294,
+    "path_max_error_m": 0.002225020909303528,
+    "vertex_miss_m": [
+      0.00032262890684496163,
+      0.00029823211744475764,
+      0.00023021547221085018
+    ],
+    "max_vertex_miss_m": 0.00032262890684496163,
+    "max_abs_torque_nm": 7.745807851758561
+  },
+  "outputs": [
+    "figures/2-11_triangle.png",
+    "media/2-11_triangle.mp4",
+    "media/2-11_triangle.png"
+  ],
+  "command": "python run.py 2.11",
+  "mujoco": "3.17.0",
+  "wall_s": 14.9
+}

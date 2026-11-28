@@ -1,0 +1,81 @@
+{
+  "id": "3.01",
+  "title": "Resting configuration",
+  "status": "verified",
+  "checks": {
+    "weight_carried_rel_error": {
+      "value": 8.803589642170095e-06,
+      "rule": "max 0.02",
+      "passed": true
+    },
+    "max_torque_fraction": {
+      "value": 0.06501148582172517,
+      "rule": "max 0.2",
+      "passed": true
+    },
+    "base_speed_end_m_s": {
+      "value": 0.0007327883120207309,
+      "rule": "max 0.01",
+      "passed": true
+    },
+    "max_abs_roll_pitch_deg": {
+      "value": 1.9677038972773337,
+      "rule": "max 3.0",
+      "passed": true
+    }
+  },
+  "measured": {
+    "q_rest": [
+      0.0,
+      1.36,
+      -2.65
+    ],
+    "base_height_m": 0.09777659731768225,
+    "roll_deg": 8.021086931123355e-06,
+    "pitch_deg": -1.9677038972773337,
+    "max_abs_roll_pitch_deg": 1.9677038972773337,
+    "contact_force_z_N": {
+      "base": 41.22,
+      "FL": 10.2,
+      "FR": 10.2,
+      "RL": 43.78,
+      "RR": 43.78
+    },
+    "weight_N": 149.17486248,
+    "weight_carried_rel_error": 8.803589642170095e-06,
+    "trunk_share": 0.27631794800890863,
+    "max_torque_fraction": 0.06501148582172517,
+    "max_torque_nm": 2.9534718008809744,
+    "base_speed_end_m_s": 0.0007327883120207309,
+    "foot_force_end_N": {
+      "FL": [
+        -0.57,
+        -1.09,
+        10.2
+      ],
+      "FR": [
+        -0.57,
+        1.09,
+        10.2
+      ],
+      "RL": [
+        -3.17,
+        -16.75,
+        43.78
+      ],
+      "RR": [
+        -3.17,
+        16.75,
+        43.78
+      ]
+    }
+  },
+  "outputs": [
+    "media/3-01_rest.png",
+    "figures/3-01_rest_forces.png"
+  ],
+  "command": "python run.py 3.01",
+  "mujoco": "3.17.0",
+  "wall_s": 10.9,
+  "load_avg_1min": 60.8
+}

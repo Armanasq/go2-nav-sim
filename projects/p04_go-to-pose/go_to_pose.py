@@ -5,9 +5,13 @@ usage: python3 projects/p04_go-to-pose/go_to_pose.py [--name NAME] [--gains K_RH
   ROS arguments work too, e.g. --ros-args -r odom:=odom_gt.
 Goals are relative to the robot's pose when the script starts (x forward, y left, heading in degrees). After each goal the
 robot stands for 1.5 s, then the position and heading error are printed, measured on /odom and on /odom_gt.
-Every 20 Hz tick of simulated time is one row of projects/p04_go-to-pose/results/NAME.csv."""
-import argparse, csv, math, pathlib
+A goal ends in 'timeout' after 90 s. The run stops with 'abort' if /odom puts the robot 0.5 m further from the goal than
+when the goal was set: the controller is walking away from it, which happens when the /odom heading has drifted.
+Ctrl-C or kill -TERM stops the robot: the node sends zero velocity before it exits.
+Every 20 Hz tick of simulated time is one row of projects/p04_go-to-pose/results/NAME.csv (default NAME my_run)."""
+import argparse, csv, math, pathlib, signal
 import rclpy
+from rclpy.signals import SignalHandlerOptions
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
@@ -15,6 +19,7 @@ import polar
 
 GOALS = [(2.0, 0.0, 0), (4.0, 0.8, 90), (2.5, 0.3, 180), (0.5, 1.0, 90), (0.0, 0.0, 0)]   # x m, y m, heading deg
 SETTLE, TIMEOUT = 1.5, 90.0                                                                # s of simulated time
+LEASH = 0.5                    # m further from the goal than when it was set, on /odom: give up the run
 RUNS = pathlib.Path(__file__).resolve().parent / 'results'
 
 
@@ -57,6 +62,7 @@ class Runner(Node):
         self.goal = self.todo.pop(0)
         self.target, self.gt_target = place(self.goal, self.start[0]), place(self.goal, self.start[1])
         self.ctl, self.t_goal, self.t_done = polar.GoToPose(self.target, self.gains, v_min=self.v_min), t, None
+        self.d0 = errors(self.odom, self.target)[0]
 
     def tick(self):
         if self.done or self.odom is None or self.gt is None:
@@ -68,22 +74,30 @@ class Runner(Node):
                                    f'{math.degrees(self.odom[2]):.1f} deg)')
             self.next_goal(t)
         v, w, phase = self.ctl.step(*self.odom)
-        if phase != 'done' and t - self.t_goal > TIMEOUT:
-            v, w, phase = 0.0, 0.0, 'timeout'
+        if phase == 'drive' and errors(self.odom, self.target)[0] > self.d0 + LEASH:
+            phase = 'abort'
+        elif phase not in ('done', 'abort') and t - self.t_goal > TIMEOUT:
+            phase = 'timeout'
+        if phase in ('timeout', 'abort'):
+            v, w = 0.0, 0.0
             self.ctl.phase = phase
-        if phase in ('done', 'timeout'):
-            self.t_done = self.t_done or t
-            if t - self.t_done >= SETTLE:
-                self.report(t, phase)
         tw = Twist(); tw.linear.x, tw.angular.z = float(v), float(w)
         self.pub.publish(tw)
         self.log.writerow([f'{t - self.t0:.3f}', self.ids[0], phase, f'{v:.3f}', f'{w:.3f}',
                            *(f'{c:.4f}' for c in self.odom + self.gt + self.target + self.gt_target)])
+        if phase in ('done', 'timeout', 'abort'):
+            self.t_done = self.t_done or t
+            if t - self.t_done >= SETTLE:
+                self.report(t, phase)      # after logging, so the last row of a goal is the one its errors come from
 
     def report(self, t, phase):
         (de, he), (dt_, ht) = errors(self.odom, self.target), errors(self.gt, self.gt_target)
         self.get_logger().info(f'goal {self.ids[0]} {self.goal}: {phase} after {self.t_done - self.t_goal:.1f} s; '
                                f'error on odom {de:.3f} m {he:+.1f} deg, true {dt_:.3f} m {ht:+.1f} deg')
+        if phase == 'abort':
+            self.get_logger().warn(f'walking away from the goal on /odom ({de:.2f} m, {self.d0:.2f} m when it was set): '
+                                   'the /odom heading has probably drifted. Remaining goals skipped; restart the stack')
+            self.todo = []
         if self.todo:
             self.ids.pop(0)
             self.next_goal(t)
@@ -98,19 +112,23 @@ class Runner(Node):
 
 def main():
     ap = argparse.ArgumentParser(usage=__doc__)
-    ap.add_argument('--name', default='run')
+    ap.add_argument('--name', default='my_run')
     ap.add_argument('--gains', type=float, nargs=3, default=polar.GAINS)
     ap.add_argument('--v-min', type=float, default=0.1)
     ap.add_argument('--goals', type=int, nargs='+', default=[1, 2, 3, 4, 5], choices=range(1, len(GOALS) + 1))
     args = ap.parse_args(rclpy.utilities.remove_ros_args()[1:])
-    rclpy.init()
+    # rclpy's own Ctrl-C handler shuts the context down before our code runs, and then stop() cannot publish the zero
+    # twist. Without it, Ctrl-C is a plain KeyboardInterrupt; kill -TERM is turned into one too.
+    rclpy.init(signal_handler_options=SignalHandlerOptions.NO)
+    signal.signal(signal.SIGTERM, signal.default_int_handler)
     node = Runner(args)
     try:
-        while rclpy.ok() and not node.done:
+        while not node.done:
             rclpy.spin_once(node, timeout_sec=0.1)
     except KeyboardInterrupt:
-        pass
-    node.stop()
+        node.get_logger().warn('interrupted: sending zero velocity')
+    finally:
+        node.stop()                         # on any exit, also an exception, so the robot never keeps walking
     print(f'log: {node.f.name}')
 
 

@@ -1,0 +1,42 @@
+{
+  "id": "2.12",
+  "title": "Foot along an arc",
+  "status": "verified",
+  "checks": {
+    "rms_error_m": {
+      "value": 0.0013684858953571025,
+      "rule": "max 0.004",
+      "passed": true
+    },
+    "max_error_m": {
+      "value": 0.003099792862058348,
+      "rule": "max 0.008",
+      "passed": true
+    },
+    "radial_rms_error_m": {
+      "value": 0.0007089671548799804,
+      "rule": "max 0.003",
+      "passed": true
+    },
+    "apex_error_m": {
+      "value": 0.0006943273702887942,
+      "rule": "max 0.003",
+      "passed": true
+    }
+  },
+  "measured": {
+    "radius_m": 0.06,
+    "rms_error_m": 0.0013684858953571025,
+    "max_error_m": 0.003099792862058348,
+    "path_rms_error_m": 0.0005437317972150341,
+    "radial_rms_error_m": 0.0007089671548799804,
+    "radial_max_error_m": 0.0012647475112304019,
+    "apex_error_m": 0.0006943273702887942
+  },
+  "outputs": [
+    "figures/2-12_arc.png"
+  ],
+  "command": "python run.py 2.12",
+  "mujoco": "3.17.0",
+  "wall_s": 12.8
+}

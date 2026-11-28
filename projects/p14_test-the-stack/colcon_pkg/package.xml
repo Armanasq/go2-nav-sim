@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>p14_smoke</name>
+  <version>0.0.1</version>
+  <description>Runs the p14 smoke test under colcon test</description>
+  <maintainer email="nobody@example.com">course</maintainer>
+  <license>none</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <test_depend>launch_testing_ament_cmake</test_depend>
+  <export><build_type>ament_cmake</build_type></export>
+</package>

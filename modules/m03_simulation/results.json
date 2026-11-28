@@ -1,0 +1,1206 @@
+{
+  "fundamental": {
+    "ff_sphere_euler_vs_discrete_m": 1.0658141036401503e-14,
+    "ff_sphere_euler_offset_ratio_err": 5.561107130347409e-13,
+    "ff_sphere_euler_energy_ratio_err": 5.154987547939527e-12,
+    "ff_sphere_euler_offset_at_1s_m": -0.009809999999994545,
+    "ff_sphere_rk4_vs_parabola_m": 1.3322676295501878e-14,
+    "ff_go2_com_residual_m": 0.0002156998521228041,
+    "ff_go2_com_residual_by_h": {
+      "2ms": 0.0002156998521228041,
+      "1ms": 0.00010783761989276322,
+      "0.5ms": 5.3915608058332324e-05
+    },
+    "ff_go2_com_offset_at_1s_m": -0.009940503144914903,
+    "osc_explicit_euler_energy_rel_err": 2.3647750424515834e-14,
+    "osc_rk4_energy_rel_err": 7.194245199571014e-14,
+    "osc_symplectic_modified_energy_rel_drift": 2.220446049250313e-15,
+    "osc_symplectic_band_rel_err": 5.851101569920303e-08,
+    "osc_symplectic_band_measured": 0.052631575867841285,
+    "osc_z": 0.1,
+    "osc_own_vs_mujoco_euler_m": 0.0,
+    "osc_own_vs_mujoco_rk4_m": 1.8596235662471372e-14,
+    "osc_own_vs_mujoco_damped_euler_m": 6.661338147750939e-16,
+    "osc_own_vs_mujoco_damped_implicitfast_m": 6.661338147750939e-16,
+    "osc_explicit_damping_growth_rel_err": 0.0,
+    "osc_explicit_damping_v_after_20_steps": 1048576.0,
+    "osc_implicit_damping_v_after_20_steps": 9.094947017729282e-13
+  },
+  "intermediate": {
+    "energy_order_euler": 1.0080050612807296,
+    "energy_order_implicitfast": 1.0080050612807296,
+    "energy_order_implicit": 0.9963879857676681,
+    "energy_order_rk4": 2.0007525558037096,
+    "energy_drift": {
+      "Euler": {
+        "0.25ms": 0.0003210363044647835,
+        "0.5ms": 0.0006430933548786655,
+        "1ms": 0.0012902511468937394,
+        "2ms": 0.0025966083749280333,
+        "4ms": 0.005256379681458645
+      },
+      "implicitfast": {
+        "0.25ms": 0.0003210363044647835,
+        "0.5ms": 0.0006430933548786655,
+        "1ms": 0.0012902511468937394,
+        "2ms": 0.0025966083749280333,
+        "4ms": 0.005256379681458645
+      },
+      "implicit": {
+        "0.25ms": 0.00032321505417365337,
+        "0.5ms": 0.00064597977570513,
+        "1ms": 0.0012901683233111916,
+        "2ms": 0.0025731335270668954,
+        "4ms": 0.00511779911068988
+      },
+      "RK4": {
+        "0.25ms": 1.0965761632064641e-10,
+        "0.5ms": 4.3860293175157494e-10,
+        "1ms": 1.754562051203834e-09,
+        "2ms": 7.021130121742658e-09,
+        "4ms": 2.813868005269171e-08
+      }
+    },
+    "energy_implicitfast_equals_euler": 0.0,
+    "energy_rk4_over_euler_at_2ms": 2.703961902586582e-06,
+    "energy_E0_J": 0.6612665049356445,
+    "energy_own_kinetic_vs_mujoco_J": 0.0,
+    "rk4_diagnostics": {
+      "energy_order_rk4_fixed_base": 4.202250942605952,
+      "rk4_fixed_base_drift": {
+        "0.5ms": 1.887379141862766e-15,
+        "1ms": 4.8405723873656825e-14,
+        "2ms": 7.724931805341839e-13,
+        "4ms": 1.2346346167646516e-11
+      },
+      "rk4_box_orientation_order": 1.9818191358894173,
+      "rk4_box_orientation_err_rad": {
+        "1ms": 2.40274004587488e-07,
+        "2ms": 9.377081824870359e-07,
+        "4ms": 3.7487009692024644e-06
+      }
+    },
+    "threshold_deg": {
+      "pyramidal_ir1_mu0.2": {
+        "measured": 11.367000345113965,
+        "predicted": 11.309932474020215,
+        "atan_mu": 11.309932474020215
+      },
+      "pyramidal_ir1_mu0.2_45deg": {
+        "measured": 8.107145198184647,
+        "predicted": 8.049466975528398,
+        "atan_mu": 11.309932474020215
+      },
+      "pyramidal_ir1_mu0.5": {
+        "measured": 26.617236235671733,
+        "predicted": 26.56505117707799,
+        "atan_mu": 26.56505117707799
+      },
+      "pyramidal_ir1_mu0.5_45deg": {
+        "measured": 19.52645745089694,
+        "predicted": 19.471220634490695,
+        "atan_mu": 26.56505117707799
+      },
+      "pyramidal_ir1_mu0.8": {
+        "measured": 38.705279445496345,
+        "predicted": 38.659808254090095,
+        "atan_mu": 38.659808254090095
+      },
+      "pyramidal_ir1_mu0.8_45deg": {
+        "measured": 29.54656250047268,
+        "predicted": 29.49620849656644,
+        "atan_mu": 38.659808254090095
+      },
+      "pyramidal_ir1_mu1": {
+        "measured": 45.04119873046874,
+        "predicted": 45.0,
+        "atan_mu": 45.0
+      },
+      "pyramidal_ir1_mu1_45deg": {
+        "measured": 35.31169192884841,
+        "predicted": 35.264389682754654,
+        "atan_mu": 45.0
+      },
+      "elliptic_ir1_mu0.2": {
+        "measured": 11.367000345113965,
+        "predicted": 11.309932474020215,
+        "atan_mu": 11.309932474020215
+      },
+      "elliptic_ir1_mu0.5": {
+        "measured": 26.617236235671733,
+        "predicted": 26.56505117707799,
+        "atan_mu": 26.56505117707799
+      },
+      "elliptic_ir1_mu0.8": {
+        "measured": 38.70466909393384,
+        "predicted": 38.659808254090095,
+        "atan_mu": 38.659808254090095
+      },
+      "elliptic_ir1_mu1": {
+        "measured": 45.04058837890626,
+        "predicted": 45.0,
+        "atan_mu": 45.0
+      },
+      "elliptic_ir100_mu0.2": {
+        "measured": 11.367000345113965,
+        "predicted": 11.309932474020215,
+        "atan_mu": 11.309932474020215
+      },
+      "elliptic_ir100_mu0.5": {
+        "measured": 26.617236235671733,
+        "predicted": 26.56505117707799,
+        "atan_mu": 26.56505117707799
+      },
+      "elliptic_ir100_mu0.8": {
+        "measured": 38.70466909393384,
+        "predicted": 38.659808254090095,
+        "atan_mu": 38.659808254090095
+      },
+      "elliptic_ir100_mu1": {
+        "measured": 45.04058837890626,
+        "predicted": 45.0,
+        "atan_mu": 45.0
+      }
+    },
+    "accel": {
+      "pyramidal_ir1_mu0.2": {
+        "theta_deg": [
+          1.3099324740202147,
+          6.309932474020215,
+          9.309932474020215,
+          13.309932474020215,
+          16.309932474020215,
+          21.309932474020215,
+          31.30993247402021
+        ],
+        "measured": [
+          2.4011695990075017e-14,
+          -1.1209887869784876e-12,
+          -1.1566738017129864e-12,
+          0.34912626539916325,
+          0.8719181939619921,
+          1.7372126353976907,
+          3.4203721583004185
+        ],
+        "predicted": [
+          0.0,
+          0.0,
+          0.0,
+          0.34914420724261547,
+          0.8719301303302683,
+          1.7372243458829169,
+          3.4216640090941146
+        ]
+      },
+      "pyramidal_ir1_mu0.5": {
+        "theta_deg": [
+          16.56505117707799,
+          21.56505117707799,
+          24.56505117707799,
+          28.56505117707799,
+          31.565051177077986,
+          36.56505117707799,
+          46.56505117707799
+        ],
+        "measured": [
+          -2.7319978229223653e-13,
+          -7.762398722223262e-13,
+          -1.7120985016249756e-12,
+          0.3826907756871387,
+          0.9553446947909147,
+          1.909097814081723,
+          3.7388145180029895
+        ],
+        "predicted": [
+          0.0,
+          0.0,
+          0.0,
+          0.3827746585709137,
+          0.955916641351981,
+          1.9045581798650242,
+          3.751247323187792
+        ]
+      },
+      "pyramidal_ir1_mu0.8": {
+        "theta_deg": [
+          28.659808254090095,
+          33.659808254090095,
+          36.659808254090095,
+          40.6598082540901,
+          43.659808254090095,
+          48.659808254090095,
+          58.659808254090095
+        ],
+        "measured": [
+          7.966218525920051e-13,
+          9.381036139297072e-13,
+          -3.4798476405697426e-13,
+          0.4388754352280485,
+          1.0948617105508822,
+          2.1949189700239606,
+          4.310346407063481
+        ],
+        "predicted": [
+          0.0,
+          0.0,
+          0.0,
+          0.4384399255180055,
+          1.0949314737828637,
+          2.18152985791254,
+          4.296775034999777
+        ]
+      },
+      "pyramidal_ir1_mu1": {
+        "theta_deg": [
+          35.0,
+          40.0,
+          43.0,
+          47.0,
+          50.0,
+          55.0,
+          65.0
+        ],
+        "measured": [
+          -2.75090344335934e-13,
+          3.631784489288036e-13,
+          1.044354727582799e-12,
+          0.485169592216211,
+          1.2089356525204207,
+          2.391942402443584,
+          4.702879506392662
+        ],
+        "predicted": [
+          0.0,
+          0.0,
+          0.0,
+          0.4841759006709522,
+          1.2091495359722233,
+          2.409096713871247,
+          4.744994243153275
+        ]
+      },
+      "elliptic_ir1_mu0.2": {
+        "theta_deg": [
+          1.3099324740202147,
+          6.309932474020215,
+          9.309932474020215,
+          13.309932474020215,
+          16.309932474020215,
+          21.309932474020215,
+          31.30993247402021
+        ],
+        "measured": [
+          6.889699404647014e-14,
+          2.5095545561082855e-12,
+          3.369065979548057e-12,
+          0.34916509226992065,
+          0.8720280736995786,
+          1.7374582701681887,
+          3.4182931106344463
+        ],
+        "predicted": [
+          0.0,
+          0.0,
+          0.0,
+          0.34914420724261547,
+          0.8719301303302683,
+          1.7372243458829169,
+          3.4216640090941146
+        ]
+      },
+      "elliptic_ir1_mu0.5": {
+        "theta_deg": [
+          16.56505117707799,
+          21.56505117707799,
+          24.56505117707799,
+          28.56505117707799,
+          31.565051177077986,
+          36.56505117707799,
+          46.56505117707799
+        ],
+        "measured": [
+          3.0550316464038635e-13,
+          5.888596311827519e-12,
+          -1.937023477057615e-13,
+          0.38278662506809913,
+          0.9563517398717423,
+          1.890254805258649,
+          3.747387209834942
+        ],
+        "predicted": [
+          0.0,
+          0.0,
+          0.0,
+          0.3827746585709137,
+          0.955916641351981,
+          1.9045581798650242,
+          3.751247323187792
+        ]
+      },
+      "elliptic_ir1_mu0.8": {
+        "theta_deg": [
+          28.659808254090095,
+          33.659808254090095,
+          36.659808254090095,
+          40.6598082540901,
+          43.659808254090095,
+          48.659808254090095,
+          58.659808254090095
+        ],
+        "measured": [
+          4.081459783788735e-12,
+          2.0138392297429997e-12,
+          -3.227522401857621e-13,
+          0.4397352657029715,
+          1.0858458194982605,
+          2.169461186073533,
+          4.286517578976277
+        ],
+        "predicted": [
+          0.0,
+          0.0,
+          0.0,
+          0.4384399255180055,
+          1.0949314737828637,
+          2.18152985791254,
+          4.296775034999777
+        ]
+      },
+      "elliptic_ir1_mu1": {
+        "theta_deg": [
+          35.0,
+          40.0,
+          43.0,
+          47.0,
+          50.0,
+          55.0,
+          65.0
+        ],
+        "measured": [
+          -6.315028644156283e-13,
+          1.374681982353834e-12,
+          -1.0112967217307393e-13,
+          0.4817142433406195,
+          1.217229220989568,
+          2.3822268651058254,
+          4.704939980571161
+        ],
+        "predicted": [
+          0.0,
+          0.0,
+          0.0,
+          0.4841759006709522,
+          1.2091495359722233,
+          2.409096713871247,
+          4.744994243153275
+        ]
+      },
+      "elliptic_ir100_mu0.2": {
+        "theta_deg": [
+          1.3099324740202147,
+          6.309932474020215,
+          9.309932474020215,
+          13.309932474020215,
+          16.309932474020215,
+          21.309932474020215,
+          31.30993247402021
+        ],
+        "measured": [
+          -1.9450971527063044e-14,
+          1.2154418569563948e-14,
+          -1.7339652014284855e-14,
+          0.3490916874467764,
+          0.8717336704317554,
+          1.7376564808014843,
+          3.4222803661601615
+        ],
+        "predicted": [
+          0.0,
+          0.0,
+          0.0,
+          0.34914420724261547,
+          0.8719301303302683,
+          1.7372243458829169,
+          3.4216640090941146
+        ]
+      },
+      "elliptic_ir100_mu0.5": {
+        "theta_deg": [
+          16.56505117707799,
+          21.56505117707799,
+          24.56505117707799,
+          28.56505117707799,
+          31.565051177077986,
+          36.56505117707799,
+          46.56505117707799
+        ],
+        "measured": [
+          -1.546207359253179e-14,
+          5.475677043226184e-14,
+          -3.7470291314601896e-14,
+          0.38285221033417216,
+          0.9549502014748057,
+          1.8884949571634466,
+          3.7451258774910916
+        ],
+        "predicted": [
+          0.0,
+          0.0,
+          0.0,
+          0.3827746585709137,
+          0.955916641351981,
+          1.9045581798650242,
+          3.751247323187792
+        ]
+      },
+      "elliptic_ir100_mu0.8": {
+        "theta_deg": [
+          28.659808254090095,
+          33.659808254090095,
+          36.659808254090095,
+          40.6598082540901,
+          43.659808254090095,
+          48.659808254090095,
+          58.659808254090095
+        ],
+        "measured": [
+          7.737694000674156e-15,
+          -5.39993888692328e-14,
+          3.584309248312208e-14,
+          0.43768513752049526,
+          1.0948675529669973,
+          2.1949768139692547,
+          4.34458344477218
+        ],
+        "predicted": [
+          0.0,
+          0.0,
+          0.0,
+          0.4384399255180055,
+          1.0949314737828637,
+          2.18152985791254,
+          4.296775034999777
+        ]
+      },
+      "elliptic_ir100_mu1": {
+        "theta_deg": [
+          35.0,
+          40.0,
+          43.0,
+          47.0,
+          50.0,
+          55.0,
+          65.0
+        ],
+        "measured": [
+          1.0863699086971445e-14,
+          -2.750426339563697e-14,
+          -5.235697147817108e-15,
+          0.48456166275053836,
+          1.2185074197203198,
+          2.424347447493842,
+          4.769542195590538
+        ],
+        "predicted": [
+          0.0,
+          0.0,
+          0.0,
+          0.4841759006709522,
+          1.2091495359722233,
+          2.409096713871247,
+          4.744994243153275
+        ]
+      }
+    },
+    "creep": {
+      "pyramidal_ir1_mu0.2": {
+        "theta_deg": 10.178939226618192,
+        "speed_m_s": 0.00358954134565983
+      },
+      "pyramidal_ir1_mu0.5": {
+        "theta_deg": 23.908546059370188,
+        "speed_m_s": 0.009818716447557174
+      },
+      "pyramidal_ir1_mu0.8": {
+        "theta_deg": 34.793827428681084,
+        "speed_m_s": 0.017866112437118446
+      },
+      "pyramidal_ir1_mu1": {
+        "theta_deg": 40.5,
+        "speed_m_s": 0.024350872256360255
+      },
+      "elliptic_ir1_mu0.2": {
+        "theta_deg": 10.178939226618192,
+        "speed_m_s": 0.0015659904509633395,
+        "predicted_m_s": 0.0015659904612153972
+      },
+      "elliptic_ir1_mu0.5": {
+        "theta_deg": 23.908546059370188,
+        "speed_m_s": 0.003653653161565571,
+        "predicted_m_s": 0.0036536531612465675
+      },
+      "elliptic_ir1_mu0.8": {
+        "theta_deg": 34.793827428681084,
+        "speed_m_s": 0.005259990835850111,
+        "predicted_m_s": 0.0052599908365164455
+      },
+      "elliptic_ir1_mu1": {
+        "theta_deg": 40.5,
+        "speed_m_s": 0.006071334869550244,
+        "predicted_m_s": 0.0060713348689113615
+      },
+      "elliptic_ir100_mu0.2": {
+        "theta_deg": 10.178939226618192,
+        "speed_m_s": 1.5659904634131317e-05,
+        "predicted_m_s": 1.5659904612851925e-05
+      },
+      "elliptic_ir100_mu0.5": {
+        "theta_deg": 23.908546059370188,
+        "speed_m_s": 3.653653161619126e-05,
+        "predicted_m_s": 3.653653160815776e-05
+      },
+      "elliptic_ir100_mu0.8": {
+        "theta_deg": 34.793827428681084,
+        "speed_m_s": 5.2599908487912695e-05,
+        "predicted_m_s": 5.2599908365164455e-05
+      },
+      "elliptic_ir100_mu1": {
+        "theta_deg": 40.5,
+        "speed_m_s": 6.071334862993985e-05,
+        "predicted_m_s": 6.071334868911363e-05
+      }
+    },
+    "incline_threshold_err_deg_max": 0.05706787109374982,
+    "incline_accel_err_over_g_max": 0.004873436266300042,
+    "incline_creep_rel_err_max": 6.546692299380652e-09,
+    "incline_pyramid_45deg_threshold_err_deg_max": 0.05767822265624811
+  },
+  "advanced": {
+    "penetration_sphere_rel_err_max": 2.063823001385856e-09,
+    "penetration_sphere_cases": [
+      {
+        "timeconst": 0.005,
+        "solimp": [
+          0.9,
+          0.95,
+          0.001,
+          0.5,
+          2
+        ],
+        "measured_m": 2.7300805646252035e-05,
+        "predicted_m": 2.7300805662029843e-05
+      },
+      {
+        "timeconst": 0.005,
+        "solimp": [
+          0.9,
+          0.9,
+          0.001,
+          0.5,
+          2
+        ],
+        "measured_m": 2.4524999994807173e-05,
+        "predicted_m": 2.4525e-05
+      },
+      {
+        "timeconst": 0.005,
+        "solimp": [
+          0.5,
+          0.99,
+          0.01,
+          0.5,
+          2
+        ],
+        "measured_m": 0.00047442317807139256,
+        "predicted_m": 0.0004744231779968351
+      },
+      {
+        "timeconst": 0.005,
+        "solimp": [
+          0.015,
+          1.0,
+          0.022,
+          0.5,
+          2
+        ],
+        "measured_m": 0.00633504589980962,
+        "predicted_m": 0.00633504590074679
+      },
+      {
+        "timeconst": 0.01,
+        "solimp": [
+          0.9,
+          0.95,
+          0.001,
+          0.5,
+          2
+        ],
+        "measured_m": 0.00010775542020923651,
+        "predicted_m": 0.00010775542021616707
+      },
+      {
+        "timeconst": 0.01,
+        "solimp": [
+          0.9,
+          0.9,
+          0.001,
+          0.5,
+          2
+        ],
+        "measured_m": 9.81000000017454e-05,
+        "predicted_m": 9.81e-05
+      },
+      {
+        "timeconst": 0.01,
+        "solimp": [
+          0.5,
+          0.99,
+          0.01,
+          0.5,
+          2
+        ],
+        "measured_m": 0.0016428317177110616,
+        "predicted_m": 0.0016428317176268193
+      },
+      {
+        "timeconst": 0.01,
+        "solimp": [
+          0.015,
+          1.0,
+          0.022,
+          0.5,
+          2
+        ],
+        "measured_m": 0.00823088471932016,
+        "predicted_m": 0.008230884719004032
+      },
+      {
+        "timeconst": 0.02,
+        "solimp": [
+          0.9,
+          0.95,
+          0.001,
+          0.5,
+          2
+        ],
+        "measured_m": 0.00036718184254442426,
+        "predicted_m": 0.00036718184246011014
+      },
+      {
+        "timeconst": 0.02,
+        "solimp": [
+          0.9,
+          0.9,
+          0.001,
+          0.5,
+          2
+        ],
+        "measured_m": 0.00039239999997860153,
+        "predicted_m": 0.0003924
+      },
+      {
+        "timeconst": 0.02,
+        "solimp": [
+          0.5,
+          0.99,
+          0.01,
+          0.5,
+          2
+        ],
+        "measured_m": 0.0036194523932828113,
+        "predicted_m": 0.003619452393559515
+      },
+      {
+        "timeconst": 0.02,
+        "solimp": [
+          0.015,
+          1.0,
+          0.022,
+          0.5,
+          2
+        ],
+        "measured_m": 0.01038692476099485,
+        "predicted_m": 0.010386924761483132
+      },
+      {
+        "timeconst": 0.04,
+        "solimp": [
+          0.9,
+          0.95,
+          0.001,
+          0.5,
+          2
+        ],
+        "measured_m": 0.0008332907092593045,
+        "predicted_m": 0.000833290709762446
+      },
+      {
+        "timeconst": 0.04,
+        "solimp": [
+          0.9,
+          0.9,
+          0.001,
+          0.5,
+          2
+        ],
+        "measured_m": 0.001569599997863269,
+        "predicted_m": 0.0015696
+      },
+      {
+        "timeconst": 0.04,
+        "solimp": [
+          0.5,
+          0.99,
+          0.01,
+          0.5,
+          2
+        ],
+        "measured_m": 0.005413163592718734,
+        "predicted_m": 0.005413163591970425
+      },
+      {
+        "timeconst": 0.04,
+        "solimp": [
+          0.015,
+          1.0,
+          0.022,
+          0.5,
+          2
+        ],
+        "measured_m": 0.012768036221740081,
+        "predicted_m": 0.01276803621996881
+      },
+      {
+        "timeconst": 0.08,
+        "solimp": [
+          0.9,
+          0.95,
+          0.001,
+          0.5,
+          2
+        ],
+        "measured_m": 0.0031391999970026355,
+        "predicted_m": 0.0031392000000000034
+      },
+      {
+        "timeconst": 0.08,
+        "solimp": [
+          0.9,
+          0.9,
+          0.001,
+          0.5,
+          2
+        ],
+        "measured_m": 0.006278399987042493,
+        "predicted_m": 0.0062784
+      },
+      {
+        "timeconst": 0.08,
+        "solimp": [
+          0.5,
+          0.99,
+          0.01,
+          0.5,
+          2
+        ],
+        "measured_m": 0.007068184416771872,
+        "predicted_m": 0.007068184414885445
+      },
+      {
+        "timeconst": 0.08,
+        "solimp": [
+          0.015,
+          1.0,
+          0.022,
+          0.5,
+          2
+        ],
+        "measured_m": 0.015532593101273987,
+        "predicted_m": 0.015532593085939643
+      }
+    ],
+    "penetration_refsafe_rel_err": 1.2932157567036029e-09,
+    "refsafe": {
+      "asked_timeconst": 0.002,
+      "measured_m": 1.7481912393271792e-05,
+      "predicted_refsafe_m": 1.7481912370663907e-05,
+      "predicted_nominal_m": 4.372008969698922e-06,
+      "measured_refsafe_off_m": -0.720207991290666,
+      "refsafe_off_vertical_speed": 1.052228522138839
+    },
+    "variants": {
+      "Menagerie foot": {
+        "measured_mm": [
+          12.561516656011246,
+          12.561489054505568,
+          12.989111389626752,
+          12.989133602995189
+        ],
+        "predicted_mm": [
+          12.561487275884739,
+          12.561459682858478,
+          12.989133236308469,
+          12.989155450834817
+        ],
+        "normal_force_N": [
+          33.38450726181815,
+          33.38456569056344,
+          41.20335953278146,
+          41.20328378601779
+        ],
+        "base_height_m": 0.25591376507475655
+      },
+      "MuJoCo default solimp": {
+        "measured_mm": [
+          0.19304630165550146,
+          0.19302964137225126,
+          0.4477014971189311,
+          0.44771796415830206
+        ],
+        "predicted_mm": [
+          0.19275910583164838,
+          0.19274244294038975,
+          0.4479999617749855,
+          0.44801645246419575
+        ],
+        "normal_force_N": [
+          33.756798583460366,
+          33.756855643746036,
+          40.831272079298216,
+          40.83121069082464
+        ],
+        "base_height_m": 0.2689610933411387
+      },
+      "foot solimp, timeconst 0.01": {
+        "measured_mm": [
+          10.040409927027351,
+          10.040387944415093,
+          10.39203495342817,
+          10.39205359777081
+        ],
+        "predicted_mm": [
+          10.040392573698524,
+          10.040370592232724,
+          10.392048152138678,
+          10.392066797596591
+        ],
+        "normal_force_N": [
+          33.388584428591344,
+          33.388650704945576,
+          41.19931346545177,
+          41.19923934226092
+        ],
+        "base_height_m": 0.2584189297771633
+      }
+    },
+    "contact_invweight_vs_mujoco_rel": 2.220446049250313e-16,
+    "penetration_go2_rel_err_max": 0.0014900632547774073,
+    "go2_invweight_calf": [
+      1.766694645054703,
+      1.7666669780031878,
+      1.773150685781845,
+      1.7731735453899422
+    ],
+    "contact_model_vs_efc_rel_max": 2.0371064685480133e-16,
+    "bench_inertia_vs_mujoco_rel": 2.220446049250313e-16,
+    "bench_inertia_kgm2": 0.016326302457873292,
+    "bench_tau_max_Nm": 45.43,
+    "bench_damping": 2.0,
+    "bench_frictionloss_Nm": 0.2,
+    "bench_mujoco_force_clamped_Nm": 0.0,
+    "bench_saturated_vs_closed_form_rad": 0.00755222015920598,
+    "bench_saturated_vs_discrete_rad": 6.661338147750939e-16,
+    "bench_vs_reference_rad": 0.007552220159206868,
+    "bench_sat_exit_time_pred_s": 0.05555925484983158,
+    "bench_sat_exit_time_meas_s": 0.056,
+    "bench_sat_exit_time_err_s": 0.0004407451501684187,
+    "bench_peak_demand_Nm": 480.0,
+    "bench_applied_max_Nm": 45.43,
+    "bench_terminal_speed_pred_rad_s": 22.615,
+    "bench_peak_speed_meas_rad_s": 22.566064806384006,
+    "bench_t90_limited_s": 0.082,
+    "bench_t90_unlimited_s": 0.052000000000000005,
+    "bench_peak_demand_unlimited_Nm": 480.0,
+    "rise_applied_over_limit_max": 1.0,
+    "rise_demand_over_limit_max": 2.6414263702399294,
+    "rise_unlimited_applied_over_limit_max": 2.6414263702399294,
+    "rise_t95_limited_s": 0.09600000000000007,
+    "rise_t95_unlimited_s": 0.08200000000000006,
+    "rise_knee_saturated_fraction_first_0p2s": 0.25252525252525254,
+    "rise_final_height_m": 0.26804904953839614,
+    "platform_onset_deg": [
+      11.657533109557162,
+      22.132874687690407,
+      31.092364239729477
+    ],
+    "platform_onset_pred_deg": [
+      11.309932474020215,
+      21.80140948635181,
+      30.96375653207352
+    ],
+    "platform_onset_err_deg_max": 0.3476006355369474,
+    "platform_go2_rear_feet_at_friction_limit_deg": 23.541123658570754,
+    "platform_go2_rear_feet_off_deg": 29.254235732397927,
+    "platform_go2_tip_pred_deg": 40.731571947580214,
+    "platform_go2_displacement_at_20deg_m": 0.04037316816186367,
+    "platform_go2_displacement_final_m": 1.389566786088686,
+    "platform_ramp_s": 16.0,
+    "platform_duration_s": 18.5,
+    "platform_still_at_deg": 24.137580494525373
+  },
+  "media_bytes": {
+    "incline.mp4": 652407
+  },
+  "media_mp4_under_6MB": 1.0,
+  "checks": {
+    "ff_sphere_euler_vs_discrete_m": {
+      "measured": 1.0658141036401503e-14,
+      "op": "<",
+      "threshold": 1e-09,
+      "passed": true
+    },
+    "ff_sphere_rk4_vs_parabola_m": {
+      "measured": 1.3322676295501878e-14,
+      "op": "<",
+      "threshold": 1e-09,
+      "passed": true
+    },
+    "ff_sphere_euler_offset_ratio_err": {
+      "measured": 5.561107130347409e-13,
+      "op": "<",
+      "threshold": 1e-06,
+      "passed": true
+    },
+    "ff_sphere_euler_energy_ratio_err": {
+      "measured": 5.154987547939527e-12,
+      "op": "<",
+      "threshold": 1e-06,
+      "passed": true
+    },
+    "ff_go2_com_residual_m": {
+      "measured": 0.0002156998521228041,
+      "op": "<",
+      "threshold": 0.001,
+      "passed": true
+    },
+    "osc_explicit_euler_energy_rel_err": {
+      "measured": 2.3647750424515834e-14,
+      "op": "<",
+      "threshold": 1e-09,
+      "passed": true
+    },
+    "osc_rk4_energy_rel_err": {
+      "measured": 7.194245199571014e-14,
+      "op": "<",
+      "threshold": 1e-09,
+      "passed": true
+    },
+    "osc_symplectic_modified_energy_rel_drift": {
+      "measured": 2.220446049250313e-15,
+      "op": "<",
+      "threshold": 1e-12,
+      "passed": true
+    },
+    "osc_symplectic_band_rel_err": {
+      "measured": 5.851101569920303e-08,
+      "op": "<",
+      "threshold": 0.01,
+      "passed": true
+    },
+    "osc_own_vs_mujoco_euler_m": {
+      "measured": 0.0,
+      "op": "<",
+      "threshold": 1e-12,
+      "passed": true
+    },
+    "osc_own_vs_mujoco_rk4_m": {
+      "measured": 1.8596235662471372e-14,
+      "op": "<",
+      "threshold": 1e-12,
+      "passed": true
+    },
+    "osc_own_vs_mujoco_damped_euler_m": {
+      "measured": 6.661338147750939e-16,
+      "op": "<",
+      "threshold": 1e-12,
+      "passed": true
+    },
+    "osc_own_vs_mujoco_damped_implicitfast_m": {
+      "measured": 6.661338147750939e-16,
+      "op": "<",
+      "threshold": 1e-12,
+      "passed": true
+    },
+    "osc_explicit_damping_growth_rel_err": {
+      "measured": 0.0,
+      "op": "<",
+      "threshold": 1e-09,
+      "passed": true
+    },
+    "energy_order_euler": {
+      "measured": 1.0080050612807296,
+      "op": "range",
+      "threshold": [
+        0.8,
+        1.2
+      ],
+      "passed": true
+    },
+    "energy_order_implicitfast": {
+      "measured": 1.0080050612807296,
+      "op": "range",
+      "threshold": [
+        0.8,
+        1.2
+      ],
+      "passed": true
+    },
+    "energy_order_implicit": {
+      "measured": 0.9963879857676681,
+      "op": "range",
+      "threshold": [
+        0.8,
+        1.2
+      ],
+      "passed": true
+    },
+    "energy_order_rk4": {
+      "measured": 2.0007525558037096,
+      "op": "range",
+      "threshold": [
+        3.5,
+        4.5
+      ],
+      "passed": false
+    },
+    "energy_implicitfast_equals_euler": {
+      "measured": 0.0,
+      "op": "<",
+      "threshold": 1e-10,
+      "passed": true
+    },
+    "energy_rk4_over_euler_at_2ms": {
+      "measured": 2.703961902586582e-06,
+      "op": "<",
+      "threshold": 0.01,
+      "passed": true
+    },
+    "incline_threshold_err_deg_max": {
+      "measured": 0.05706787109374982,
+      "op": "<",
+      "threshold": 0.5,
+      "passed": true
+    },
+    "incline_accel_err_over_g_max": {
+      "measured": 0.004873436266300042,
+      "op": "<",
+      "threshold": 0.02,
+      "passed": true
+    },
+    "incline_creep_rel_err_max": {
+      "measured": 6.546692299380652e-09,
+      "op": "<",
+      "threshold": 0.1,
+      "passed": true
+    },
+    "incline_pyramid_45deg_threshold_err_deg_max": {
+      "measured": 0.05767822265624811,
+      "op": "<",
+      "threshold": 0.5,
+      "passed": true
+    },
+    "contact_model_vs_efc_rel_max": {
+      "measured": 2.0371064685480133e-16,
+      "op": "<",
+      "threshold": 1e-09,
+      "passed": true
+    },
+    "contact_invweight_vs_mujoco_rel": {
+      "measured": 2.220446049250313e-16,
+      "op": "<",
+      "threshold": 1e-09,
+      "passed": true
+    },
+    "penetration_sphere_rel_err_max": {
+      "measured": 2.063823001385856e-09,
+      "op": "<",
+      "threshold": 0.001,
+      "passed": true
+    },
+    "penetration_go2_rel_err_max": {
+      "measured": 0.0014900632547774073,
+      "op": "<",
+      "threshold": 0.02,
+      "passed": true
+    },
+    "penetration_refsafe_rel_err": {
+      "measured": 1.2932157567036029e-09,
+      "op": "<",
+      "threshold": 0.001,
+      "passed": true
+    },
+    "bench_inertia_vs_mujoco_rel": {
+      "measured": 2.220446049250313e-16,
+      "op": "<",
+      "threshold": 1e-09,
+      "passed": true
+    },
+    "bench_mujoco_force_clamped_Nm": {
+      "measured": 0.0,
+      "op": "<",
+      "threshold": 1e-12,
+      "passed": true
+    },
+    "bench_saturated_vs_closed_form_rad": {
+      "measured": 0.00755222015920598,
+      "op": "<",
+      "threshold": 0.01,
+      "passed": true
+    },
+    "bench_saturated_vs_discrete_rad": {
+      "measured": 6.661338147750939e-16,
+      "op": "<",
+      "threshold": 1e-09,
+      "passed": true
+    },
+    "bench_vs_reference_rad": {
+      "measured": 0.007552220159206868,
+      "op": "<",
+      "threshold": 0.01,
+      "passed": true
+    },
+    "bench_sat_exit_time_err_s": {
+      "measured": 0.0004407451501684187,
+      "op": "<",
+      "threshold": 0.004,
+      "passed": true
+    },
+    "rise_applied_over_limit_max": {
+      "measured": 1.0,
+      "op": "<=",
+      "threshold": 1.0,
+      "passed": true
+    },
+    "rise_demand_over_limit_max": {
+      "measured": 2.6414263702399294,
+      "op": ">",
+      "threshold": 1.0,
+      "passed": true
+    },
+    "platform_onset_err_deg_max": {
+      "measured": 0.3476006355369474,
+      "op": "<",
+      "threshold": 1.0,
+      "passed": true
+    },
+    "media_mp4_under_6MB": {
+      "measured": 1.0,
+      "op": ">=",
+      "threshold": 1.0,
+      "passed": true
+    }
+  },
+  "skipped_checks": [],
+  "wall_time_s": 46.934741497039795,
+  "load_average_1min_at_end": 54.76611328125
+}

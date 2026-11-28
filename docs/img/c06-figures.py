@@ -330,6 +330,10 @@ def stance_path(s, L, depth=0.01):
     return x, -depth * np.cos(np.pi * x / L)
 
 
+# chapter 7 Task 5.4 table: swing_height, travel asked for [cm], measured travel [cm], speed [m/s], three runs each
+SWING_RUNS = [(0.04, 5, (2.9, 2.9, 3.4), (0.168, 0.162, 0.183)), (0.08, 9, (7.3, 7.2, 7.2), (0.186, 0.190, 0.188))]
+
+
 def foot_trajectory():
     fig, ax = plt.subplots(figsize=(10, 3.4))
     s = np.linspace(0, 1, 200)
@@ -340,8 +344,9 @@ def foot_trajectory():
         ax.plot(xw * 100, yw * 100, color=c, lw=1.6, ls='--', label=f'{v} m/s: stroke {L * 100:.1f} cm, peak lift {yw.max() * 100:.1f} cm')
     ax.axhline(4.0, color=C['plan'], lw=0.8, ls=':'); ax.text(-7.3, 4.12, 'swing_height 4 cm', fontsize=7.5, color=C['plan'])
     ax.axhline(-1.0, color=C['plan'], lw=0.8, ls=':'); ax.text(-7.3, -1.45, 'stance_depth 1 cm', fontsize=7.3, color=C['plan'])
-    ax.axhline(3.2 - 1.0, color=C['bad'], lw=0.8, ls='-.')
-    ax.text(-7.3, 2.3, 'measured lf foot travel 3.2 cm (0.2 m/s, chapter 7),\ndrawn from the -1 cm stance bottom',
+    travel = np.mean(SWING_RUNS[0][2])                       # chapter 7 Task 5.4, swing_height 0.04, mean of three runs
+    ax.axhline(travel - 1.0, color=C['bad'], lw=0.8, ls='-.')
+    ax.text(-7.3, 2.3, f'measured lf foot travel {travel:.1f} cm (mean of 3 runs, 0.2 m/s, chapter 7),\ndrawn from the -1 cm stance bottom',
             fontsize=7.2, color=C['bad'], bbox=dict(boxstyle='square,pad=0.15', fc='white', ec='none', alpha=0.9))
     ax.annotate('swing (dashed): foot moves forward', (0.0, 4.1), xytext=(1.2, 4.75), fontsize=7.5, arrowprops=dict(arrowstyle='-', lw=0.6))
     ax.annotate('stance (solid): foot pushed back', (0.0, -1.0), xytext=(1.6, -1.75), fontsize=7.5, arrowprops=dict(arrowstyle='-', lw=0.6))
@@ -512,8 +517,149 @@ def sensor_rates():
     save(fig, 'c06-sensor-rates')
 
 
+# ------------------------------------------------------------------------------------------------- added: chapters 6 and 7
+
+def rear_cam():
+    """Chapter 6 Task 4: the rear_cam_link added to base_link. Offsets from the expanded URDF and the Task 4 xacro snippet."""
+    fig, axs = plt.subplots(1, 2, figsize=(9.5, 3.6), gridspec_kw=dict(width_ratios=[1.35, 1]))
+    L, W, H = 0.3762, 0.0935, 0.114                          # trunk box, centred on base_link (floating_base joint is identity)
+    hips = [(0.1934, 0.0465), (0.1934, -0.0465), (-0.1934, 0.0465), (-0.1934, -0.0465)]
+    cam, rear = (0.28, 0.0, 0.03), (-0.25, 0.0, 0.06)        # camera_joint; rear_cam_joint from Task 4.1
+    a = 0.07
+
+    def triad(ax, o, ex, ey, names, lw=2):
+        ax.annotate('', xy=(o[0] + a * ex[0], o[1] + a * ex[1]), xytext=o, arrowprops=dict(arrowstyle='-|>', color=C['bad'], lw=lw))
+        ax.annotate('', xy=(o[0] + a * ey[0], o[1] + a * ey[1]), xytext=o, arrowprops=dict(arrowstyle='-|>', color=ey[2], lw=lw))
+        ax.text(o[0] + 1.25 * a * ex[0], o[1] + 1.25 * a * ex[1], names[0], color=C['bad'], fontsize=9, ha='center', va='center')
+        ax.text(o[0] + 1.25 * a * ey[0], o[1] + 1.25 * a * ey[1], names[1], color=ey[2], fontsize=9, ha='center', va='center')
+
+    ax = axs[0]                                              # top view, x forward to the right, y left = up
+    ax.add_patch(plt.Rectangle((-L / 2, -W / 2), L, W, fc=C['fill'], ec=C['muted'], lw=0.8))
+    ax.plot(*zip(*hips), 'o', color=C['bad'], ms=5)
+    ax.plot(cam[0], cam[1], 's', color=C['est'], ms=6); ax.text(cam[0], cam[1] - 0.035, 'camera_link\n(0.28, 0, 0.03)', ha='center', va='top', fontsize=7, color=C['est'])
+    triad(ax, (0, 0), (1, 0), (0, 1, C['good']), ('x', 'y'))
+    ax.text(0.01, -0.02, 'base_link', fontsize=8, va='top')
+    ax.add_patch(plt.Rectangle((rear[0] - 0.01, -0.03), 0.02, 0.06, fc='#e8f2f8', ec=C['plan'], lw=1.2))
+    triad(ax, rear[:2], (-1, 0), (0, -1, C['good']), ('x', 'y'))
+    ax.text(rear[0], 0.06, 'rear_cam_link\n(-0.25, 0, 0.06)', fontsize=7.5, color=C['plan'], ha='center', va='bottom')
+    ax.annotate('', xy=(rear[0], -0.115), xytext=(0, -0.115), arrowprops=dict(arrowstyle='<->', color=C['muted'], lw=0.8))
+    ax.text(rear[0] / 2, -0.122, '0.25 m', ha='center', va='top', fontsize=7.5, color=C['muted'])
+    ax.text(0.0, 0.11, 'trunk box 0.3762 × 0.0935 m; red dots: hip joints', ha='center', fontsize=7, color=C['muted'])
+    ax.set_xlim(-0.36, 0.36); ax.set_ylim(-0.16, 0.14); ax.set_aspect('equal'); ax.set_xticks([]); ax.set_yticks([])
+    ax.grid(False); [s.set_visible(False) for s in ax.spines.values()]
+    ax.set_title('Top view: yaw π turns x and y around, z stays up')
+
+    ax = axs[1]                                              # TF edge as tf2_echo prints it
+    ax.axis('off'); ax.set_xlim(0, 10); ax.set_ylim(0, 8)
+    node(ax, (5, 7.0), 3.6, 0.8, 'base_link', mono=True)
+    for i, n in enumerate(('trunk', 'lidar_link', 'camera_link', 'chase_cam')):
+        x = 1.0 + 2.0 * i
+        ax.plot([5, x], [6.6, 5.3], color=C['muted'], lw=0.8, ls='--')
+        ax.text(x, 5.1, n, ha='center', va='top', fontsize=7.2, family='monospace', color=C['muted'])
+    ax.plot([5, 9.2], [6.6, 3.9], color=C['plan'], lw=1.4, ls='--')
+    node(ax, (8.3, 3.5), 3.2, 0.8, 'rear_cam_link', C['plan'], '#fbf1df', fontsize=8, mono=True)
+    ax.text(0.2, 2.3, 'fixed joint rear_cam_joint, sent once on /tf_static\n'
+                      'translation  (-0.250, 0.000, 0.060) m\n'
+                      'rotation     xyzw (0, 0, 1, 0) = rpy (0, 0, π)', fontsize=7.5, family='monospace', va='top')
+    ax.set_title('base_link now has 5 children (check_urdf)')
+    save(fig, 'c06-rear-cam')
+
+
+def name_match():
+    """Chapter 6 Tasks 5.2-5.3: the names that must agree across the URDF, CHAMP's maps and ros_control.yaml."""
+    fig, ax = fs.diagram(10.5, 5.0, (0, 21), (0, 10))
+    cols = [(3.4, 'URDF  (xacro go2_nav.xacro)', C['gt'],
+             ['<link name="base_link">', '<link name="lf_upper_leg_link">', '<joint name="lf_upper_leg_joint"\n       type="revolute">',
+              '<ros2_control name="lf">\n  <joint name="lf_upper_leg_joint">']),
+            (10.5, 'CHAMP maps  (links.yaml, joints.yaml)', C['plan'],
+             ['links_map.base: base_link', 'left_front: [lf_hip_link,\n  lf_upper_leg_link, ...]', 'joints_map.left_front: [lf_hip_joint,\n  lf_upper_leg_joint, ...]  (first 3 used)', None]),
+            (17.6, 'ros_control.yaml', C['est'],
+             [None, None, 'joint_group_effort_controller:\n  joints: [..., lf_upper_leg_joint, ...]', 'gains:\n  lf_upper_leg_joint: {p: 100.0, ...}'])]
+    ys = [8.0, 6.6, 4.9, 3.0]
+    for x, title, c, rows in cols:
+        ax.add_patch(FancyBboxPatch((x - 3.2, 1.9), 6.4, 7.4, boxstyle='round,pad=0,rounding_size=0.15', fc='none', ec=c, lw=1.0))
+        ax.text(x, 9.0, title, ha='center', fontsize=8.5, color=c, fontweight='semibold')
+        for y, r in zip(ys, rows):
+            if r:
+                ax.text(x - 3.0, y, r, va='center', fontsize=7, family='monospace')
+    pairs = [((6.3, 8.0), (7.4, 8.0)), ((6.3, 6.6), (7.4, 6.6)), ((6.3, 4.9), (7.4, 4.9)), ((13.6, 4.9), (14.5, 4.9)),
+             ((6.3, 3.0), (14.5, 3.0))]
+    for a, b in pairs:
+        ax.plot([a[0], b[0]], [a[1], b[1]], color=C['good'], lw=1.6)
+        ax.plot(*zip(a, b), 'o', color=C['good'], ms=3)
+    ax.text(10.5, 2.6, 'same 12 names', ha='center', fontsize=7, color=C['good'])
+    ax.text(0.2, 1.2, 'wrong link name in links.yaml:  CHAMP crashes after "Successfully parsed urdf file" with only "Segmentation fault"',
+            fontsize=7.5, color=C['bad'])
+    ax.text(0.2, 0.5, 'wrong joint name in joints.yaml:  CHAMP starts with no error and publishes the name; only the controller can notice',
+            fontsize=7.5, color=C['bad'])
+    ax.text(20.8, 9.75, 'green: names that must be identical (table in 5.2)', ha='right', fontsize=7, color=C['good'])
+    save(fig, 'c06-name-match')
+
+
+def posture_sweep():
+    """Chapter 7 Task 4.3 table: commanded body pose against the measured trunk change on /odom_gt."""
+    att = [('roll', 0.35, 0.351), ('roll', -0.35, -0.356), ('pitch', 0.17, 0.177), ('pitch', -0.17, -0.175),
+           ('yaw', 0.44, 0.124), ('yaw', -0.44, -0.122)]
+    hz = [(-0.05, 0.165), (0.05, 0.267), (-0.10, 0.138), (-0.20, 0.138), (0.075, 0.293)]      # z command, height after
+    fig, axs = plt.subplots(1, 2, figsize=(9.5, 3.6))
+    ax = axs[0]
+    ax.plot([-0.5, 0.5], [-0.5, 0.5], color=C['grid'], lw=1.2, zorder=1)
+    ax.text(0.38, 0.45, 'change = command', fontsize=7, color=C['muted'], ha='right')
+    for name, c, m in att:
+        col = {'roll': C['est'], 'pitch': C['est2'], 'yaw': C['bad']}[name]
+        ax.plot(c, m, 'o', color=col, ms=6, zorder=3)
+    for name, col in (('roll', C['est']), ('pitch', C['est2']), ('yaw', C['bad'])):
+        ax.plot([], [], 'o', color=col, label=name)
+    ax.annotate('yaw: 0.12 of 0.44 rad,\nfeet slid', (0.44, 0.124), xytext=(0.12, -0.32), fontsize=7.5, color=C['bad'],
+                arrowprops=dict(arrowstyle='-', color=C['bad'], lw=0.6))
+    ax.set_xlabel('commanded angle [rad]'); ax.set_ylabel('trunk change on /odom_gt [rad]')
+    ax.set_xlim(-0.5, 0.5); ax.set_ylim(-0.5, 0.5); ax.set_aspect('equal'); ax.legend(fontsize=7.5, loc='upper left')
+    ax.set_title('Roll and pitch follow, yaw does not')
+    ax = axs[1]
+    zc = np.linspace(-0.22, 0.09, 200)
+    ax.plot(zc, 0.216 + zc, color=C['grid'], lw=1.2)
+    ax.text(0.085, 0.216 + 0.085 - 0.012, 'standing 0.216 m + z', fontsize=7, color=C['muted'], ha='right', va='top')
+    ax.axhline(0.426 - 0.65 * 0.426, color=C['plan'], lw=1, ls='--')
+    ax.text(-0.215, 0.152, 'clamp: 0.426 - 0.65 × 0.426 = 0.149 m', fontsize=7.5, color=C['plan'])
+    ax.plot([z for z, _ in hz], [h for _, h in hz], 'o', color=C['est'], ms=6, zorder=3, label='measured (Task 4.3)')
+    ax.axvspan(0.075, 0.10, color=C['bad'], alpha=0.12, lw=0)
+    ax.text(0.078, 0.13, 'above +0.075:\npitches or\nflips', fontsize=7, color=C['bad'])
+    ax.set_xlim(-0.22, 0.10); ax.set_ylim(0.12, 0.31)
+    ax.set_xlabel('commanded z (added to nominal_height) [m]'); ax.set_ylabel('trunk height [m]')
+    ax.legend(fontsize=7.5, loc='upper left')
+    ax.set_title('Height follows down to the foot-shift clamp')
+    fig.tight_layout()
+    save(fig, 'c06-posture-sweep')
+
+
+def swing_height():
+    """Chapter 7 Task 5.4 table: foot travel asked for and measured, three runs per swing_height."""
+    rows = SWING_RUNS
+    fig, axs = plt.subplots(1, 2, figsize=(9.5, 2.9), gridspec_kw=dict(width_ratios=[1.4, 1]))
+    ax = axs[0]
+    for i, (sh, ask, travel, _) in enumerate(rows):
+        ax.barh(i, ask, height=0.5, color='none', ec=C['plan'], lw=1.4, ls='--')
+        ax.barh(i, np.mean(travel), height=0.32, color=C['est'])
+        ax.plot(travel, [i] * len(travel), '|', color=C['ink'], ms=12)
+        ax.text(ask + 0.15, i, f'asked {ask} cm\nmeasured ' + ', '.join(map(str, travel)) + ' cm', va='center', fontsize=7.5)
+    ax.set_yticks([0, 1]); ax.set_yticklabels(['swing_height 0.04', 'swing_height 0.08'], family='monospace', fontsize=8)
+    ax.set_xlim(0, 13); ax.set_xlabel('left front foot travel in base_link [cm]'); ax.grid(axis='y', visible=False)
+    grow = np.mean(rows[1][2]) - np.mean(rows[0][2])
+    ax.set_title(f'Mean foot travel grows by {grow:.1f} cm for the 4 cm added')
+    ax = axs[1]
+    for i, (sh, _, _, v) in enumerate(rows):
+        ax.plot(v, [i] * len(v), 'o', color=C['est'], ms=6)
+    ax.axvline(0.2, color=C['plan'], lw=1, ls='--'); ax.text(0.199, 1.35, 'command 0.2', fontsize=7, color=C['plan'], ha='right')
+    ax.set_yticks([0, 1]); ax.set_yticklabels(['0.04', '0.08'], family='monospace', fontsize=8); ax.set_ylim(-0.5, 1.6)
+    ax.set_xlim(0.15, 0.205); ax.set_xlabel('speed on /odom_gt [m/s]'); ax.grid(axis='y', visible=False)
+    ax.set_title('Speed, three runs each')
+    fig.tight_layout()
+    save(fig, 'c06-swing-height')
+
+
 ALL = ['description_flow', 'urdf_tree', 'ros2_control', 'startup_sequence', 'ros_graph_walk', 'champ_loop', 'gait_timing',
-       'foot_trajectory', 'cmd_vs_actual', 'camera_optical', 'sensor_frames', 'lidar_rings', 'sensor_rates']
+       'foot_trajectory', 'cmd_vs_actual', 'camera_optical', 'sensor_frames', 'lidar_rings', 'sensor_rates',
+       'rear_cam', 'name_match', 'posture_sweep', 'swing_height']
 
 if __name__ == '__main__':
     args = sys.argv[1:]

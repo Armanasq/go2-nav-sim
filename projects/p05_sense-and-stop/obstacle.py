@@ -19,11 +19,12 @@ def front_min(ranges, angle_min, angle_inc, half_angle, range_min, range_max):
 
 
 def centre_depth(depth, half=2):
-    """Median depth (m) of the (2*half+1)^2 pixel patch at the image centre; nan pixels (no return) are ignored.
-    The median of a patch, not one pixel, so one noisy or missing pixel does not decide."""
+    """Median depth (m) of the (2*half+1)^2 pixel patch at the image centre. The median of a patch, not one pixel, so one
+    noisy or missing pixel does not decide. A pixel with nothing within the far clip is +inf ('far'), and it stays in the
+    median: dropping it would let the few pixels that do hit something decide. Only nan pixels are ignored."""
     h, w = depth.shape
     p = depth[h // 2 - half:h // 2 + half + 1, w // 2 - half:w // 2 + half + 1]
-    p = p[np.isfinite(p)]
+    p = p[~np.isnan(p)]
     return float(np.median(p)) if p.size else math.inf
 
 

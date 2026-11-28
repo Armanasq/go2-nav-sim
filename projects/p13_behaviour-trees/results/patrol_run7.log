@@ -1,0 +1,82 @@
+    0.00  Repeat                       IDLE     -> RUNNING
+    0.00  Patrol                       IDLE     -> RUNNING
+    0.00  LegW1                        IDLE     -> RUNNING
+    0.00  Sequence                     IDLE     -> RUNNING
+    0.00  ComputePathToPose            IDLE     -> RUNNING
+    0.02  ComputePathToPose            RUNNING  -> SUCCESS
+    0.02  FollowPath                   IDLE     -> RUNNING
+   20.73  FollowPath                   RUNNING  -> SUCCESS
+   20.73  Sequence                     RUNNING  -> SUCCESS
+   20.73  LegW1                        RUNNING  -> SUCCESS
+   20.73  AtW1                         IDLE     -> RUNNING
+   22.77  AtW1                         RUNNING  -> SUCCESS
+   22.77  LegW2                        IDLE     -> RUNNING
+   22.77  Sequence                     IDLE     -> RUNNING
+   22.77  ComputePathToPose            IDLE     -> RUNNING
+   22.78  ComputePathToPose            RUNNING  -> SUCCESS
+   22.78  FollowPath                   IDLE     -> RUNNING
+   52.62  FollowPath                   RUNNING  -> SUCCESS
+   52.62  Sequence                     RUNNING  -> SUCCESS
+   52.62  LegW2                        RUNNING  -> SUCCESS
+   52.62  AtW2                         IDLE     -> RUNNING
+   54.70  AtW2                         RUNNING  -> SUCCESS
+   54.70  LegHome                      IDLE     -> RUNNING
+   54.70  Sequence                     IDLE     -> RUNNING
+   54.70  ComputePathToPose            IDLE     -> RUNNING
+   54.71  ComputePathToPose            RUNNING  -> SUCCESS
+   54.71  FollowPath                   IDLE     -> RUNNING
+   70.94  FollowPath                   RUNNING  -> SUCCESS
+   70.94  Sequence                     RUNNING  -> SUCCESS
+   70.94  LegHome                      RUNNING  -> SUCCESS
+   70.94  AtHome                       IDLE     -> RUNNING
+   73.02  AtHome                       RUNNING  -> SUCCESS
+   73.02  Patrol                       RUNNING  -> SUCCESS
+   73.02  Patrol                       IDLE     -> RUNNING
+   73.02  LegW1                        IDLE     -> RUNNING
+   73.02  Sequence                     IDLE     -> RUNNING
+   73.02  ComputePathToPose            IDLE     -> RUNNING
+   73.05  ComputePathToPose            RUNNING  -> SUCCESS
+   73.05  FollowPath                   IDLE     -> RUNNING
+  100.81  FollowPath                   RUNNING  -> SUCCESS
+  100.81  Sequence                     RUNNING  -> SUCCESS
+  100.81  LegW1                        RUNNING  -> SUCCESS
+  100.81  AtW1                         IDLE     -> RUNNING
+  102.91  AtW1                         RUNNING  -> SUCCESS
+  102.91  LegW2                        IDLE     -> RUNNING
+  102.91  Sequence                     IDLE     -> RUNNING
+  102.91  ComputePathToPose            IDLE     -> RUNNING
+  102.92  ComputePathToPose            RUNNING  -> SUCCESS
+  102.92  FollowPath                   IDLE     -> RUNNING
+  138.25  FollowPath                   RUNNING  -> SUCCESS
+  138.25  Sequence                     RUNNING  -> SUCCESS
+  138.25  LegW2                        RUNNING  -> SUCCESS
+  138.25  AtW2                         IDLE     -> RUNNING
+  140.31  AtW2                         RUNNING  -> SUCCESS
+  140.31  LegHome                      IDLE     -> RUNNING
+  140.31  Sequence                     IDLE     -> RUNNING
+  140.31  ComputePathToPose            IDLE     -> RUNNING
+  140.32  ComputePathToPose            RUNNING  -> SUCCESS
+  140.32  FollowPath                   IDLE     -> RUNNING
+  155.96  FollowPath                   RUNNING  -> SUCCESS
+  155.96  Sequence                     RUNNING  -> SUCCESS
+  155.96  LegHome                      RUNNING  -> SUCCESS
+  155.96  AtHome                       IDLE     -> RUNNING
+  158.01  AtHome                       RUNNING  -> SUCCESS
+  158.01  Patrol                       RUNNING  -> SUCCESS
+  158.01  Repeat                       RUNNING  -> SUCCESS
+Traceback (most recent call last):
+  File "/home/arman/project/slam_paper/go2-nav-sim/projects/p13_behaviour-trees/bt_log.py", line 56, in <module>
+    main()
+  File "/home/arman/project/slam_paper/go2-nav-sim/projects/p13_behaviour-trees/bt_log.py", line 49, in main
+    rclpy.spin(node)
+  File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/__init__.py", line 229, in spin
+    executor.spin_once()
+  File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/executors.py", line 812, in spin_once
+    self._spin_once_impl(timeout_sec)
+  File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/executors.py", line 801, in _spin_once_impl
+    handler, entity, node = self.wait_for_ready_callbacks(timeout_sec=timeout_sec)
+  File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/executors.py", line 784, in wait_for_ready_callbacks
+    return next(self._cb_iter)
+  File "/opt/ros/humble/local/lib/python3.10/dist-packages/rclpy/executors.py", line 657, in _wait_for_ready_callbacks
+    wait_set = _rclpy.WaitSet(
+rclpy._rclpy_pybind11.RCLError: failed to initialize wait set: the given context is not valid, either rcl_init() was not called or rcl_shutdown() was called., at ./src/rcl/wait.c:130

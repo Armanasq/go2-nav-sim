@@ -1,0 +1,31 @@
+{
+  "id": "8.11",
+  "title": "Return to the start",
+  "status": "failed",
+  "metrics": {
+    "final_pos_err_m": 0.0521053135397029,
+    "final_heading_err_deg": -10.129758191156634,
+    "odom_final_err_m": 0.04094280847052283,
+    "odom_gap_m": 0.0327696783801452,
+    "time_s": 35.35,
+    "timeouts": 0
+  },
+  "acceptance": "final_pos_err_m <= 0.1; |final_heading_err_deg| <= 6.0",
+  "checks": {
+    "final_pos_err_m": {
+      "value": 0.0521053135397029,
+      "rule": "final_pos_err_m <= 0.1",
+      "passed": true
+    },
+    "final_heading_err_deg": {
+      "value": -10.129758191156634,
+      "rule": "|final_heading_err_deg| <= 6.0",
+      "passed": false
+    }
+  },
+  "command": "python3 run.py 8.11",
+  "outputs": [
+    "figures/s8_11.png"
+  ],
+  "wall_s": 62.5
+}

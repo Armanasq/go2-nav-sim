@@ -1,0 +1,29 @@
+{
+  "id": "8.05",
+  "title": "Walk a straight line",
+  "status": "verified",
+  "metrics": {
+    "max_cross_track_m": 0.02032422966768111,
+    "final_along_err_m": 0.0027060973546015887,
+    "odom_gap_m": 0.004494089333325044,
+    "time_s": 13.25
+  },
+  "acceptance": "max_cross_track_m <= 0.05; |final_along_err_m| <= 0.08",
+  "checks": {
+    "max_cross_track_m": {
+      "value": 0.02032422966768111,
+      "rule": "max_cross_track_m <= 0.05",
+      "passed": true
+    },
+    "final_along_err_m": {
+      "value": 0.0027060973546015887,
+      "rule": "|final_along_err_m| <= 0.08",
+      "passed": true
+    }
+  },
+  "command": "python3 run.py 8.05",
+  "outputs": [
+    "figures/s8_05.png"
+  ],
+  "wall_s": 41.7
+}

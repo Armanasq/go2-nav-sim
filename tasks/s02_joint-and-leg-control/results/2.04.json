@@ -1,0 +1,46 @@
+{
+  "id": "2.04",
+  "title": "Apply a controlled joint torque",
+  "status": "verified",
+  "checks": {
+    "inertia_identified_rel_error": {
+      "value": 0.0005394006667989817,
+      "rule": "max 0.1",
+      "passed": true
+    },
+    "terminal_velocity_rel_error": {
+      "value": 0.010628855251435865,
+      "rule": "max 0.1",
+      "passed": true
+    },
+    "trajectory_rms_vs_model_rad": {
+      "value": 6.175637853122935e-05,
+      "rule": "max 0.01",
+      "passed": true
+    }
+  },
+  "measured": {
+    "tau_cmd_nm": 2.0,
+    "q0_rad": -0.6,
+    "J_locked_kgm2": 0.033571731451046485,
+    "J_free_kgm2_mujoco_check": 0.03231396803298853,
+    "gravity_at_q0_nm": 0.47946369044109344,
+    "inertia_identified_kgm2": 0.033553622836716195,
+    "inertia_identified_rel_error": 0.0005394006667989817,
+    "first_step_accel_measured": 35.11680780779706,
+    "first_step_accel_predicted": 35.14707091099805,
+    "initial_accel_quadfit_measured": 26.994653343892306,
+    "initial_accel_predicted": 39.334769238354056,
+    "initial_accel_quadfit_rel_error": 0.3137203073363731,
+    "terminal_velocity_rel_error": 0.010628855251435865,
+    "trajectory_rms_vs_model_rad": 6.175637853122935e-05,
+    "final_velocity_rad_s": 0.5671785554720817,
+    "angle_moved_rad": 0.174007958148523
+  },
+  "outputs": [
+    "figures/2-04_torque_response.png"
+  ],
+  "command": "python run.py 2.04",
+  "mujoco": "3.17.0",
+  "wall_s": 8.5
+}
