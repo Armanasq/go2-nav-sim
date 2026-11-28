@@ -1,0 +1,19 @@
+# twist_mux: the highest-priority input that has sent a message within its timeout is passed on to cmd_vel_out.
+# A lock (std_msgs/Bool, true = locked) silences every input whose priority is below the lock's.
+twist_mux:
+  ros__parameters:
+    use_sim_time: true
+    topics:
+      navigation:
+        topic: nav/cmd_vel        # Nav2 (velocity_smoother and behavior_server), remapped by arbitration.launch.py
+        timeout: 0.5
+        priority: 10
+      teleop:
+        topic: teleop/cmd_vel     # teleop_twist_keyboard --ros-args -r cmd_vel:=teleop/cmd_vel
+        timeout: 0.6              # longer than the 500 ms keyboard repeat delay (p02), or a held key flickers back to Nav2
+        priority: 100
+    locks:
+      e_stop:
+        topic: e_stop
+        timeout: 0.0              # 0: the lock holds the last value it received; it is not a heartbeat
+        priority: 255             # above every input, so it silences teleop too

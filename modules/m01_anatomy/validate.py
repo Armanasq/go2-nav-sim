@@ -11,7 +11,7 @@
                 reorientation by a joint-space loop. Flight and reorientation videos.
 Writes results.json, figures/ (PNG + SVG) and media/ (MP4 + PNG).
 usage: python validate.py [--n 1000] [--no-media]"""
-import argparse, json, pathlib, sys, time
+import argparse, json, os, pathlib, sys, time
 import numpy as np
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent)); sys.path.insert(0, str(HERE)); sys.path.insert(0, str(HERE.parent / 'm00_math'))
@@ -47,6 +47,9 @@ ACCEPT = {
     'flight_drift_rk4_ang_kgm2s': ('<', 1e-4), 'reorient_pitch_5_cycles_deg': ('>', 5.0),
     'reorient_max_ang_momentum': ('<', 1e-4), 'reorient_reverse_ratio': ('range', (-1.1, -0.9)),
     'reorient_half_speed_ratio': ('range', (0.9, 1.1)), 'media_mp4_under_6MB': ('>=', 1.0),
+    # added after review, before the run that tests it: a loop of the same area over a different region must rotate the base
+    # by a different amount; 0.1 is three times the 3% speed effect, which bounds what tracking error alone can cause
+    'reorient_other_region_rel_diff': ('>', 0.1),
 }
 
 
@@ -83,10 +86,11 @@ def random_state(rng, robot):
 def fundamental(r, m, pm):
     res = {}
     dm = A.dof(r)
-    counts = dict(nq=(r.nq, m.nq, pm.nq), nv=(r.nv, m.nv, pm.nv), nu=(len(r.actuators), m.nu, m.nu),
-                  bodies=(len(r.bodies), m.nbody - 1, m.nbody - 1), joints=(len(r.joints), m.njnt, pm.njoints - 1))
-    res['counts'] = {k: dict(parsed=v[0], mujoco=int(v[1]), pinocchio=int(v[2])) for k, v in counts.items()}
-    res['count_mismatches_vs_mujoco_pinocchio'] = sum(len(set(v)) > 1 for v in counts.values())
+    pin_bodies = sum(f.type == pin.FrameType.BODY for f in pm.frames)
+    counts = dict(nq=(r.nq, m.nq, pm.nq), nv=(r.nv, m.nv, pm.nv), nu=(len(r.actuators), m.nu, None),     # Pinocchio has no actuators
+                  bodies=(len(r.bodies), m.nbody - 1, pin_bodies), joints=(len(r.joints), m.njnt, pm.njoints - 1))
+    res['counts'] = {k: dict(parsed=v[0], mujoco=int(v[1]), pinocchio=v[2] if v[2] is None else int(v[2])) for k, v in counts.items()}
+    res['count_mismatches_vs_mujoco_pinocchio'] = sum(len({x for x in v if x is not None}) > 1 for v in counts.values())
     res['dof'] = dm
     eb = []
     for i, b in enumerate(r.bodies):
@@ -133,11 +137,12 @@ def fundamental(r, m, pm):
 
 # ---- camera model for the annotated views ----------------------------------------------------------------------------------
 
-def mono_camera(scn):
-    """MuJoCo renders a mono image from the average of its two eye cameras (they sit +-ipd/2 apart); return that average."""
-    c0, c1 = scn.camera[0], scn.camera[1]
-    return dict(pos=(np.array(c0.pos, float) + c1.pos) / 2, fw=np.array(c0.forward, float), up=np.array(c0.up, float),
-                center=(c0.frustum_center + c1.frustum_center) / 2, width=c0.frustum_width, top=c0.frustum_top,
+def mono_camera(scn, eyes=(0, 1)):
+    """MuJoCo renders a mono image from the average of its two eye cameras (they sit +-ipd/2 apart); return that average.
+    eyes=(0,) returns eye camera 0 alone (the ablation in projection_check)."""
+    c0 = scn.camera[0]; cs = [scn.camera[e] for e in eyes]
+    return dict(pos=np.mean([np.array(c.pos, float) for c in cs], 0), fw=np.array(c0.forward, float), up=np.array(c0.up, float),
+                center=float(np.mean([c.frustum_center for c in cs])), width=c0.frustum_width, top=c0.frustum_top,
                 bottom=c0.frustum_bottom, near=c0.frustum_near, ortho=bool(c0.orthographic))
 
 
@@ -168,7 +173,7 @@ def render_views(r, extent=0.78, W=960, H=720, lift=0.0):
     with mujoco.Renderer(m, H, W) as rd:
         for name, (az, el) in VIEWS.items():
             cam = mujoco.MjvCamera(); cam.lookat[:] = d.subtree_com[1]; cam.distance = 2.0; cam.azimuth, cam.elevation = az, el
-            rd.update_scene(d, cam); img = rd.render().copy(); C = mono_camera(rd.scene)
+            rd.update_scene(d, cam); img = rd.render().copy(); C = mono_camera(rd.scene); C['eye0'] = mono_camera(rd.scene, (0,))
             rd.enable_segmentation_rendering(); rd.update_scene(d, cam); seg = rd.render().copy(); rd.disable_segmentation_rendering()
             mask = (seg[..., 1] == mujoco.mjtObj.mjOBJ_GEOM) & (seg[..., 0] >= 0) & (seg[..., 0] != floor)
             img[~mask] = 255
@@ -177,25 +182,36 @@ def render_views(r, extent=0.78, W=960, H=720, lift=0.0):
 
 
 def projection_check(m, d, views, W=960, H=720):
-    """Project every vertex of every visible mesh geom; compare the bounding box with the rendered silhouette's, per view."""
+    """Project every vertex of every visible mesh geom; compare the bounding box with the rendered silhouette's, per view.
+    Also returns, per view, the min and max pixel shift if eye camera 0 alone were used instead of the two-eye average."""
     pts = []
     for g in range(m.ngeom):
         if m.geom_type[g] == mujoco.mjtGeom.mjGEOM_MESH and m.geom_group[g] <= 2:
             md = m.geom_dataid[g]; v = m.mesh_vert[m.mesh_vertadr[md]:m.mesh_vertadr[md] + m.mesh_vertnum[md]]
             pts.append(d.geom_xpos[g] + v @ d.geom_xmat[g].reshape(3, 3).T)
-    pts = np.concatenate(pts); err = {}
+    pts = np.concatenate(pts); err, eye = {}, {}
     for name, (img, mask, C, seg) in views.items():
         uv = project(C, pts, W, H); ys, xs = np.nonzero(mask)
         # pixel i covers [i, i+1): silhouette edges are xs.min() and xs.max() + 1
         err[name] = mx([uv[:, 0].min() - xs.min(), uv[:, 0].max() - xs.max() - 1, uv[:, 1].min() - ys.min(), uv[:, 1].max() - ys.max() - 1])
-    return err, len(pts)
+        if 'eye0' in C:                         # ablation: eye camera 0 alone instead of the two-eye average
+            s = np.linalg.norm(project(C['eye0'], pts, W, H) - uv, axis=1); eye[name] = [float(s.min()), float(s.max())]
+    return err, len(pts), eye
 
 
 # ---- intermediate --------------------------------------------------------------------------------------------------------
 
+def parse_unnormalised():
+    """anatomy.parse() with the quaternion normalisation in anatomy._R removed: the ablation behind the README's claim that
+    the normalisation matters."""
+    from unittest import mock
+    with mock.patch.object(A, '_R', lambda s: quat_to_R(A._v(s))):
+        return A.parse()
+
+
 def intermediate(r, m, pm, n):
-    d = mujoco.MjData(m); pd = pm.createData(); rng = np.random.default_rng(0)
-    e = dict(pose=0.0, axis=0.0, vel=0.0, com=0.0, h=0.0, act=0.0)
+    d = mujoco.MjData(m); pd = pm.createData(); rng = np.random.default_rng(0); r_raw = parse_unnormalised()
+    e = dict(pose=0.0, axis=0.0, vel=0.0, com=0.0, h=0.0, act=0.0, h_raw=0.0)
     hinge = [k for k, j in enumerate(r.joints) if j.type == 'hinge']
     for _ in range(n):
         q, v = random_state(rng, r)
@@ -212,9 +228,11 @@ def intermediate(r, m, pm, n):
         M, c, l, k = A.centroidal(r, q, v)
         qp, vp = to_pin(q, v); hg = pin.computeCentroidalMomentum(pm, pd, qp, vp)
         e['com'] = max(e['com'], mx(pd.com[0] - c)); e['h'] = max(e['h'], mx(hg.linear - l, hg.angular - k))
+        _, _, l, k = A.centroidal(r_raw, q, v); e['h_raw'] = max(e['h_raw'], mx(hg.linear - l, hg.angular - k))
         e['act'] = max(e['act'], mx(A.actuator_force(r, u) - d.qfrc_actuator))
     res = dict(fk_body_pose_vs_mujoco=e['pose'], fk_joint_anchor_axis_vs_mujoco=e['axis'], body_velocity_vs_mujoco=e['vel'],
-               com_vs_pinocchio_m=e['com'], centroidal_momentum_vs_pinocchio=e['h'], actuator_force_vs_mujoco=e['act'], samples=n)
+               com_vs_pinocchio_m=e['com'], centroidal_momentum_vs_pinocchio=e['h'], actuator_force_vs_mujoco=e['act'], samples=n,
+               centroidal_momentum_vs_pinocchio_unnormalised_quat=e['h_raw'])
     # armature: the only difference between the mass matrices with and without it is diag(armature) on the hinge dofs
     m0 = mujoco.MjModel.from_xml_path(str(GO2_XML)); m0.dof_armature[:] = 0; d0 = mujoco.MjData(m0)
     arm = np.array([j.armature for j in r.joints if j.type == 'hinge']); worst = 0.0
@@ -270,7 +288,7 @@ def underactuation(r, m, pm, n):
     res['nullspace_BT_dim'] = int(r.nv - np.linalg.matrix_rank(B))
     d = mujoco.MjData(m); pd = pm.createData(); rng = np.random.default_rng(1)
     worst_act = worst_fd = worst_pin = 0.0; worst_fd_default = 0.0; base_acc, com_acc = [], []
-    g = m.opt.gravity.copy()
+    g = m.opt.gravity.copy(); eom = {True: np.zeros(2), False: np.zeros(2)}     # (base rows, joint rows)
     for tol, iters in ((1e-8, 100), (0.0, 1000)):
         m.opt.tolerance, m.opt.iterations = tol, iters
         rng = np.random.default_rng(1)
@@ -279,6 +297,10 @@ def underactuation(r, m, pm, n):
             d.ctrl[:] = rng.uniform(-1, 1, m.nu) * m.actuator_ctrlrange[:, 1]; mujoco.mj_forward(m, d)
             M, c, l, k = A.centroidal(r, q, v); ld, kd = A.momentum_rate(r, q, v, d.qacc)
             err = mx(ld - M * g, kd)
+            # residual of M qacc = qfrc_smooth + qfrc_constraint: how far the solver's qacc is from the equations of motion
+            Ma = np.zeros(m.nv); mujoco.mj_mulM(m, d, Ma, d.qacc)
+            rr = Ma - d.qfrc_smooth - d.qfrc_constraint
+            eom[tol > 0] = np.maximum(eom[tol > 0], [mx(rr[:6]), mx(rr[6:])])
             if tol > 0:
                 worst_fd_default = max(worst_fd_default, err); continue
             worst_fd = max(worst_fd, err); worst_act = max(worst_act, mx(d.qfrc_actuator[:6]))
@@ -295,6 +317,9 @@ def underactuation(r, m, pm, n):
         d.ctrl[:] = 0; mujoco.mj_forward(m, d); dacc.append(np.linalg.norm(a1[3:6] - d.qacc[3:6]))
     res.update(qfrc_actuator_base_rows_max_abs=worst_act, flight_momentum_rate_vs_Mg_fd=worst_fd,
                flight_momentum_rate_vs_Mg_pinocchio=worst_pin, flight_momentum_rate_default_solver_tol=worst_fd_default,
+               flight_eom_residual_default_solver_tol_base_rows=float(eom[True][0]),
+               flight_eom_residual_default_solver_tol_joint_rows=float(eom[True][1]),
+               flight_eom_residual_tol0_base_rows=float(eom[False][0]), flight_eom_residual_tol0_joint_rows=float(eom[False][1]),
                flight_torque_effect_on_base_ang_acc_median=float(np.median(dacc)),
                flight_com_acc_minus_g_max=float(np.max(com_acc)), samples=n)
     return res
@@ -325,10 +350,10 @@ def stance_balance():
 
 
 def flight(integrator, dt=0.002, T=0.9, rec=None):
-    """Launch the robot upwards (v_z = 4.5 m/s from 0.6 m) and drive the 12 joints with sinusoidal torques (15 N m, 0.5-1.7 Hz)
+    """Launch the robot (v = (1.2, 0, 4.5) m/s from 0.6 m height) and drive the 12 joints with sinusoidal torques (15 N m, 0.5-1.7 Hz)
     for T seconds; no contact with the floor in that time. Logs centroidal momentum and COM, base attitude."""
     m, d = sim.load(); m.opt.integrator, m.opt.timestep = integrator, dt; r = A.parse()
-    ix = sim.index(m); d.qpos[:3] = (0, 0, 0.6); d.qpos[3:7] = (1, 0, 0, 0); d.qpos[ix.qpos] = sim.Q_STAND; d.qvel[2] = 4.5
+    ix = sim.index(m); d.qpos[:3] = (0, 0, 0.6); d.qpos[3:7] = (1, 0, 0, 0); d.qpos[ix.qpos] = sim.Q_STAND; d.qvel[0], d.qvel[2] = 1.2, 4.5
     mujoco.mj_forward(m, d); M, c0, l0, k0 = A.centroidal(r, d.qpos, d.qvel); g = m.opt.gravity.copy()
     freq = np.array([1.3, 0.7, 1.1, 0.9, 1.7, 0.5, 1.2, 0.8, 1.5, 1.0, 0.6, 1.4]); ph = np.arange(12.0)
     ctrl = lambda m, d: 15 * np.sin(2 * np.pi * freq * d.time + ph)  # noqa: E731
@@ -358,20 +383,21 @@ def drift(res_only=True):
     return out, runs
 
 
-def loop(f=1.0, amp=0.45, sign=1.0):
-    """Joint-space loop on every leg: thigh 0.9 + s a sin(wt), knee -1.8 + a (cos(wt) - 1): a circle of radius a through the
-    stand pose, area pi a^2 in the (thigh, knee) plane; s = -1 runs the same circle backwards. a = 0.45 keeps the knee above
-    its lower limit (-1.8 - 2a = -2.70 > -2.7227 rad)."""
+def loop(f=1.0, amp=0.45, sign=1.0, region=1.0):
+    """Joint-space loop on every leg: thigh 0.9 + s r a sin(wt), knee -1.8 + r a (cos(wt) - 1): a circle of radius a through
+    the stand pose, area pi a^2 in the (thigh, knee) plane; s = -1 runs the same circle backwards. r = -1 is the point
+    reflection of the circle through the stand pose: same area, same direction, but over the region above it (knee bent less,
+    knee in [-1.8, -0.9] rad). a = 0.45 keeps the knee inside [-2.7227, -0.83776] rad for both regions (-1.8 - 2a = -2.70)."""
     w = 2 * np.pi * f
-    return lambda t: sim.Q_STAND + np.tile([0.0, sign * amp * np.sin(w * t), amp * (np.cos(w * t) - 1)], 4)
+    return lambda t: sim.Q_STAND + np.tile([0.0, sign * region * amp * np.sin(w * t), region * amp * (np.cos(w * t) - 1)], 4)
 
 
-def reorient(f=1.0, sign=1.0, cycles=5, rec=None, kp=400.0, kd=6.0):
+def reorient(f=1.0, sign=1.0, cycles=5, rec=None, kp=400.0, kd=6.0, region=1.0):
     """Zero gravity, robot at rest 1 m above the floor, joint PD (kp, kd) tracking loop(); RK4. Logs pitch, |k|, |l| and the
     FL thigh and knee angles every 10 ms."""
     m, d = sim.load(); m.opt.gravity[:] = 0; m.opt.integrator = mujoco.mjtIntegrator.mjINT_RK4; r = A.parse()
     ix = sim.index(m); d.qpos[:3] = (0, 0, 1.0); d.qpos[3:7] = (1, 0, 0, 0); d.qpos[ix.qpos] = sim.Q_STAND; mujoco.mj_forward(m, d)
-    qd = loop(f, sign=sign)
+    qd = loop(f, sign=sign, region=region)
 
     def log(m, d):
         if rec is not None:
@@ -386,7 +412,10 @@ def reorient(f=1.0, sign=1.0, cycles=5, rec=None, kp=400.0, kd=6.0):
 
 # ---- figures -------------------------------------------------------------------------------------------------------------
 
-JCOL = dict(hip=fs.C['est'], thigh=fs.C['est2'], calf=fs.C['plan'])      # joint role colours, used in every figure here
+# Categorical colours for joint roles and for x/y/z (roll/pitch/yaw) components. Kept apart from the semantic colours in
+# fs.C (estimate blue, second estimate violet, plan amber, pass green, fail red), which mean something else in MODULE_SPEC.md.
+CAT = ('#159a9c', '#c2378f', '#7b5b3a')                                   # teal, magenta, brown
+JCOL = dict(hip=CAT[0], thigh=CAT[1], calf=CAT[2])                         # joint role colours, used in every figure here
 ROLE = dict(hip='hip abduction (x)', thigh='hip flexion (y)', calf='knee (y)')
 
 
@@ -441,7 +470,8 @@ def _annotate(ax, name, img, C, r, d, feet, W, H):
     M, c, _, _ = A.centroidal(r, d.qpos)
     u = project(C, c, W, H)[0]
     ax.plot(*u, marker='o', ms=9, mfc='white', mec=fs.C['ink'], mew=1.4); ax.plot(*u, marker='+', ms=9, color=fs.C['ink'], mew=1.4)
-    fs.label(ax, u, 'centre of mass', xytext=(28, -30), fontsize=8)
+    fs.label(ax, u, 'centre of mass', xytext={'front': (90, 25), 'side': (30, 45), 'top': (-15, -120)}[name], fontsize=8,
+             ha='right' if name == 'top' else 'left')
     # base frame glyph
     o = p[0]; Rb = R[0]
     for i, nm in enumerate('xyz'):
@@ -458,7 +488,7 @@ def _annotate(ax, name, img, C, r, d, feet, W, H):
         ax.annotate('', xy=(b[0], yb), xytext=(a[0], yb), arrowprops=dict(arrowstyle='<->', color=fs.C['muted'], lw=0.8))
         ax.text((a[0] + b[0]) / 2, yb - 8, f'hip spacing {np.linalg.norm(hipF - hipR):.4f} m', ha='center', fontsize=8, color=fs.C['muted'])
         knee = an[r.joint('FR_calf_joint')]; foot = d.geom_xpos[feet[1]]
-        for P0, P1, txt, off in ((hipF, knee, 'thigh 0.213 m', (30, 0)), (knee, foot, 'calf 0.213 m to foot centre', (35, 0))):
+        for P0, P1, txt, off in ((hipF, knee, 'thigh 0.213 m', (75, 95)), (knee, foot, 'calf 0.213 m to foot centre', (35, 0))):
             mid = project(C, (P0 + P1) / 2, W, H)[0]; fs.label(ax, mid, txt, xytext=off, fontsize=8)
         fs.label(ax, project(C, d.site_xpos[0], W, H)[0], 'IMU site', xytext=(-10, -45), fontsize=8, ha='right')
     if name == 'top':
@@ -476,18 +506,13 @@ def _annotate(ax, name, img, C, r, d, feet, W, H):
 
 
 def fig_views(r, views, mv, d, W=960, H=720):
-    paths = []; feet = sim.index(mv).feet
-    for name, (img, mask, C, seg) in views.items():
-        fig, ax = plt.subplots(figsize=(6.4, 4.8)); _annotate(ax, name, img, C, r, d, feet, W, H)
-        handles = [plt.Line2D([], [], color=c, lw=2, label=ROLE[k] + ' axis') for k, c in JCOL.items()]
-        ax.legend(handles=handles, loc='upper right', fontsize=7.5); paths.append(fs.save(fig, FIG / f'view_{name}'))
+    feet = sim.index(mv).feet
     fig, axs = plt.subplots(1, 3, figsize=(15, 4.4))
     for ax, (name, (img, mask, C, seg)) in zip(axs, views.items()):
         _annotate(ax, name, img, C, r, d, feet, W, H)
     handles = [plt.Line2D([], [], color=c, lw=2, label=ROLE[k] + ' axis') for k, c in JCOL.items()]
     axs[0].legend(handles=handles, loc='upper left', fontsize=7.5)
-    paths.append(fs.save(fig, FIG / 'views_annotated'))
-    return paths
+    return fs.save(fig, FIG / 'views_annotated')
 
 
 def fig_joint_ranges(r):
@@ -533,8 +558,8 @@ def fig_torque_budget(tb, inter):
                                                             title='Torque needed to stand (labels: N m) relative to the motor limit')
     ax2 = axs[1]
     lk = np.array(inter['stand_M_diag_links']); la = np.array(inter['stand_M_diag_with_armature'])
-    ax2.bar(x - 0.2, lk, 0.4, color=fs.C['gt'], label='links only'); ax2.bar(x + 0.2, la, 0.4, color=fs.C['est'], label='links + armature 0.01')
-    ax2.set_yscale('log'); ax2.set_xticks(x, lab, rotation=60, fontsize=7.5)
+    ax2.bar(x - 0.2, lk, 0.4, color=fs.C['muted'], label='links only'); ax2.bar(x + 0.2, la, 0.4, color=fs.C['ink'], label='links + armature 0.01')
+    ax2.set_yscale('log'); ax2.set_ylim(top=0.09); ax2.set_xticks(x, lab, rotation=60, fontsize=7.5)   # headroom for the legend
     ax2.set(ylabel=r'$M_{ii}$ [kg m$^2$]', title='Joint-space inertia at the stand pose'); ax2.legend(fontsize=7.5)
     return fs.save(fig, FIG / 'torque_budget_and_inertia')
 
@@ -563,16 +588,17 @@ def fig_underactuation_diagram():
     fs.box(ax, (2.6, 2.4), 1.3, 0.8, r'$B$' + '\n(18 x 12)', fontsize=8.5)
     fs.box(ax, (0.1, 0.5), 1.6, 0.8, 'contact forces\nf (3 per foot)', fontsize=8.5)
     fs.box(ax, (2.6, 0.5), 1.3, 0.8, r'$J_c^T$' + '\n(18 x 3n)', fontsize=8.5)
-    fs.box(ax, (5.0, 2.65), 2.0, 0.55, 'joint rows (12)', fontsize=8.5, color=fs.C['est'])
-    fs.box(ax, (5.0, 1.65), 2.0, 0.55, 'base rows (6)', fontsize=8.5, color=fs.C['bad'])
+    fs.box(ax, (5.0, 2.65), 2.0, 0.55, 'joint rows (12)', fontsize=8.5)
+    fs.box(ax, (5.0, 1.65), 2.0, 0.55, 'base rows (6)', fontsize=8.5, color=fs.C['muted'])
     fs.arrow(ax, (1.7, 2.8), (2.6, 2.8)); fs.arrow(ax, (1.7, 0.9), (2.6, 0.9))
-    fs.arrow(ax, (3.9, 2.9), (5.0, 2.9), 'S u', fontsize=8); fs.arrow(ax, (3.9, 2.6), (5.0, 1.95), '0', color=fs.C['bad'], fontsize=8)
+    fs.arrow(ax, (3.9, 2.9), (5.0, 2.9), 'u (gear 1)', fontsize=8); fs.arrow(ax, (3.9, 2.6), (5.0, 1.95), '0', color=fs.C['muted'], fontsize=8)
     fs.arrow(ax, (3.9, 0.9), (5.0, 1.75), color=fs.C['ink']); fs.arrow(ax, (3.9, 1.1), (5.0, 2.7), color=fs.C['ink'])
-    fs.box(ax, (7.7, 1.65), 2.2, 0.55, 'centroidal momentum', fontsize=8.5, color=fs.C['bad'])
+    fs.box(ax, (7.7, 1.65), 2.2, 0.55, 'centroidal momentum', fontsize=8.5, color=fs.C['muted'])
     fs.arrow(ax, (7.0, 1.93), (7.7, 1.93))
-    ax.text(8.8, 1.45, r'$\dot h_G = M g + \sum (p_i - c) \times f_i$', ha='center', va='top', fontsize=9)
-    ax.text(8.8, 1.0, 'no u in this equation', ha='center', va='top', fontsize=8.5, color=fs.C['bad'])
-    fs.box(ax, (7.7, 2.65), 2.2, 0.55, 'joint accelerations', fontsize=8.5, color=fs.C['est'])
+    ax.text(8.8, 1.5, r'$\dot l = M g + \sum_k f_k$', ha='center', va='top', fontsize=9)
+    ax.text(8.8, 1.12, r'$\dot k = \sum_k \left[(p_k - c) \times f_k + \tau_k\right]$', ha='center', va='top', fontsize=9)
+    ax.text(8.8, 0.68, 'no u in these equations', ha='center', va='top', fontsize=8.5, color=fs.C['ink'])
+    fs.box(ax, (7.7, 2.65), 2.2, 0.55, 'joint accelerations', fontsize=8.5)
     fs.arrow(ax, (7.0, 2.93), (7.7, 2.93))
     ax.text(5.0, 3.75, r'$M(q)\dot v + h(q, v) = B u + J_c^T f$,   $v = (v_b, \omega_b, \dot q) \in \mathbb{R}^{18}$', fontsize=10)
     ax.text(5.0, 0.55, 'gravity enters through h; joint damping,\nfriction loss and limits are internal', fontsize=8, color=fs.C['muted'])
@@ -588,11 +614,11 @@ def fig_flight(F):
     ax.set(xlabel='time [s]', ylabel='height [m]', title='Height in flight with flailing legs'); ax.legend(fontsize=7.5)
     ax = axs[1]
     for i, n in enumerate(('roll', 'pitch', 'yaw')):
-        ax.plot(t, np.degrees(X[:, 10 + i]), color=(fs.C['est'], fs.C['est2'], fs.C['plan'])[i], label=n)
+        ax.plot(t, np.degrees(X[:, 10 + i]), color=CAT[i], label=n)
     ax.set(xlabel='time [s]', ylabel='base attitude [deg]', title='The base rotates under joint torques'); ax.legend(fontsize=7.5)
     ax = axs[2]
     ax.semilogy(t, np.linalg.norm(X[:, 4:7], axis=1) + 1e-16, color=fs.C['est'], label=r'$|l - l_0 - M g t|$ [kg m/s]')
-    ax.semilogy(t, np.linalg.norm(X[:, 7:10], axis=1) + 1e-16, color=fs.C['est2'], label=r'$|k - k_0|$ [kg m$^2$/s]')
+    ax.semilogy(t, np.linalg.norm(X[:, 7:10], axis=1) + 1e-16, '--', color=fs.C['est'], label=r'$|k - k_0|$ [kg m$^2$/s]')
     ax.set(xlabel='time [s]', title='Momentum change not caused by gravity (RK4, 2 ms)'); ax.legend(fontsize=7.5)
     return fs.save(fig, FIG / 'flight_momentum')
 
@@ -605,9 +631,9 @@ def fig_stance(X):
     ax.set(xlabel='time [s]', ylabel='[N]', title='Vertical: contacts carry weight + acceleration'); ax.legend(fontsize=7.5)
     ax = axs[1]
     for i, n in enumerate('xyz'):
-        ax.plot(t, X[:, 10 + i], color=(fs.C['est'], fs.C['est2'], fs.C['plan'])[i], lw=2.5, alpha=0.4)
-        ax.plot(t, X[:, 4 + i], '--', color=(fs.C['est'], fs.C['est2'], fs.C['plan'])[i], lw=1, label=rf'$\dot k_{n}$')
-    ax.set(xlabel='time [s]', ylabel='[N m]', title=r'Moment of contacts about the COM (solid) vs $\dot k$ (dashed)')
+        ax.plot(t, X[:, 10 + i], color=CAT[i], lw=2.5, alpha=0.4)
+        ax.plot(t, X[:, 4 + i], '--', color=CAT[i], lw=1, label=rf'$\dot k_{n}$')
+    ax.set(xlabel='time [s]', ylabel='[N m]', title=r'Contact moment about COM (solid), $\dot k$ (dashed)')
     ax.legend(fontsize=7.5)
     ax = axs[2]
     ax.semilogy(t, np.abs(X[:, 1:7] - X[:, 7:13]).max(1), color=fs.C['good'], label='with contact wrenches')
@@ -628,21 +654,26 @@ def fig_drift(runs, D):
     return fs.save(fig, FIG / 'integrator_drift')
 
 
-def fig_reorient(Xf, Xr, Xs):
-    fig, axs = plt.subplots(1, 3, figsize=(12, 3.5), gridspec_kw=dict(width_ratios=[1.4, 1, 0.8]))
+def fig_reorient(Xf, Xr, Xs, Xo):
+    fig, axs = plt.subplots(1, 3, figsize=(13, 3.8), gridspec_kw=dict(width_ratios=[1.4, 1, 1]))
     ax = axs[0]
     ax.plot(Xf[:, 0], np.degrees(Xf[:, 2]), color=fs.C['est'], label='loop forward, 1 Hz')
     ax.plot(Xr[:, 0], np.degrees(Xr[:, 2]), color=fs.C['est2'], label='loop reversed, 1 Hz')
-    ax.plot(Xs[:, 0] / 2, np.degrees(Xs[:, 2]), '--', color=fs.C['plan'], label='forward, 0.5 Hz (time / 2)')
+    ax.plot(Xs[:, 0] / 2, np.degrees(Xs[:, 2]), '--', color=fs.C['est'], label='forward, 0.5 Hz (time / 2)')
+    ax.plot(Xo[:, 0], np.degrees(Xo[:, 2]), '-.', color=fs.C['ink'], lw=1.0, label='other region, same area, 1 Hz')
     ax.set(xlabel='time [s] (cycles at 1 Hz)', ylabel='base pitch [deg]', title='Pitch changes with zero angular momentum')
     ax.legend(fontsize=7.5)
     ax = axs[1]; ax.semilogy(Xf[:, 0], Xf[:, 4] + 1e-16, color=fs.C['est'], label=r'$|k|$ [kg m$^2$/s]')
-    ax.semilogy(Xf[:, 0], Xf[:, 5] + 1e-16, color=fs.C['gt'], label=r'$|l|$ [kg m/s]')
+    ax.semilogy(Xf[:, 0], Xf[:, 5] + 1e-16, color=fs.C['muted'], label=r'$|l|$ [kg m/s]')
     ax.set(xlabel='time [s]', title='Momentum stays at zero'); ax.legend(fontsize=7.5)
     ax = axs[2]
     ax.plot(Xf[:, 6], Xf[:, 7], color=fs.C['est'], lw=0.8, label='tracked')
-    th = np.linspace(0, 2 * np.pi, 200); ax.plot(0.9 + 0.5 * np.sin(th), -1.8 + 0.5 * (np.cos(th) - 1), '--', color=fs.C['plan'], label='commanded')
-    ax.set(xlabel='thigh [rad]', ylabel='knee [rad]', title='Joint-space loop (FL)'); ax.set_aspect('equal'); ax.legend(fontsize=7.5)
+    cmd = np.array([loop()(t)[1:3] for t in np.linspace(0, 1, 201)])     # the command the experiment used (amp 0.45)
+    ax.plot(*cmd.T, '--', color=fs.C['plan'], label='commanded')
+    ax.plot(Xo[:, 6], Xo[:, 7], '-.', color=fs.C['ink'], lw=0.8, label='other region, tracked')
+    ax.plot(*np.array([loop(region=-1.0)(t)[1:3] for t in np.linspace(0, 1, 201)]).T, '--', color=fs.C['plan'])
+    ax.set(xlabel='thigh [rad]', ylabel='knee [rad]', title='Joint-space loops (FL)', xlim=(0.3, 2.4)); ax.set_aspect('equal')
+    ax.legend(fontsize=7, loc='center right')       # the loops sit at thigh < 1.4 rad; the legend uses the space to their right
     return fs.save(fig, FIG / 'zero_momentum_reorientation')
 
 
@@ -650,8 +681,8 @@ def fig_reorient_failure(Xf, Xh, Lf, Lh):
     """The rotation depends on the loop the joints actually trace. Low PD gains shrink the traced loop more at 1 Hz than at
     0.5 Hz, so the rotation per cycle depends on speed."""
     fig, axs = plt.subplots(1, 2, figsize=(10, 3.6))
-    th = np.linspace(0, 2 * np.pi, 200); ax = axs[0]
-    ax.plot(0.9 + 0.45 * np.sin(th), -1.8 + 0.45 * (np.cos(th) - 1), '--', color=fs.C['plan'], label='commanded')
+    ax = axs[0]; cmd = np.array([loop()(t)[1:3] for t in np.linspace(0, 1, 201)])
+    ax.plot(*cmd.T, '--', color=fs.C['plan'], label='commanded')
     for X, lab, col, ls in ((Xf, 'kp 400, 1 Hz', fs.C['est'], '-'), (Xh, 'kp 400, 0.5 Hz', fs.C['est'], ':'),
                             (Lf, 'kp 60, 1 Hz', fs.C['bad'], '-'), (Lh, 'kp 60, 0.5 Hz', fs.C['bad'], ':')):
         n = len(X) // 5; ax.plot(X[-n:, 6], X[-n:, 7], ls, color=col, lw=1, label=lab)
@@ -697,11 +728,17 @@ class Rec(sim.Recorder):
         return None
 
 
+def show_hinge_axes(m):
+    """Joint-axis arrows 1.8 x the model's mean body size long; the free joint (drawn as a cube) moved to a hidden group."""
+    m.vis.scale.jointlength, m.vis.scale.jointwidth = 1.8, 0.08
+    m.jnt_group[0] = 5
+
+
 def video_turntable():
     """Two turns around the standing robot (kinematic, no dynamics): first the visual meshes with MuJoCo's joint-axis arrows,
     then the collision geometry with the inertia boxes and centres of mass. 30 fps, 6 s per turn."""
     m, d = sim.load(); sim.place_on_ground(m, d)
-    m.vis.scale.jointlength, m.vis.scale.jointwidth = 2.5, 0.25
+    show_hinge_axes(m)
     path = MEDIA / 'turntable.mp4'
     with Rec(m, path, width=960, height=540, fps=30, distance=1.25, azimuth=0, elevation=-15) as rec:
         if not rec.ok:
@@ -709,7 +746,7 @@ def video_turntable():
         n = 180
         for turn in range(2):
             o = rec.opt
-            o.flags[mujoco.mjtVisFlag.mjVIS_JOINT] = 1
+            o.flags[mujoco.mjtVisFlag.mjVIS_JOINT] = 1; o.jointgroup[5] = 0
             o.flags[mujoco.mjtVisFlag.mjVIS_INERTIA] = o.flags[mujoco.mjtVisFlag.mjVIS_COM] = turn
             o.geomgroup[2], o.geomgroup[3] = 1 - turn, turn
             for k in range(n):
@@ -726,12 +763,12 @@ def video_joint_sweep():
     """Base held 0.45 m above the floor; all four legs move one joint at a time from the stand pose to its lower limit, upper
     limit and back (min-jerk, 1.2 s per segment); joint-axis arrows shown. Kinematic playback, 30 fps."""
     m, d = sim.load(); ix = sim.index(m); r = A.parse()
-    m.vis.scale.jointlength, m.vis.scale.jointwidth = 2.5, 0.25
+    show_hinge_axes(m)
     path = MEDIA / 'joint_sweep.mp4'
     with Rec(m, path, width=960, height=540, fps=30, distance=1.35, azimuth=135, elevation=-18) as rec:
         if not rec.ok:
             return None
-        rec.opt.flags[mujoco.mjtVisFlag.mjVIS_JOINT] = 1
+        rec.opt.flags[mujoco.mjtVisFlag.mjVIS_JOINT] = 1; rec.opt.jointgroup[5] = 0
         t = 0.0; q = sim.Q_STAND.copy()
         for jj, part in enumerate(('hip', 'thigh', 'calf')):
             for leg_set in (('FL', 'FR', 'RL', 'RR'),):
@@ -739,8 +776,8 @@ def video_joint_sweep():
                 hi = np.array([r.joints[r.joint(f'{l}_{part}_joint')].range[1] for l in LEGS])
                 if part == 'thigh':                                    # full flexion range would hit the body: sweep 80% of it
                     lo, hi = q[jj] + 0.8 * (lo - q[jj]), q[jj] + 0.8 * (hi - q[jj])
-                if part == 'hip':                                      # left legs +, right legs -: both abduct outward
-                    lo = np.where([l[1] == 'L' for l in LEGS], lo, -hi); hi = -lo
+                if part == 'hip':                                      # mirror the right legs: both sides abduct together
+                    left = np.array([l[1] == 'L' for l in LEGS]); lo, hi = np.where(left, lo, -lo), np.where(left, hi, -hi)
                 for a, b in ((np.full(4, q[jj]), lo), (lo, hi), (hi, np.full(4, q[jj]))):
                     tr = sim.min_jerk(a, b, 1.2)
                     for s in np.arange(0, 1.2, 1 / 30):
@@ -754,21 +791,22 @@ def video_joint_sweep():
 
 
 def video_flight():
-    """The flight experiment (RK4, 2 ms) at 1/4 speed from a fixed side camera, with the COM (white) and the ballistic
-    parabola it must follow (amber dots)."""
+    """The flight experiment (RK4, 2 ms) at 1/4 speed from a fixed side camera, with the COM (blue sphere, the estimate colour used for the simulated COM in the figures) and the ballistic
+    parabola it must follow (amber dots). The COM lies inside the base, so the robot is drawn semi-transparent
+    (mjVIS_TRANSPARENT); the marker spheres are added after update_scene and stay opaque."""
     m, _ = sim.load(); path = MEDIA / 'flight.mp4'
     F0 = flight(mujoco.mjtIntegrator.mjINT_RK4); cb = F0['c_ballistic'][::25]
     r = A.parse()
-    marks = lambda d: [(p, (0.79, 0.52, 0.06, 0.9), 0.012) for p in cb] + [(A.centroidal(r, d.qpos)[1], (1, 1, 1, 1), 0.025)]  # noqa: E731
-    with Rec(m, path, slow=0.25, marks=marks, width=960, height=540, fps=30, distance=3.4, azimuth=90, elevation=-5) as rec:
+    marks = lambda d: [(p, (0.79, 0.52, 0.06, 0.9), 0.012) for p in cb] + [(A.centroidal(r, d.qpos)[1], (0.043, 0.455, 0.659, 1), 0.03)]  # noqa: E731
+    with Rec(m, path, slow=0.25, marks=marks, width=960, height=540, fps=30, distance=2.3, azimuth=90, elevation=-5) as rec:
         if not rec.ok:
             return None
-        rec.cam.type = mujoco.mjtCamera.mjCAMERA_FREE; rec.cam.lookat[:] = (0, 0, 1.15)
+        rec.cam.type = mujoco.mjtCamera.mjCAMERA_FREE; rec.cam.lookat[:] = (0.55, 0, 1.1); rec.opt.flags[mujoco.mjtVisFlag.mjVIS_TRANSPARENT] = 1
         flight(mujoco.mjtIntegrator.mjINT_RK4, rec=rec)
         rec.close()
     # still: re-run to t = 0.45 s and capture
-    with Rec(m, None, marks=marks, width=960, height=540, distance=3.4, azimuth=90, elevation=-5) as rec:
-        rec.cam.type = mujoco.mjtCamera.mjCAMERA_FREE; rec.cam.lookat[:] = (0, 0, 1.15)
+    with Rec(m, None, marks=marks, width=960, height=540, distance=2.3, azimuth=90, elevation=-5) as rec:
+        rec.cam.type = mujoco.mjtCamera.mjCAMERA_FREE; rec.cam.lookat[:] = (0.55, 0, 1.1); rec.opt.flags[mujoco.mjtVisFlag.mjVIS_TRANSPARENT] = 1
         snap = {}
         flight(mujoco.mjtIntegrator.mjINT_RK4, T=0.45, rec=lambda m, d: snap.update(d=d))
         rec.still(snap['d'], MEDIA / 'flight.png')
@@ -796,23 +834,31 @@ def main():
     res['fundamental'] = fundamental(r, m, pm)
     views, mv, dv = render_views(r, lift=0.0)
     lifted, ml, dl = render_views(r, lift=0.4)                     # in the air: no floor occlusion for the bbox check
-    perr, npts = projection_check(ml, dl, lifted)
-    res['fundamental'].update(camera_projection_bbox_px=max(perr.values()), camera_projection_per_view_px=perr, mesh_vertices=npts)
+    perr, npts, eye = projection_check(ml, dl, lifted)
+    res['fundamental'].update(camera_projection_bbox_px=max(perr.values()), camera_projection_per_view_px=perr, mesh_vertices=npts,
+                              camera_eye0_only_shift_px=eye)
     res['intermediate'] = intermediate(r, m, pm, a.n); res['intermediate'].update(torque_budget(r))
     adv = underactuation(r, m, pm, a.n); st, Xs = stance_balance(); adv.update(st)
     D, runs = drift(); adv.update(D)
-    Xf, Xr, Xh = reorient(), reorient(sign=-1.0), reorient(f=0.5)
-    pf, pr, ph = (float(np.degrees(X[-1, 2] - X[0, 2])) for X in (Xf, Xr, Xh))
+    Xf, Xr, Xh, Xo = reorient(), reorient(sign=-1.0), reorient(f=0.5), reorient(region=-1.0)
+    pf, pr, ph, po = (float(np.degrees(X[-1, 2] - X[0, 2])) for X in (Xf, Xr, Xh, Xo))
     adv.update(reorient_pitch_5_cycles_deg=abs(pf), reorient_pitch_signed_deg=pf, reorient_reverse_deg=pr, reorient_half_speed_deg=ph,
                reorient_reverse_ratio=pr / pf, reorient_half_speed_ratio=ph / pf,
-               reorient_max_ang_momentum=float(max(Xf[:, 4].max(), Xr[:, 4].max(), Xh[:, 4].max())),
-               reorient_max_lin_momentum=float(max(Xf[:, 5].max(), Xr[:, 5].max(), Xh[:, 5].max())),
+               reorient_other_region_deg=po, reorient_other_region_ratio=po / pf, reorient_other_region_rel_diff=abs(po / pf - 1),
+               reorient_other_region_knee_range_rad=[float(Xo[:, 7].min()), float(Xo[:, 7].max())],
+               reorient_other_region_track_err_rad=float(np.abs(Xo[:, 6:8] - np.array([loop(region=-1.0)(t)[1:3] for t in Xo[:, 0]])).max()),
+               reorient_max_ang_momentum=float(max(X[:, 4].max() for X in (Xf, Xr, Xh, Xo))),
+               reorient_max_lin_momentum=float(max(X[:, 5].max() for X in (Xf, Xr, Xh, Xo))),
                reorient_track_err_rad=float(np.abs(Xf[:, 6:8] - np.array([loop()(t)[1:3] for t in Xf[:, 0]])).max()))
-    # failure cases: the low-gain PD of the first run (kp 60, kd 2), and a loop over a different region (knee bent less)
+    cyc = np.minimum(Xf[:, 0].astype(int), 4); pd_ = np.degrees(Xf[:, 2])           # 1 Hz: cycle c is t in [c, c + 1)
+    adv.update(reorient_pitch_swing_per_cycle_deg=[float(np.ptp(pd_[cyc == c])) for c in range(5)],
+               reorient_pitch_net_per_cycle_deg=np.diff([pd_[cyc == c][0] for c in range(5)] + [pd_[-1]]).tolist())
+    # failure case: the low-gain PD of the first run (kp 60, kd 2), rerun on the current loop (amplitude 0.45 rad)
     Lf, Lh = reorient(kp=60, kd=2), reorient(f=0.5, kp=60, kd=2)
     lf, lh = (float(np.degrees(X[-1, 2] - X[0, 2])) for X in (Lf, Lh))
     adv.update(reorient_lowgain_1Hz_deg=lf, reorient_lowgain_half_speed_deg=lh, reorient_lowgain_half_speed_ratio=lh / lf,
                reorient_lowgain_track_err_rad=float(np.abs(Lf[:, 6:8] - np.array([loop()(t)[1:3] for t in Lf[:, 0]])).max()),
+               reorient_lowgain_half_speed_track_err_rad=float(np.abs(Lh[:, 6:8] - np.array([loop(0.5)(t)[1:3] for t in Lh[:, 0]])).max()),
                reorient_half_speed_track_err_rad=float(np.abs(Xh[:, 6:8] - np.array([loop(0.5)(t)[1:3] for t in Xh[:, 0]])).max()))
     F = runs[('rk4', 0.002)]
     adv.update(flight_com_vs_ballistic_m=float(np.abs(F['X'][:, 1:4] - F['c_ballistic']).max()),
@@ -820,7 +866,7 @@ def main():
                flight_base_vs_ballistic_m=float(np.abs(F['X'][:, 13:16] - F['c_ballistic']).max()))
     res['advanced'] = adv
     fig_tree(r); fig_views(r, views, mv, dv); fig_joint_ranges(r); fig_torque_budget(res['intermediate'], res['intermediate'])
-    fig_B_and_M(r); fig_underactuation_diagram(); fig_flight(F); fig_stance(Xs); fig_drift(runs, D); fig_reorient(Xf, Xr, Xh); fig_reorient_failure(Xf, Xh, Lf, Lh)
+    fig_B_and_M(r); fig_underactuation_diagram(); fig_flight(F); fig_stance(Xs); fig_drift(runs, D); fig_reorient(Xf, Xr, Xh, Xo); fig_reorient_failure(Xf, Xh, Lf, Lh)
     flat = {**res['fundamental'], **res['intermediate'], **adv}
     if not a.no_media:
         vids = [video_turntable(), video_joint_sweep(), video_flight(), video_reorient()]
@@ -830,7 +876,7 @@ def main():
     print('\nacceptance:')
     for k, c in res['checks'].items():
         print(f'  {"PASS" if c["passed"] else "MISS"}  {k:42s} {c["measured"]:.4g}  ({c["op"]} {c["threshold"]})')
-    res['wall_time_s'] = round(time.time() - t0, 1)
+    res['wall_time_s'] = round(time.time() - t0, 1); res['load_average_1min_at_end'] = round(os.getloadavg()[0], 1)
     pathlib.Path(a.json).write_text(json.dumps(res, indent=2, default=float) + '\n')
     print(f'wrote {a.json} in {res["wall_time_s"]} s')
 

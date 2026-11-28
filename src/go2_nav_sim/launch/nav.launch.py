@@ -12,14 +12,19 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
     me = share('go2_nav_sim')
+    use_sim_time = LaunchConfiguration('use_sim_time')
     return LaunchDescription([
         DeclareLaunchArgument('map', default_value=os.path.join(me, 'maps/arena.yaml'), description='map for AMCL / Nav2'),
         DeclareLaunchArgument('mapper', default_value='true', description='run the passive mapper on /slam/map'),
+        DeclareLaunchArgument('params_file', default_value=os.path.join(me, 'config/nav2_params.yaml'),
+                              description='Nav2 + AMCL parameter file'),
+        DeclareLaunchArgument('use_sim_time', default_value='true', description='take time from /clock (Gazebo or a bag)'),
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource(os.path.join(share('nav2_bringup'), 'launch/bringup_launch.py')),
-            launch_arguments={'map': LaunchConfiguration('map'), 'params_file': os.path.join(me, 'config/nav2_params.yaml'),
-                              'use_sim_time': 'true', 'autostart': 'true', 'use_composition': 'False'}.items()),
+            launch_arguments={'map': LaunchConfiguration('map'), 'params_file': LaunchConfiguration('params_file'),
+                              'use_sim_time': use_sim_time, 'autostart': 'true', 'use_composition': 'False'}.items()),
         Node(package='slam_toolbox', executable='async_slam_toolbox_node', name='slam_toolbox', output='screen',
-             parameters=[os.path.join(me, 'config/slam.yaml')], remappings=[('/map', '/slam/map'), ('/map_metadata', '/slam/map_metadata')],
+             parameters=[os.path.join(me, 'config/slam.yaml'), {'use_sim_time': use_sim_time}],
+             remappings=[('/map', '/slam/map'), ('/map_metadata', '/slam/map_metadata')],
              condition=IfCondition(LaunchConfiguration('mapper'))),
     ])

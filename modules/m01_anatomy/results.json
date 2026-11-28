@@ -14,7 +14,7 @@
       "nu": {
         "parsed": 12,
         "mujoco": 12,
-        "pinocchio": 12
+        "pinocchio": null
       },
       "bodies": {
         "parsed": 13,
@@ -563,7 +563,21 @@
       "side": 0.42504986695587377,
       "top": 0.4495325229859759
     },
-    "mesh_vertices": 419023
+    "mesh_vertices": 419023,
+    "camera_eye0_only_shift_px": {
+      "front": [
+        31.384618241405974,
+        31.38461824140643
+      ],
+      "side": [
+        31.384618241405974,
+        31.38461824140643
+      ],
+      "top": [
+        31.384618241405974,
+        31.38461824140643
+      ]
+    }
   },
   "intermediate": {
     "fk_body_pose_vs_mujoco": 8.881784197001252e-16,
@@ -573,6 +587,7 @@
     "centroidal_momentum_vs_pinocchio": 4.263256414560601e-14,
     "actuator_force_vs_mujoco": 0.0,
     "samples": 1000,
+    "centroidal_momentum_vs_pinocchio_unnormalised_quat": 6.486196191257676e-08,
     "armature_in_mass_matrix": 1.734723475976807e-18,
     "stand_M_diag_links": [
       0.02357173145104648,
@@ -669,6 +684,10 @@
     "flight_momentum_rate_vs_Mg_fd": 1.8290924330699454e-08,
     "flight_momentum_rate_vs_Mg_pinocchio": 2.7693902726610986e-11,
     "flight_momentum_rate_default_solver_tol": 7.165956117205496e-05,
+    "flight_eom_residual_default_solver_tol_base_rows": 7.165456170810103e-05,
+    "flight_eom_residual_default_solver_tol_joint_rows": 0.13382843008775946,
+    "flight_eom_residual_tol0_base_rows": 2.6692592580701557e-11,
+    "flight_eom_residual_tol0_joint_rows": 1.7676882180239772e-10,
     "flight_torque_effect_on_base_ang_acc_median": 112.49615124494986,
     "flight_com_acc_minus_g_max": 1.1107648918649635e-09,
     "samples": 1000,
@@ -680,42 +699,65 @@
       168.72868634483095
     ],
     "euler_2ms_lin": 0.05031620026440464,
-    "euler_2ms_ang": 0.01068712816603977,
+    "euler_2ms_ang": 0.010687128166039887,
     "euler_2ms_floor_contacts": 0.0,
-    "euler_1ms_lin": 0.025323841120496127,
-    "euler_1ms_ang": 0.0053506978329163485,
+    "euler_1ms_lin": 0.025323841120439283,
+    "euler_1ms_ang": 0.005350697832916314,
     "euler_1ms_floor_contacts": 0.0,
-    "rk4_2ms_lin": 8.204775332712466e-06,
-    "rk4_2ms_ang": 1.93792601159426e-06,
+    "rk4_2ms_lin": 8.204775355125093e-06,
+    "rk4_2ms_ang": 1.93792601171916e-06,
     "rk4_2ms_floor_contacts": 0.0,
-    "rk4_1ms_lin": 3.725535066511493e-06,
-    "rk4_1ms_ang": 7.985233222082555e-07,
+    "rk4_1ms_lin": 3.7255350661229147e-06,
+    "rk4_1ms_ang": 7.985233234641953e-07,
     "rk4_1ms_floor_contacts": 0.0,
-    "flight_drift_order_euler": 1.9973335254132354,
-    "flight_drift_order_rk4": 2.426887177490412,
-    "flight_drift_rk4_ang_kgm2s": 1.93792601159426e-06,
+    "flight_drift_order_euler": 1.9973335254132705,
+    "flight_drift_order_rk4": 2.4268871738297495,
+    "flight_drift_rk4_ang_kgm2s": 1.93792601171916e-06,
     "reorient_pitch_5_cycles_deg": 12.428635098835054,
     "reorient_pitch_signed_deg": -12.428635098835054,
     "reorient_reverse_deg": 12.448962746134299,
     "reorient_half_speed_deg": -12.802612120174214,
     "reorient_reverse_ratio": -1.0016355494499272,
     "reorient_half_speed_ratio": 1.030089951017567,
+    "reorient_other_region_deg": -14.84185855364067,
+    "reorient_other_region_ratio": 1.1941664097155615,
+    "reorient_other_region_rel_diff": 0.19416640971556154,
+    "reorient_other_region_knee_range_rad": [
+      -1.799843461425447,
+      -0.9030475386402916
+    ],
+    "reorient_other_region_track_err_rad": 0.056948523262141615,
     "reorient_max_ang_momentum": 1.4987723555724407e-07,
-    "reorient_max_lin_momentum": 1.1636690155034172e-06,
+    "reorient_max_lin_momentum": 1.690181984876795e-06,
     "reorient_track_err_rad": 0.05675339453924577,
+    "reorient_pitch_swing_per_cycle_deg": [
+      4.943390356709323,
+      4.942994259296176,
+      4.94299238053204,
+      4.942990507481433,
+      4.942988631946989
+    ],
+    "reorient_pitch_net_per_cycle_deg": [
+      -2.0541561756311153,
+      -2.5936141891859514,
+      -2.846307081936078,
+      -2.593621612886799,
+      -2.3409360391951104
+    ],
     "reorient_lowgain_1Hz_deg": -9.873003845602438,
     "reorient_lowgain_half_speed_deg": -11.754819610279021,
     "reorient_lowgain_half_speed_ratio": 1.1906021504807545,
     "reorient_lowgain_track_err_rad": 0.17979141184637903,
+    "reorient_lowgain_half_speed_track_err_rad": 0.09595501301933584,
     "reorient_half_speed_track_err_rad": 0.028742106707627446,
-    "flight_com_vs_ballistic_m": 3.854347532458724e-07,
-    "flight_base_pitch_range_deg": 8.90970692705404,
-    "flight_base_vs_ballistic_m": 0.03406640685059281
+    "flight_com_vs_ballistic_m": 3.854347523368773e-07,
+    "flight_base_pitch_range_deg": 8.909706927054037,
+    "flight_base_vs_ballistic_m": 0.03406640685059159
   },
   "media_bytes": {
-    "turntable.mp4": 2128427,
-    "joint_sweep.mp4": 864707,
-    "flight.mp4": 130049,
+    "turntable.mp4": 2270794,
+    "joint_sweep.mp4": 980903,
+    "flight.mp4": 135725,
     "reorientation.mp4": 238366
   },
   "checks": {
@@ -855,7 +897,7 @@
       "passed": true
     },
     "flight_drift_order_euler": {
-      "measured": 1.9973335254132354,
+      "measured": 1.9973335254132705,
       "op": "range",
       "threshold": [
         1.6,
@@ -864,7 +906,7 @@
       "passed": true
     },
     "flight_drift_rk4_ang_kgm2s": {
-      "measured": 1.93792601159426e-06,
+      "measured": 1.93792601171916e-06,
       "op": "<",
       "threshold": 0.0001,
       "passed": true
@@ -904,7 +946,14 @@
       "op": ">=",
       "threshold": 1.0,
       "passed": true
+    },
+    "reorient_other_region_rel_diff": {
+      "measured": 0.19416640971556154,
+      "op": ">",
+      "threshold": 0.1,
+      "passed": true
     }
   },
-  "wall_time_s": 126.0
+  "wall_time_s": 161.1,
+  "load_average_1min_at_end": 122.0
 }

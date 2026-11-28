@@ -36,7 +36,7 @@ def generate_launch_description():
             'world_init_x': str(START_X), 'world_init_y': str(START_Y), 'world_init_z': '0.275', 'world_init_heading': '0.0',
         }.items())
     return LaunchDescription([
-        DeclareLaunchArgument('world', default_value=os.path.join(me, 'worlds/arena.world')),
+        DeclareLaunchArgument('world', default_value=os.path.join(me, 'worlds/arena.world'), description='Gazebo world file'),
         DeclareLaunchArgument('headless', default_value='True', description='True = no gzclient window'),
         bringup, gazebo,
         DeclareLaunchArgument('odom', default_value='lidar', description="odom->base_footprint source: 'lidar' (estimation.launch.py) or 'gt' (simulator ground truth)"),

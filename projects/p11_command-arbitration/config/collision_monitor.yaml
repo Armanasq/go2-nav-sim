@@ -1,0 +1,37 @@
+# Nav2 Collision Monitor (Humble 1.1.x parameter names) between twist_mux and CHAMP.
+# Polygons are in base_footprint, x forward. The Go2 body is 0.65 x 0.30 m (front edge at x = 0.325).
+# /scan drops returns closer than 0.40 m to base_footprint (config/scan.yaml range_min), so a zone edge inside 0.40 m sees nothing.
+collision_monitor:
+  ros__parameters:
+    use_sim_time: true
+    base_frame_id: base_footprint
+    odom_frame_id: odom
+    cmd_vel_in_topic: cmd_vel_mux
+    cmd_vel_out_topic: cmd_vel
+    transform_tolerance: 0.5
+    source_timeout: 5.0
+    base_shift_correction: true
+    stop_pub_timeout: 2.0         # after a stop, zeros are published for 2 s, then the monitor goes quiet
+    polygons: [PolygonStop, PolygonSlow]
+    PolygonStop:
+      type: polygon
+      points: [0.60, 0.25, 0.60, -0.25, -0.45, -0.25, -0.45, 0.25]    # x, y pairs: 0.275 m ahead of the body, 0.10 m to each side
+      action_type: stop
+      max_points: 3               # more than 3 scan points inside triggers the action
+      visualize: true
+      polygon_pub_topic: polygon_stop
+      enabled: true
+    PolygonSlow:
+      type: polygon
+      points: [1.10, 0.35, 1.10, -0.35, -0.55, -0.35, -0.55, 0.35]
+      action_type: slowdown
+      max_points: 3
+      slowdown_ratio: 0.3         # 0.3 m/s becomes 0.09 m/s
+      visualize: true
+      polygon_pub_topic: polygon_slowdown
+      enabled: true
+    observation_sources: [scan]
+    scan:
+      type: scan
+      topic: /scan
+      enabled: true

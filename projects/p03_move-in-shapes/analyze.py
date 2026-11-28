@@ -135,8 +135,19 @@ def main():
     if repeats:                                # more runs of the same shapes, to see how much single runs vary
         print('\nRepeat runs (results/repeats/)')
         print(HEADER)
+        kinds = {}                             # square_open_3 -> square_open; the run in results/ counts as one of them
         for f in repeats:
-            print_row(f'repeats/{f.stem}', f.stem.split('_')[0])
+            kinds.setdefault(f.stem.rsplit('_', 1)[0], []).append(print_row(f'repeats/{f.stem}', f.stem.split('_')[0]))
+        print('\nSpread over all runs of each kind (results/<kind>.csv and results/repeats/<kind>_N.csv): mean (min to max)')
+        print('| Kind | Runs | Corner or crossing errors, m | Final position error, m | Final heading error, deg | '
+              '/odom end heading, deg | /odom yaw drift in run, deg |\n|---|---|---|---|---|---|---|')
+        span = lambda v, f: f'{np.mean(v):{f}} ({min(v):{f}} to {max(v):{f}})'
+        for kind, scs in sorted(kinds.items()):
+            if (HERE / 'results' / f'{kind}.csv').exists():
+                scs.append(score(kind, kind.split('_')[0]))
+            errs = np.array([sc[3] for sc in scs])
+            print(f'| {kind} | {len(scs)} | {"; ".join(span(e, ".2f") for e in errs.T)} | {span([sc[5] for sc in scs], ".2f")} | '
+                  f'{span([sc[6] for sc in scs], ".1f")} | {span([sc[7] for sc in scs], ".1f")} | {span([sc[9] for sc in scs], ".1f")} |')
 
     print('\nOpen loop, commanded vs achieved (ground truth)')
     print('| Run | Segment | Duration, s | v cmd, m/s | v mean, m/s | v steady, m/s | distance, m | w cmd, rad/s | w mean, rad/s | w steady, rad/s | turned, deg |')
