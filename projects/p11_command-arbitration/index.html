@@ -1,0 +1,674 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Command arbitration · go2-nav-sim</title>
+<meta name="description" content="Command arbitration">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../../static/css/site.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5' fill='%230a6a9c'/%3E%3C/svg%3E">
+
+</head>
+<body data-root="../../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar"><div class="inner">
+<a class="brand" href="../../index.html">go2-nav-sim</a>
+<nav aria-label="Main"><a href="../../tutorial/00-overview.html" aria-current="page">Learn</a><a href="../../tasks/index.html">Tasks</a><a href="../../modules/index.html">Deep dives</a><a href="../../reference.html">Reference</a></nav>
+<button class="theme-toggle" type="button" aria-label="Colour theme: auto">auto</button>
+</div></header>
+<main id="main">
+<div class="wrap doc"><details class="side" open><summary>Command arbitration</summary><nav aria-label="Contents"><ol class="parts"><li><a class="part" href="../../tutorial/00-overview.html">Start</a></li><li><a class="part" href="../../tutorial/05-frames-and-tf2.html">The robot</a></li><li><a class="part" href="../p02_teleop-and-safety/index.html">Move it</a></li><li><a class="part" href="../../tutorial/08-robot-and-sensors.html">Sense and avoid</a></li><li><a class="part" href="../../tutorial/09-state-estimation.html">Estimate and map</a></li><li class="open"><p class="part">Navigate</p><ol><li><a href="index.html" aria-current="page"><span class="n">P11</span><span>Command arbitration</span></a><ul class="sections"><li><a href="#task-1-check-the-configuration">Task 1: Check the configuration</a></li><li><a href="#task-2-put-the-mux-in-the-chain">Task 2: Put the mux in the chain</a></li><li><a href="#task-3-override-and-lock">Task 3: Override and lock</a></li><li><a href="#task-4-stop-before-a-box">Task 4: Stop before a box</a></li><li><a href="#task-5-stop-the-stack">Task 5: Stop the stack</a></li><li><a href="#how-the-code-works">How the code works</a></li><li><a href="#results">Results</a></li><li><a href="#exercise">Exercise</a></li><li><a href="#if-it-goes-wrong">If it goes wrong</a></li><li><a href="#further-reading">Further reading</a></li></ul></li><li><a href="../p12_tune-nav2/index.html"><span class="n">P12</span><span>Tune Nav2 with evidence</span></a></li><li><a href="../p13_behaviour-trees/index.html"><span class="n">P13</span><span>Behaviour trees</span></a></li></ol></li><li><a class="part" href="../p14_test-the-stack/index.html">Beyond simulation</a></li></ol></nav></details><article class="prose"><p class="where">Navigate · Project 11</p><h1>Command arbitration</h1><p>In the stack from <code>scripts/up.sh</code>, Nav2 publishes on <code>/cmd_vel</code> directly, and so would a keyboard teleop started next to it:
+CHAMP then walks on whichever message arrived last. Here <code>twist_mux</code> picks one source by priority (keyboard 100 over Nav2 10),
+an e-stop topic locks it, and Nav2's Collision Monitor sits between the mux and the robot with a stop zone and a slowdown zone
+sized to the Go2. You measure three things on the simulator's ground truth: how fast a keypress takes over from a live Nav2
+goal, how fast the lock brings the robot to a standstill, and how far from a box the Collision Monitor stops it.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Goal</td>
+<td>Put one node in charge of who may drive the robot, lock it with an e-stop, stop it before an obstacle, and measure each of the three on ground truth.</td>
+</tr>
+<tr>
+<td>Time</td>
+<td>2 h</td>
+</tr>
+<tr>
+<td>Before you start</td>
+<td><a href="../p02_teleop-and-safety/index.html">Project 2</a>: this project reuses its <code>safety_node.py</code> (the dead-man) and its finding that CHAMP walks on the last <code>/cmd_vel</code> until it receives a zero. <a href="../../tutorial/10-mapping-and-navigation.html">Chapter 10</a>: how Nav2 is started and how <code>go_to_goal.py</code> sends a goal.</td>
+</tr>
+<tr>
+<td>You will learn</td>
+<td>How <code>twist_mux</code> chooses between velocity sources (priorities, per-source timeouts, <code>std_msgs/Bool</code> locks); remapping the topics of nodes started by someone else's launch file (<code>SetRemap</code>) without editing that file; why a lock alone does not stop this robot, and which link of the chain has to turn silence into a stop; configuring the Nav2 Collision Monitor (polygons in <code>base_footprint</code>, the sensor's blind range, the lifecycle manager it needs); reading latency and stopping distance from logged messages and <code>/odom_gt</code>, with each delay assigned to one link of the chain.</td>
+</tr>
+</tbody>
+</table></div>
+<p>The CHAMP limits are 0.3 m/s forward, 0.25 m/s sideways and 0.5 rad/s yaw. Every terminal starts with:</p>
+<pre><code class="language-bash">cd go2-nav-sim
+source env.sh
+</code></pre>
+<p><code>twist_mux</code> and the Collision Monitor come with ROS 2 Humble's Nav2 packages. Check that both are installed:</p>
+<pre><code class="language-bash">ros2 pkg executables twist_mux; ros2 pkg executables nav2_collision_monitor
+</code></pre>
+<pre><code>twist_mux joystick_relay.py
+twist_mux twist_marker
+twist_mux twist_mux
+nav2_collision_monitor collision_monitor
+</code></pre>
+<p>The scripts need no build: <code>python3 projects/p11_command-arbitration/&lt;script&gt;.py</code>.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>File</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>arbitration.launch.py</code></td>
+<td>Nav2 (the unchanged <code>nav.launch.py</code>) with its output remapped, <code>twist_mux</code>, the Collision Monitor and the dead-man</td>
+</tr>
+<tr>
+<td><code>config/twist_mux.yaml</code></td>
+<td>the two inputs and the lock, with their priorities and timeouts</td>
+</tr>
+<tr>
+<td><code>config/collision_monitor.yaml</code></td>
+<td>the stop and slowdown polygons</td>
+</tr>
+<tr>
+<td><code>config/arbitration.rviz</code></td>
+<td>RViz in <code>base_footprint</code>: robot, <code>/scan</code>, both polygons</td>
+</tr>
+<tr>
+<td><code>arbitration_check.py</code></td>
+<td>reads the two YAML files without ROS: zone geometry, mux order, helpers for <code>measure.py</code></td>
+</tr>
+<tr>
+<td><code>tests/test_arbitration.py</code></td>
+<td>6 unit tests on the configs and helpers, no ROS</td>
+</tr>
+<tr>
+<td><code>measure.py</code></td>
+<td>the three measurements: <code>override</code>, <code>estop</code>, <code>box</code></td>
+</tr>
+<tr>
+<td><code>zones_snapshot.py</code></td>
+<td>top view of the zones and the current scan (the figure in task 4)</td>
+</tr>
+<tr>
+<td><code>plot.py</code></td>
+<td>the figure with one run of each measurement</td>
+</tr>
+<tr>
+<td><code>results/</code></td>
+<td>my CSVs and logs behind every number below; your runs go to <code>~/p11_runs</code></td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="task-1-check-the-configuration">Task 1: Check the configuration</h2>
+<h3 id="11-run-the-unit-tests">1.1 Run the unit tests</h3>
+<p>Objective: check the zone geometry, the mux order and the log helpers before any simulator runs.</p>
+<pre><code class="language-bash">python3 -m pytest -q projects/p11_command-arbitration/tests
+</code></pre>
+<p>Expected:</p>
+<pre><code>......                                                                   [100%]
+6 passed in 0.06s
+</code></pre>
+<p>Check: <code>6 passed</code>.</p>
+<h3 id="12-print-the-zones-and-the-mux-order">1.2 Print the zones and the mux order</h3>
+<p>Objective: see where each zone reaches and which input wins.</p>
+<pre><code class="language-bash">python3 projects/p11_command-arbitration/arbitration_check.py
+</code></pre>
+<p>Expected:</p>
+<pre><code>PolygonStop: x +0.00..+0.60  y -0.25..+0.25  ahead of the body 0.275 m, beside it 0.100 m, visible depth 0.20 m
+PolygonSlow: x +0.00..+1.10  y -0.35..+0.35  ahead of the body 0.775 m, beside it 0.200 m, visible depth 0.70 m
+mux order: e_stop (e_stop) 255, teleop (teleop/cmd_vel) 100, navigation (nav/cmd_vel) 10
+</code></pre>
+<p>"Visible depth" is how far the zone reaches past 0.40 m, the <code>range_min</code> of <code>/scan</code> (<code>src/go2_nav_sim/config/scan.yaml</code>).
+Returns nearer than that are dropped, so a zone whose front edge lies inside 0.40 m can never fire.</p>
+<p>Check: the mux order lists the lock first and Nav2 last.</p>
+<h2 id="task-2-put-the-mux-in-the-chain">Task 2: Put the mux in the chain</h2>
+<h3 id="21-start-the-stack-and-replace-its-nav2">2.1 Start the stack and replace its Nav2</h3>
+<p>Objective: run Nav2 with its output going into the mux instead of straight to CHAMP.</p>
+<pre><code class="language-bash">scripts/up.sh                  # prints &quot;stack up&quot;
+scripts/stop.sh nav            # stops the Nav2 that up.sh started; the simulator and estimation keep running
+ros2 launch projects/p11_command-arbitration/arbitration.launch.py
+</code></pre>
+<p>Leave the launch running in this terminal. Among its output:</p>
+<pre><code>[twist_mux]: Topic handler 'topics.navigation' subscribed to topic 'nav/cmd_vel': timeout = 0.500000s , priority = 10.
+[twist_mux]: Topic handler 'topics.teleop' subscribed to topic 'teleop/cmd_vel': timeout = 0.600000s , priority = 100.
+[twist_mux]: Topic handler 'locks.e_stop' subscribed to topic 'e_stop': timeout = None , priority = 255.
+[collision_monitor]: [PolygonStop]: Creating Polygon
+[collision_monitor]: [PolygonSlow]: Creating Polygon
+[lifecycle_manager_monitor]: Managed nodes are active
+[lifecycle_manager_localization]: Managed nodes are active
+[cmd_safety]: teleop/cmd_vel -&gt; cmd_vel  v_max [0.5, 0.5, 1.0]  a_max [100.0, 100.0, 100.0]  timeout 0.6 s  20.0 Hz
+</code></pre>
+<p>Check: <code>Managed nodes are active</code> appears three times (the monitor, localisation, navigation).</p>
+<p>Common mistakes: starting the launch with <code>&amp;</code> in a script. A background process inherits SIGINT as ignored, so <code>kill -INT</code> does
+not stop it; when I then started a second copy, two <code>collision_monitor</code> nodes had the same name, the new lifecycle manager logged
+<code>Failed to change state for node: collision_monitor ... Aborting bringup</code>, and the old <code>twist_mux</code> kept publishing. Run the launch
+in a terminal and stop it with Ctrl-C.</p>
+<h3 id="22-check-the-chain">2.2 Check the chain</h3>
+<p>Objective: confirm that only one node publishes to CHAMP and that Nav2's output reaches the mux.</p>
+<pre><code class="language-bash">ros2 topic info /cmd_vel -v | grep -E &quot;count|Node name&quot;
+ros2 topic info /nav/cmd_vel -v | grep -E &quot;count|Node name&quot;
+</code></pre>
+<p>Expected (the pattern also matches the <code>Node namespace</code> lines):</p>
+<pre><code>Publisher count: 1
+Node name: cmd_safety
+Node namespace: /
+Subscription count: 1
+Node name: quadruped_controller_node
+Node namespace: /
+</code></pre>
+<pre><code>Publisher count: 6
+Node name: behavior_server
+Node namespace: /
+Node name: behavior_server
+Node namespace: /
+Node name: behavior_server
+Node namespace: /
+Node name: behavior_server
+Node namespace: /
+Node name: behavior_server
+Node namespace: /
+Node name: velocity_smoother
+Node namespace: /
+Subscription count: 1
+Node name: twist_mux
+Node namespace: /
+</code></pre>
+<p><code>/cmd_vel_nav</code> still runs from <code>controller_server</code> to <code>velocity_smoother</code>, as in the stock stack.</p>
+<p>Check: <code>/cmd_vel</code> has exactly one publisher, <code>cmd_safety</code>. In the stack from <code>scripts/up.sh</code> it had seven, all from Nav2
+(project 2, step 4).</p>
+<h2 id="task-3-override-and-lock">Task 3: Override and lock</h2>
+<h3 id="31-override-a-nav2-goal-from-the-keyboard">3.1 Override a Nav2 goal from the keyboard</h3>
+<p>Objective: see the priority work by hand before measuring it.</p>
+<p>Terminal 2 sends the robot to marker B:</p>
+<pre><code class="language-bash">python3 src/go2_nav_sim/scripts/go_to_goal.py
+</code></pre>
+<p>Terminal 3 starts the keyboard with its output remapped to the mux input:</p>
+<pre><code class="language-bash">ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r cmd_vel:=teleop/cmd_vel
+</code></pre>
+<p>Once the robot walks, hold <code>j</code>. The robot stops following the path and turns left on the spot. Let go: about 0.6 s later Nav2
+drives again. Terminal 4 shows what reaches CHAMP:</p>
+<pre><code class="language-bash">ros2 topic echo /cmd_vel --field angular.z
+</code></pre>
+<p>While <code>j</code> is held it prints <code>1.0</code>; it prints <code>0.3</code> when an obstacle is inside the slowdown zone, because the Collision Monitor
+scales the whole twist, turning included. CHAMP clips 1.0 to its 0.5 rad/s limit.</p>
+<p>Check: <code>ros2 topic echo /nav/cmd_vel --field angular.z</code> keeps printing while you hold the key. Nav2 never stops publishing;
+the mux ignores it.</p>
+<h3 id="32-measure-the-override">3.2 Measure the override</h3>
+<p>Objective: measure the delay from a key event to each topic in the chain.</p>
+<p>Stop the keyboard (Ctrl-C) and the goal if it still runs. <code>measure.py override</code> starts a goal, waits until Nav2 has walked the
+robot at more than 0.15 m/s for 3 s, starts <code>teleop_twist_keyboard</code> on a pseudo-terminal and types <code>j</code> 30 times a second for
+2 simulated seconds:</p>
+<pre><code class="language-bash">python3 projects/p11_command-arbitration/measure.py override --csv ~/p11_runs/override_1.csv
+</code></pre>
+<p>Expected (my first run; the goal is marker B):</p>
+<pre><code>key -&gt; teleop/cmd_vel      0 ms
+key -&gt; cmd_vel_mux         1 ms
+key -&gt; cmd_vel_cm         31 ms
+key -&gt; cmd_vel            42 ms
+Nav2 back on cmd_vel 0.66 s (simulated) after the last key event
+Nav2 kept publishing during the override: 41 messages in 2.0 s
+nav2: RESULT SUCCEEDED  sim_time 93.2 s  ground-truth final error 0.20 m  final pos (3.90, 2.82)
+</code></pre>
+<p>The delays are wall-clock, measured from the moment the script writes the key. <code>cmd_vel_cm</code> is the Collision Monitor's output.
+The message count depends on how fast the simulator runs: <code>velocity_smoother</code> publishes 20 times per wall-clock second, so
+2 simulated seconds give about 40 messages divided by the real-time factor. I counted 41 to 45 at a factor of 0.93 to 1.03 and
+52 at 0.78. The last line may read <code>RESULT FAILED</code> (see <a href="#if-it-goes-wrong">If it goes wrong</a>); the lines above it are still
+valid. For the next run, send the robot back with <code>--goal -4.5 -3.5 3.14</code> (marker A).</p>
+<p>Check: the delay to <code>cmd_vel</code> is below 0.15 s, and "Nav2 back" is just over the teleop timeout of 0.6 s. My four runs gave
+39 to 63 ms; a second tester measured 102 ms at a load average of 83, because the dead-man's 50 ms timer tick and a loaded
+machine add up.</p>
+<h3 id="33-lock-the-robot-by-hand">3.3 Lock the robot by hand</h3>
+<p>Objective: see that the lock silences every input, the keyboard included.</p>
+<pre><code class="language-bash">ros2 topic pub --once /e_stop std_msgs/msg/Bool &quot;{data: true}&quot;
+timeout 6 ros2 topic pub -r 10 /teleop/cmd_vel geometry_msgs/msg/Twist &quot;{linear: {x: 0.2}}&quot; &gt; /dev/null &amp;
+timeout 4 ros2 topic echo /cmd_vel_mux --field linear.x | grep -c '^0'
+</code></pre>
+<p>Expected: <code>0</code>. Nothing leaves the mux while the lock is set, although the keyboard input has priority 100. Release it and repeat:</p>
+<pre><code class="language-bash">ros2 topic pub --once /e_stop std_msgs/msg/Bool &quot;{data: false}&quot;
+timeout 6 ros2 topic pub -r 10 /teleop/cmd_vel geometry_msgs/msg/Twist &quot;{linear: {x: 0.2}}&quot; &gt; /dev/null &amp;
+timeout 4 ros2 topic echo /cmd_vel_mux --field linear.x | grep -c '^0'
+</code></pre>
+<p>Expected: about 26 (I counted 26; the publisher sends 10 per second after it starts).</p>
+<p>Check: <code>ros2 topic echo --once /odom_gt --field pose.pose.position.x</code> read before and after the locked 6 s gave 0.182 and 0.179 m
+in my run: the robot did not walk. After the unlocked 6 s it read -0.296 m (the robot faced -x), and 2 s later -0.295 m: it
+stopped by itself once the publisher ended.</p>
+<h3 id="34-measure-the-lock-during-a-nav2-goal">3.4 Measure the lock during a Nav2 goal</h3>
+<p>Objective: measure the time from the lock to standstill.</p>
+<pre><code class="language-bash">python3 projects/p11_command-arbitration/measure.py estop --goal -4.5 -3.5 3.14 --csv ~/p11_runs/estop_1.csv
+</code></pre>
+<p>The script locks the mux once Nav2 walks, holds the lock for 8 s, then releases it. Expected (my fourth run):</p>
+<pre><code>lock at 136.78 s: standstill 1.02 s after the lock, 0.19 m walked; 8 messages on cmd_vel from 0.5 s after the lock on
+unlock: Nav2 command reaches cmd_vel again 0.07 s later
+nav2: RESULT SUCCEEDED  sim_time 116.5 s  ground-truth final error 0.27 m  final pos (-4.24, -3.44)
+</code></pre>
+<p>Standstill is the first time from which the true speed, over a 0.5 s window, stays below 0.02 m/s (<code>stop_time</code> from project 2).
+The 8 messages are the dead-man's zeros (see <a href="#the-dead-man-link">the dead-man link</a>). The unlock line is the first command
+above 0.05 m/s on <code>cmd_vel</code>, not motion on <code>/odom_gt</code>. As in 3.2, the goal may end <code>RESULT FAILED</code>; the lock and unlock lines
+are still valid.</p>
+<p>Check: standstill comes within about 1.1 s of the lock: the dead-man's 0.6 s plus CHAMP's stop of up to 0.39 s, plus up to one
+50 ms tick. I measured 0.80 to 1.02 s.</p>
+<h2 id="task-4-stop-before-a-box">Task 4: Stop before a box</h2>
+<h3 id="41-face-free-floor">4.1 Face free floor</h3>
+<p>Objective: put the robot on marker A facing +x, with 2.5 m of free floor ahead.</p>
+<p>After 3.4 the robot stands on A facing -x, towards the wall. Turn it:</p>
+<pre><code class="language-bash">python3 src/go2_nav_sim/scripts/go_to_goal.py -4.5 -3.5 0.0
+</code></pre>
+<pre><code>RESULT SUCCEEDED  sim_time 95.6 s  ground-truth final error 0.18 m  final pos (-4.57, -3.34)
+</code></pre>
+<p>Right after <code>scripts/up.sh</code> and task 2 the robot already faces +x on A; from there there is room for three box runs in a row.</p>
+<p>Check: the line reads <code>RESULT SUCCEEDED</code>.</p>
+<h3 id="42-walk-at-the-box">4.2 Walk at the box</h3>
+<p>Objective: measure where the Collision Monitor slows and stops the robot.</p>
+<pre><code class="language-bash">python3 projects/p11_command-arbitration/measure.py box --keep --csv ~/p11_runs/box_1.csv
+</code></pre>
+<p>The script spawns a 0.4 × 0.8 × 0.5 m box whose face is 2.0 m ahead of <code>base_footprint</code>, then sends 0.3 m/s forward on
+<code>teleop/cmd_vel</code> (a held <code>i</code> key) for up to 25 s. Expected (my first run):</p>
+<pre><code>box spawned: SpawnEntity: Successfully spawned entity [p11_box]; face 2.00 m ahead of base_footprint at (-2.26, -3.49)
+slowdown: cmd_vel 0.090 m/s at 0.88 m walked (box face 1.12 m from base)
+stop: first zero on cmd_vel at 1.38 m walked (box face 0.62 m from base)
+end after 14.8 s: walked 1.395 m, base 0.605 m from the box face, gap body front to box 0.280 m
+</code></pre>
+<video controls muted playsinline src="media/box_stop.mp4"></video>
+
+<p>The video is box run 1 from the chase camera (<code>python3 projects/common/record_cam.py box_stop.mp4 --topic /chase/cam/image_raw</code>,
+220 frames, 22.0 s simulated). The robot walks at 0.3 m/s, slows down about 1.1 m before the box and stops with its head about
+0.3 m from it.</p>
+<p>Check: the end line shows a positive gap, 0.28 to 0.32 m in my four runs. A negative gap means the body reached the box.</p>
+<h3 id="43-look-at-the-zones-from-above">4.3 Look at the zones from above</h3>
+<p>Objective: see the box face inside the stop zone, then remove the box.</p>
+<p>With the box still there:</p>
+<pre><code class="language-bash">python3 projects/p11_command-arbitration/zones_snapshot.py ~/p11_runs/zones.png
+ros2 service call /delete_entity gazebo_msgs/srv/DeleteEntity &quot;{name: p11_box}&quot;
+</code></pre>
+<pre><code>polygon_slowdown: 4 corners, 150 scan points inside
+polygon_stop: 4 corners, 24 scan points inside
+</code></pre>
+<p><img loading="lazy" alt="Top view in base_footprint: the grey body, the red stop zone reaching 0.60 m ahead, the amber slowdown zone reaching 1.10 m, the 0.40 m scan blind circle, and the scan returns from the box face at about x = 0.6 m" src="figures/zones.png" /></p>
+<p>The same view is in RViz with <code>rviz2 -d projects/p11_command-arbitration/config/arbitration.rviz</code>. The box face appears about
+0.6 m ahead, its points spread over about 5 cm in x.</p>
+<p>Check: both polygons have more than three points inside (<code>max_points: 3</code>); in my fourth run the counts were 117 and 11.</p>
+<h3 id="44-plot-your-runs">4.4 Plot your runs</h3>
+<p>Objective: draw the three measurements of this session in one figure.</p>
+<pre><code class="language-bash">python3 projects/p11_command-arbitration/plot.py --dir ~/p11_runs
+</code></pre>
+<pre><code>/home/&lt;you&gt;/p11_runs/arbitration_runs.png
+</code></pre>
+<p>Check: the figure has three panels like the one in <a href="#results">Results</a>, from your <code>override_1.csv</code>, <code>estop_1.csv</code> and <code>box_1.csv</code>.</p>
+<h2 id="task-5-stop-the-stack">Task 5: Stop the stack</h2>
+<h3 id="51-stop-the-launch-then-the-rest">5.1 Stop the launch, then the rest</h3>
+<p>Objective: leave no node running.</p>
+<p>Ctrl-C in the launch terminal stops Nav2, the mux, the monitor and the dead-man. Then:</p>
+<pre><code class="language-bash">scripts/stop.sh
+ros2 node list --no-daemon
+</code></pre>
+<p><code>scripts/stop.sh</code> alone does not stop <code>twist_mux</code>, <code>collision_monitor</code> or <code>safety_node.py</code>, because they are not in its list.</p>
+<p>Check: <code>ros2 node list --no-daemon</code> prints nothing. In my run the launch exited 5 s after Ctrl-C and no node was left.</p>
+<h2 id="how-the-code-works">How the code works</h2>
+<h3 id="the-chain">The chain</h3>
+<pre><code>teleop/cmd_vel (priority 100) --+
+nav/cmd_vel    (priority 10)  --+--&gt; twist_mux --&gt; cmd_vel_mux --&gt; collision_monitor --&gt; cmd_vel_cm --&gt; dead-man --&gt; cmd_vel --&gt; CHAMP
+e_stop         (lock, 255)    --+
+</code></pre>
+<h3 id="configtwist_muxyaml"><code>config/twist_mux.yaml</code></h3>
+<pre><code class="language-yaml">    topics:
+      navigation:
+        topic: nav/cmd_vel
+        timeout: 0.5
+        priority: 10
+      teleop:
+        topic: teleop/cmd_vel
+        timeout: 0.6              # longer than the 500 ms keyboard repeat delay (p02), or a held key flickers back to Nav2
+        priority: 100
+    locks:
+      e_stop:
+        topic: e_stop
+        timeout: 0.0              # 0: the lock holds the last value it received; it is not a heartbeat
+        priority: 255
+</code></pre>
+<p>On every message, <code>twist_mux</code> passes it on only if no input with a higher priority has sent a message within its own timeout,
+and no lock with a higher priority is set. An input counts as gone <code>timeout</code> seconds after its last message. That is why Nav2
+came back 0.62 to 0.66 s after the last key in every run: 0.6 s of teleop timeout, plus the wait for Nav2's next message. A lock
+with priority 255 blocks every input below 255, so even the keyboard. With <code>timeout: 0.0</code> the lock keeps its last value; with
+a positive timeout it would also engage when its publisher went quiet, which turns it into a heartbeat that a sender must keep
+alive.</p>
+<h3 id="nav2-remapped-without-editing-navlaunchpy">Nav2 remapped without editing <code>nav.launch.py</code></h3>
+<pre><code class="language-python">GroupAction([
+    SetRemap('cmd_vel_smoothed', 'nav/cmd_vel'),
+    SetRemap('behavior_server:cmd_vel', 'nav/cmd_vel'),
+    IncludeLaunchDescription(PythonLaunchDescriptionSource(os.path.join(share('go2_nav_sim'), 'launch/nav.launch.py'))),
+], condition=IfCondition(LaunchConfiguration('nav'))),
+</code></pre>
+<p>Nav2's <code>navigation_launch.py</code> remaps the velocity smoother's output <code>cmd_vel_smoothed</code> to <code>cmd_vel</code>, and the controller's
+output to <code>cmd_vel_nav</code>, the smoother's input. A <code>SetRemap</code> in an enclosing group is applied before each node's own remaps, and
+ROS uses the first rule that matches, so <code>cmd_vel_smoothed</code> goes to <code>nav/cmd_vel</code>. The behaviour server's <code>cmd_vel</code> (spin, back
+up) has no remap of its own; the <code>behavior_server:</code> prefix limits the second rule to that node, so no other node in the group
+that uses a <code>cmd_vel</code> topic is renamed.</p>
+<h3 id="configcollision_monitoryaml"><code>config/collision_monitor.yaml</code></h3>
+<pre><code class="language-yaml">    PolygonStop:
+      type: polygon
+      points: [0.60, 0.25, 0.60, -0.25, 0.0, -0.25, 0.0, 0.25]
+      action_type: stop
+      max_points: 3
+    PolygonSlow:
+      type: polygon
+      points: [1.10, 0.35, 1.10, -0.35, 0.0, -0.35, 0.0, 0.35]
+      action_type: slowdown
+      max_points: 3
+      slowdown_ratio: 0.3
+</code></pre>
+<p>Points are x, y pairs in <code>base_footprint</code>. The body is 0.65 × 0.30 m, so its front edge is at x = 0.325. The stop zone reaches
+0.275 m past it and 0.10 m to each side; the slowdown zone 0.775 m and 0.20 m. <code>max_points: 3</code> means more than three scan points
+inside fire the action, so one stray return does not. The zones start at x = 0; <a href="#a-stop-zone-around-the-whole-body">Results</a>
+shows what a zone around the whole body did.</p>
+<p>The robot stops where the box face crosses the stop edge. The gap left between body and box is</p>
+<pre><code>gap = x_stop - x_front - d_after = 0.60 - 0.325 - d_after
+</code></pre>
+<p>where d_after is the distance walked after the first zero. At 0.09 m/s (inside the slowdown zone) d_after was 0.006 to 0.015 m,
+so the formula gives 0.260 to 0.269 m. I measured 0.280 to 0.321 m, because the first zero came with the face 0.62 to 0.66 m
+from the base instead of 0.60 m: by ground truth, the monitor fired 2 to 6 cm early. The face points in the top view spread over
+about 5 cm, so a few of them cross 0.60 m before the face does on average.</p>
+<p>The monitor is a lifecycle node and does nothing until configured and activated. The launch file starts a lifecycle manager
+named <code>lifecycle_manager_monitor</code> for it with <code>autostart: true</code>.</p>
+<h3 id="the-dead-man-link">The dead-man link</h3>
+<pre><code class="language-python">ExecuteProcess(cmd=['python3', SAFETY, '--ros-args', '-r', 'teleop/cmd_vel:=cmd_vel_cm', '-p', 'timeout:=0.6',
+                    '-p', 'v_max:=[0.5, 0.5, 1.0]', '-p', 'a_max:=[100.0, 100.0, 100.0]'], ...)
+</code></pre>
+<p>A lock does not publish a zero: it makes <code>twist_mux</code> publish nothing. The Collision Monitor publishes only when a command comes
+in, so it goes quiet too, and CHAMP walks on the last command it received (<a href="#exercise">Exercise</a>: 1.91 m in 8 s). Project 2's
+<code>safety_node.py</code> as the last link turns silence into a stop: 0.6 s after its last input it ramps to zero. Here the acceleration
+limit is set to 100 so it passes commands through unchanged; an earlier version with 20 rad/s² needed two 50 ms ticks to reach a
+key's 1.0 rad/s from Nav2's -0.18 rad/s. The time from the lock to standstill is then</p>
+<pre><code>t_stop ≈ t_deadman + t_champ
+</code></pre>
+<p>where t_deadman = 0.6 s (plus up to one 50 ms tick) and t_champ is how long CHAMP takes to stand still after a zero (0.35 to
+0.39 s from 0.3 m/s in project 2). The first zero came 0.60 to 0.66 s after the lock, and standstill 0.18 to 0.36 s after that:
+less than from 0.3 m/s, because Nav2 was walking at 0.075 to 0.25 m/s when the lock came.</p>
+<h3 id="measurepy"><code>measure.py</code></h3>
+<p>One node subscribes to every topic of the chain and to <code>/odom_gt</code>, logging each message with its wall-clock and simulated
+time. The override test detects the key by its shape (<code>is_key</code> in <code>arbitration_check.py</code>): <code>linear.x</code> 0 and <code>angular.z</code> 1.0,
+or 0.3 when the slowdown zone has scaled it. A first version looked for <code>angular.z &gt; 0.9</code> and reported 1724 ms in one run,
+because the key reached CHAMP at 0.3 rad/s inside the slowdown zone and only counted once the robot had turned away from the wall.</p>
+<h2 id="results">Results</h2>
+<p>Measured on a shared machine with other simulators running. Before the override and lock runs the load average was between 37
+and 108 (<code>uptime</code>, logged in <code>results/runs.txt</code>), and <code>gz stats</code> showed a real-time factor of 0.82 at one check. Run 4 of each
+test comes from a later session, after a fresh <code>scripts/up.sh</code>. Outputs of <code>measure.py</code> are in <code>results/runs.txt</code> and
+<code>results/runs_box_and_exercises.txt</code>; the CSVs are <code>results/&lt;test&gt;_&lt;n&gt;.csv</code>.</p>
+<p>Override of a live Nav2 goal by the <code>j</code> key (<code>measure.py override</code>; wall-clock delays from the key event):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Run</th>
+<th>Goal</th>
+<th>to <code>cmd_vel_mux</code></th>
+<th>to <code>cmd_vel_cm</code> (after the monitor)</th>
+<th>to <code>cmd_vel</code> (CHAMP)</th>
+<th>Nav2 back after the last key (simulated)</th>
+<th>Nav2 messages during the 2 s override</th>
+<th>Real-time factor during the override</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>B</td>
+<td>1 ms</td>
+<td>31 ms</td>
+<td>42 ms</td>
+<td>0.66 s</td>
+<td>41</td>
+<td>1.00</td>
+</tr>
+<tr>
+<td>2</td>
+<td>A</td>
+<td>1 ms</td>
+<td>21 ms</td>
+<td>63 ms</td>
+<td>0.62 s</td>
+<td>41</td>
+<td>1.03</td>
+</tr>
+<tr>
+<td>3</td>
+<td>B</td>
+<td>2 ms</td>
+<td>39 ms</td>
+<td>39 ms</td>
+<td>0.64 s</td>
+<td>45</td>
+<td>0.93</td>
+</tr>
+<tr>
+<td>4</td>
+<td>B</td>
+<td>1 ms</td>
+<td>32 ms</td>
+<td>55 ms</td>
+<td>0.65 s</td>
+<td>52</td>
+<td>0.78</td>
+</tr>
+</tbody>
+</table></div>
+<p>The mux adds 1 to 2 ms. The Collision Monitor adds 20 to 37 ms, and the dead-man up to one 50 ms tick of its timer (0 to 42 ms).
+The real-time factor is 2.0 simulated seconds over the wall-clock span of Nav2's messages in the CSV; Nav2 published at 20.0 Hz
+wall clock in all four runs. Runs 1, 3 and 4 reached the goal (0.20, 0.37 and 0.21 m from it); run 2 ended <code>FAILED</code> 0.40 m from
+marker A, after the override.</p>
+<p>Lock during a Nav2 goal (<code>measure.py estop</code>, lock held 8 s; times simulated):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Run</th>
+<th>Goal</th>
+<th>Command at the lock</th>
+<th>First zero on <code>cmd_vel</code></th>
+<th>Standstill after the lock</th>
+<th>Walked after the lock</th>
+<th>Nav2 command reaches <code>cmd_vel</code> again after the unlock</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>A</td>
+<td>0.172 m/s</td>
+<td>0.60 s</td>
+<td>0.89 s</td>
+<td>0.11 m</td>
+<td>0.10 s</td>
+</tr>
+<tr>
+<td>2</td>
+<td>B</td>
+<td>0.075 m/s</td>
+<td>0.62 s</td>
+<td>0.80 s</td>
+<td>0.03 m</td>
+<td>0.36 s</td>
+</tr>
+<tr>
+<td>3</td>
+<td>A</td>
+<td>0.250 m/s</td>
+<td>0.63 s</td>
+<td>0.95 s</td>
+<td>0.16 m</td>
+<td>0.07 s</td>
+</tr>
+<tr>
+<td>4</td>
+<td>A</td>
+<td>0.250 m/s</td>
+<td>0.66 s</td>
+<td>1.02 s</td>
+<td>0.19 m</td>
+<td>0.07 s</td>
+</tr>
+</tbody>
+</table></div>
+<p>Runs 1, 3 and 4 reached the goal (0.29, 0.20 and 0.27 m from it). Run 2 ended <code>FAILED</code> at (-2.88, -1.41), between the orange
+cylinder and the west end of the pallet: after the unlock the planner logged <code>GridBased: failed to create plan with tolerance
+0.30</code> 15 times, while the spin and back-up recoveries completed and the Collision Monitor logged no stop
+(<code>results/estop_2_nav2.log</code>). An earlier session, with the whole-body stop zone below, a lock run to B failed at (-3.00, -1.31)
+with the same planner message (<code>results/exercises/full_body_zone_estop.csv</code>). Of my 8 override and lock goals with this
+configuration, 2 ended <code>FAILED</code>; a second tester's lock run to A (standstill 1.01 s, 0.19 m walked) also ended <code>FAILED</code> at
+(-4.35, -2.21), with the planner message 16 times in the launch log. I did not find the cause.</p>
+<p>Stop before a box (<code>measure.py box</code>, box face 2.0 m ahead, 0.3 m/s forward):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Run</th>
+<th>Slowdown starts: walked (box face from base)</th>
+<th>First zero: walked (box face from base)</th>
+<th>End: base to box face</th>
+<th>Gap body front to box</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>0.88 m (1.12 m)</td>
+<td>1.38 m (0.62 m)</td>
+<td>0.605 m</td>
+<td>0.280 m</td>
+</tr>
+<tr>
+<td>2</td>
+<td>0.89 m (1.11 m)</td>
+<td>1.37 m (0.63 m)</td>
+<td>0.624 m</td>
+<td>0.299 m</td>
+</tr>
+<tr>
+<td>3</td>
+<td>0.90 m (1.10 m)</td>
+<td>1.37 m (0.63 m)</td>
+<td>0.623 m</td>
+<td>0.298 m</td>
+</tr>
+<tr>
+<td>4</td>
+<td>0.87 m (1.13 m)</td>
+<td>1.34 m (0.66 m)</td>
+<td>0.646 m</td>
+<td>0.321 m</td>
+</tr>
+</tbody>
+</table></div>
+<p>The zones fired within 0 to 6 cm of their configured edges (1.10 and 0.60 m). In the slowdown zone the command was 0.090 m/s
+and the true speed 0.052, 0.052, 0.053 and 0.051 m/s (mean over the 1.0 to 1.3 m stretch): CHAMP walks slower than commanded
+at such a small command.</p>
+<p><img loading="lazy" alt="Left: the key's yaw rate (dashed) replaces Nav2's (amber) on cmd_vel (blue) at once; from 1.7 s the slowdown zone scales it to 0.3, and Nav2's command is back on cmd_vel 0.66 s after the last key. Middle: after the lock, cmd_vel holds the last command for 0.6 s, then the dead-man sends zeros, and the true speed reaches zero 0.89 s after the lock; after the unlock Nav2's command reaches cmd_vel again and the true speed follows. Right: true speed against distance walked; it drops to about 0.05 m/s where the box face enters the slowdown zone and to zero where it enters the stop zone, 0.28 m before the body would touch the box" src="figures/arbitration_runs.png" /></p>
+<p>The figure is run 1 of each table (<code>python3 projects/p11_command-arbitration/plot.py</code>).</p>
+<h3 id="without-the-collision-monitor">Without the Collision Monitor</h3>
+<pre><code class="language-bash">ros2 launch projects/p11_command-arbitration/arbitration.launch.py monitor:=false nav:=false
+python3 projects/p11_command-arbitration/measure.py box --timeout 15 --csv ~/p11_runs/box_no_monitor.csv
+</code></pre>
+<p>The robot walked into the box: <code>walked 1.755 m, base 0.245 m from the box face, gap body front to box -0.080 m</code>
+(<code>results/exercises/box_no_monitor.csv</code>). The head and front feet pressed against the box until the script sent its zeros at
+15 s; the "first zero on cmd_vel" line in that output is those final zeros, not a stop. <code>twist_mux</code> and the dead-man do not look
+at sensors.</p>
+<h3 id="a-stop-zone-around-the-whole-body">A stop zone around the whole body</h3>
+<p>My first configuration set the <code>PolygonStop</code> points to <code>[0.60, 0.25, 0.60, -0.25, -0.45, -0.25, -0.45, 0.25]</code>. On a run from A
+to B (<code>go_to_goal.py</code>) the goal failed near the orange cylinder; in the last 31 s the monitor logged <code>Robot to stop due to
+PolygonStop polygon</code> 21 times, the spin recovery twice ended with <code>Exceeded time allowance before reaching the Spin goal</code>, and
+the back-up recovery twice with <code>Collision Ahead - Exiting DriveOnHeading</code> (<code>results/exercises/full_body_zone_deadlock.log</code>). An
+obstacle beside or behind the base stops every motion, including the turn that would take the robot away from it, because the
+Humble Collision Monitor does not look at the direction of the command. With the front-only zone the same spot still made the
+planner fail (lock run 2), but the recoveries completed. Put the stop zone where the robot is going.</p>
+<p>Unit tests: <code>python3 -m pytest -q projects/p11_command-arbitration/tests</code> gives <code>6 passed</code>. They check that the stop zone covers
+the body width, reaches at least 0.15 m past the scan's blind range and starts at the base; that the slowdown zone contains the
+stop zone with a ratio between 0 and 1; the mux order (teleop 100, Nav2 10, lock above both with timeout 0); the log search
+<code>first_after</code>; the gap formula; and that <code>is_key</code> accepts the key at full and scaled rate but not a Nav2 command.</p>
+<h2 id="exercise">Exercise</h2>
+<p>Leave the dead-man out and repeat 3.4 towards B. After <code>scripts/up.sh</code> and <code>scripts/stop.sh nav</code>:</p>
+<pre><code class="language-bash">ros2 launch projects/p11_command-arbitration/arbitration.launch.py deadman:=false
+python3 projects/p11_command-arbitration/measure.py estop --goal 4.0 3.0 0.65 --csv ~/p11_runs/estop_no_deadman.csv
+</code></pre>
+<p>Predict first what the robot does during the 8 s lock.</p>
+<p>Answer: it walks on. I measured <code>NOT stopped 8 s after the lock, 1.91 m walked; 0 messages on cmd_vel from 0.5 s after the
+lock on</code> (<code>results/exercises/estop_no_deadman.csv</code>). The last command before the lock was 0.25 m/s, and 1.91 m in 8 s is
+0.24 m/s. With the monitor as the last link nothing reaches CHAMP, because the monitor publishes only when a command arrives.
+The robot walked towards the orange cylinder; after the unlock Nav2 sent turns only, the monitor logged <code>Robot to stop due to
+PolygonStop polygon</code> with the cylinder in the stop zone, and the goal did not finish within the script's 240 s. A lock that
+only silences inputs needs a link after it that stops the robot on silence.</p>
+<h2 id="if-it-goes-wrong">If it goes wrong</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Cause</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Two <code>twist_mux</code> or <code>collision_monitor</code> nodes in <code>ros2 node list</code>, and the launch log shows <code>Failed to change state for node: collision_monitor</code> and <code>Aborting bringup</code></td>
+<td>An older launch was still running. I had started it with <code>&amp;</code> from a script, so it ignored SIGINT, and <code>scripts/stop.sh</code> does not stop these nodes</td>
+<td>Stop the old launch with Ctrl-C in its terminal (or <code>kill -TERM</code> on its process), check <code>ros2 node list</code>, then start one launch</td>
+</tr>
+<tr>
+<td><code>measure.py override</code> or <code>estop</code> ends with <code>nav2: RESULT FAILED</code>, and the launch log shows <code>GridBased: failed to create plan with tolerance 0.30</code> many times (15 and 16 in two runs)</td>
+<td>Not found. It happened in 3 of 9 override and lock goals with this configuration (2 of my 8, one of a second tester's), always after the override or the lock</td>
+<td>The measured lines above the <code>RESULT</code> line are still valid. Before the next run, put the robot back on A: Ctrl-C the launch, <code>scripts/stop.sh</code>, then <code>scripts/up.sh</code>, <code>scripts/stop.sh nav</code> and the launch of 2.1</td>
+</tr>
+<tr>
+<td><code>measure.py override</code> or <code>estop</code> ends with <code>timeout after 120 s simulated: Nav2 walking</code>, and the launch log shows <code>GridBased: failed to create plan</code> for every goal</td>
+<td>I had restarted <code>arbitration.launch.py</code> with the robot away from marker A; all three goals of the next batch failed this way</td>
+<td>Restart from <code>scripts/up.sh</code>, <code>scripts/stop.sh nav</code> and 2.1, with the robot on A</td>
+</tr>
+<tr>
+<td>The delay to <code>cmd_vel</code> in 3.2 is above 0.1 s</td>
+<td>The dead-man forwards on a 50 ms timer, and a loaded machine delays every process (102 ms at a load average of 83 in one run)</td>
+<td>Expected on a busy machine. Above 0.15 s, check <code>uptime</code> and <code>gz stats</code> before you look for a fault</td>
+</tr>
+<tr>
+<td>The keyboard turns the robot at 0.3 rad/s instead of 1.0 (<code>ros2 topic echo /cmd_vel --field angular.z</code>)</td>
+<td>An obstacle is inside the slowdown zone, and the monitor scales every component of the twist by 0.3</td>
+<td>Expected behaviour. Walk away from the obstacle, or lower the zone's reach</td>
+</tr>
+<tr>
+<td><code>measure.py box</code> prints <code>spawn failed: ... already exists</code></td>
+<td>A box from a run with <code>--keep</code> is still in the world</td>
+<td><code>ros2 service call /delete_entity gazebo_msgs/srv/DeleteEntity "{name: p11_box}"</code></td>
+</tr>
+<tr>
+<td><code>zones_snapshot.py</code> stops with <code>no message on: ['polygon_slowdown', 'polygon_stop']</code></td>
+<td>The monitor publishes its polygons only while commands pass through it</td>
+<td>The current script sends zero twists on <code>teleop/cmd_vel</code> while it waits; if it still fails, check that <code>lifecycle_manager_monitor</code> reported <code>Managed nodes are active</code></td>
+</tr>
+<tr>
+<td>The robot keeps walking after the lock</td>
+<td>The dead-man is not in the chain (<code>deadman:=false</code>, or <code>safety_node.py</code> died)</td>
+<td><code>ros2 topic info /cmd_vel -v</code> must name <code>cmd_safety</code> as the only publisher</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="further-reading">Further reading</h2>
+<ul>
+<li><code>ros-teleop/twist_mux</code>, humble branch, <code>config/twist_mux_topics.yaml</code> and <code>config/twist_mux_locks.yaml</code>: the example priorities
+  and locks this configuration follows.</li>
+<li>Nav2 Collision Monitor configuration guide:
+  https://docs.nav2.org/rolling/configuration_and_development/configuration_guide/core_servers/collision_monitor/
+  (this project uses the Humble 1.1 parameter names, which differ from the rolling page in places).</li>
+<li>Nav2 tuning guide, footprint section: https://docs.nav2.org/rolling/configuration_and_development/tuning_guide/ (how the
+  planner's <code>robot_radius</code> of 0.33 m relates to the zones here).</li>
+</ul><nav class="prevnext" aria-label="Previous and next"><a class="pn" href="../../tutorial/10-mapping-and-navigation.html"><span>Previous</span>Mapping and navigation</a><a class="pn next" href="../p12_tune-nav2/index.html"><span>Next</span>Tune Nav2 with evidence</a></nav><p class="source">Source: <a href="https://github.com/Armanasq/go2-nav-sim/blob/main/projects/p11_command-arbitration/README.md">projects/p11_command-arbitration/README.md</a></p></article></div>
+</main>
+<footer class="site"><div class="wrap">Simulation only. Source and issues on <a href="https://github.com/Armanasq/go2-nav-sim">GitHub</a>.</div></footer>
+<script type="module" src="../../static/js/site.js"></script>
+</body>
+</html>

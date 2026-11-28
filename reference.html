@@ -1,0 +1,244 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Reference · go2-nav-sim</title>
+<meta name="description" content="Topics, frames, parameters, commands and troubleshooting for the go2-nav-sim stack.">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="static/css/site.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5' fill='%230a6a9c'/%3E%3C/svg%3E">
+
+</head>
+<body data-root="">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar"><div class="inner">
+<a class="brand" href="index.html">go2-nav-sim</a>
+<nav aria-label="Main"><a href="tutorial/00-overview.html">Learn</a><a href="tasks/index.html">Tasks</a><a href="modules/index.html">Deep dives</a><a href="reference.html" aria-current="page">Reference</a></nav>
+<button class="theme-toggle" type="button" aria-label="Colour theme: auto">auto</button>
+</div></header>
+<main id="main">
+<div class="wrap doc"><details class="side" open><summary>Reference</summary><nav aria-label="Contents"><ol class="parts"><li class="open"><ol><li><a href="#topics"><span>Topics</span></a></li><li><a href="#frames"><span>TF tree</span></a></li><li><a href="#parameters"><span>Parameters</span></a></li><li><a href="#commands"><span>Commands</span></a></li><li><a href="#troubleshooting"><span>Troubleshooting</span></a></li></ol></li></ol></nav></details><article class="prose"><h1>Reference</h1><p>Parameter tables are read from the configuration files when the site is built.</p><h2 id="topics">Topics</h2><div class="table-wrap"><table><thead><tr><th>Topic</th><th>Type</th><th>Rate</th><th>Frame</th><th>Published by</th></tr></thead><tbody><tr><td><code>/lidar/points</code></td><td>sensor_msgs/PointCloud2</td><td>10 Hz</td><td>lidar_link</td><td>3D lidar</td></tr><tr><td><code>/camera/image_raw</code></td><td>sensor_msgs/Image</td><td>10 Hz</td><td>camera_optical</td><td>RGB-D camera</td></tr><tr><td><code>/camera/depth/image_raw</code></td><td>sensor_msgs/Image (32FC1, m)</td><td>10 Hz</td><td>camera_optical</td><td>RGB-D camera</td></tr><tr><td><code>/imu/data</code></td><td>sensor_msgs/Imu</td><td>100 Hz</td><td>base_link</td><td>IMU</td></tr><tr><td><code>/scan</code></td><td>sensor_msgs/LaserScan</td><td>10 Hz</td><td>base_footprint</td><td>pointcloud_to_laserscan</td></tr><tr><td><code>/lidar_odom</code></td><td>nav_msgs/Odometry</td><td>10 Hz</td><td>odom → base_footprint</td><td>lidar_odom.py</td></tr><tr><td><code>/odom</code></td><td>nav_msgs/Odometry</td><td>50 Hz</td><td>odom → base_footprint</td><td>EKF (robot_localization)</td></tr><tr><td><code>/amcl_pose</code></td><td>geometry_msgs/PoseWithCovarianceStamped</td><td>on update</td><td>map</td><td>AMCL + map_server</td></tr><tr><td><code>/plan</code></td><td>nav_msgs/Path</td><td>1 Hz replanning</td><td>map</td><td>Nav2</td></tr><tr><td><code>/cmd_vel</code></td><td>geometry_msgs/Twist</td><td>15 Hz</td><td>base_footprint</td><td>Nav2</td></tr><tr><td><code>/slam/map</code></td><td>nav_msgs/OccupancyGrid</td><td>1 Hz</td><td>slam_map</td><td>slam_toolbox (passive)</td></tr><tr><td><code>/odom_gt</code></td><td>nav_msgs/Odometry</td><td>50 Hz</td><td>world (shifted by A)</td><td>Ground truth (p3d)</td></tr></tbody></table></div><h2 id="frames">TF tree</h2><pre><code>map                      AMCL (map -&gt; odom)
+└── odom                 EKF (odom -&gt; base_footprint), from lidar odometry + gyro
+    └── base_footprint   on the ground plane
+        └── base_link    CHAMP base_to_footprint: here a constant (0, 0, 0.426), no tilt (real height ~0.217 m)
+            ├── trunk, legs          robot_state_publisher
+            ├── lidar_link           +0.10 m z
+            ├── camera_link          +0.28 m x, +0.03 m z
+            │   └── camera_optical   rpy (-pi/2, 0, -pi/2)
+            └── chase_cam            video only
+slam_map                 slam_toolbox, separate tree; never connected to map
+world                    ground truth (/odom_gt), evaluation only</code></pre><h2 id="parameters">Parameters</h2><h3>lidar_odom.py</h3><p class="source">From <a href="https://github.com/Armanasq/go2-nav-sim/blob/main/src/go2_nav_sim/scripts/lidar_odom.py">src/go2_nav_sim/scripts/lidar_odom.py</a>.</p><div class="table-wrap"><table><thead><tr><th>Parameter</th><th>Default</th><th>Note</th></tr></thead><tbody><tr><td><code>voxel</code></td><td><code>0.15</code></td><td></td></tr><tr><td><code>min_height</code></td><td><code>0.30</code></td><td></td></tr><tr><td><code>min_range</code></td><td><code>0.5</code></td><td></td></tr><tr><td><code>map_radius</code></td><td><code>12.0</code></td><td></td></tr><tr><td><code>keyframe_trans</code></td><td><code>0.15</code></td><td></td></tr><tr><td><code>robust_sigma</code></td><td><code>0.12</code></td><td>Geman-McClure scale [m]</td></tr><tr><td><code>fix_yaw</code></td><td><code>True</code></td><td>yaw from the integrated gyro, ICP solves translation only (gyro error ~1 deg per 6 s here)</td></tr><tr><td><code>trans_prior</code></td><td><code>10.0</code></td><td>weak pull toward the predicted translation: only matters in directions the scan does not constrain</td></tr><tr><td><code>reseed_after</code></td><td><code>8</code></td><td>consecutive rejected registrations before the local map is rebuilt</td></tr><tr><td><code>base_frame</code></td><td><code>&#x27;base_footprint&#x27;</code></td><td></td></tr></tbody></table></div><h3>pointcloud_to_laserscan</h3><p class="source">From <a href="https://github.com/Armanasq/go2-nav-sim/blob/main/src/go2_nav_sim/config/scan.yaml">src/go2_nav_sim/config/scan.yaml</a>.</p><div class="table-wrap"><table><thead><tr><th>Parameter</th><th>Value</th></tr></thead><tbody><tr><td><code>use_sim_time</code></td><td><code>True</code></td></tr><tr><td><code>target_frame</code></td><td><code>base_footprint</code></td></tr><tr><td><code>transform_tolerance</code></td><td><code>0.1</code></td></tr><tr><td><code>min_height</code></td><td><code>0.3</code></td></tr><tr><td><code>max_height</code></td><td><code>0.9</code></td></tr><tr><td><code>angle_min</code></td><td><code>-3.14159</code></td></tr><tr><td><code>angle_max</code></td><td><code>3.14159</code></td></tr><tr><td><code>angle_increment</code></td><td><code>0.00698</code></td></tr><tr><td><code>scan_time</code></td><td><code>0.1</code></td></tr><tr><td><code>range_min</code></td><td><code>0.4</code></td></tr><tr><td><code>range_max</code></td><td><code>15.0</code></td></tr><tr><td><code>use_inf</code></td><td><code>True</code></td></tr><tr><td><code>inf_epsilon</code></td><td><code>1.0</code></td></tr></tbody></table></div><h3>EKF (robot_localization)</h3><p class="source">From <a href="https://github.com/Armanasq/go2-nav-sim/blob/main/src/go2_nav_sim/config/ekf.yaml">src/go2_nav_sim/config/ekf.yaml</a>.</p><div class="table-wrap"><table><thead><tr><th>Parameter</th><th>Value</th></tr></thead><tbody><tr><td><code>use_sim_time</code></td><td><code>True</code></td></tr><tr><td><code>frequency</code></td><td><code>50.0</code></td></tr><tr><td><code>two_d_mode</code></td><td><code>True</code></td></tr><tr><td><code>publish_tf</code></td><td><code>True</code></td></tr><tr><td><code>map_frame</code></td><td><code>map</code></td></tr><tr><td><code>odom_frame</code></td><td><code>odom</code></td></tr><tr><td><code>base_link_frame</code></td><td><code>base_footprint</code></td></tr><tr><td><code>world_frame</code></td><td><code>odom</code></td></tr><tr><td><code>odom0</code></td><td><code>lidar_odom</code></td></tr><tr><td><code>odom0_config</code></td><td><code>[True, True, False, False, False, False, False, False, False, False, False, False, False, False, False]</code></td></tr><tr><td><code>odom0_differential</code></td><td><code>False</code></td></tr><tr><td><code>odom0_queue_size</code></td><td><code>10</code></td></tr><tr><td><code>imu0</code></td><td><code>imu/data</code></td></tr><tr><td><code>imu0_config</code></td><td><code>[False, False, False, False, False, False, False, False, False, False, False, True, False, False, False]</code></td></tr><tr><td><code>imu0_differential</code></td><td><code>False</code></td></tr><tr><td><code>imu0_queue_size</code></td><td><code>30</code></td></tr><tr><td><code>imu0_remove_gravitational_acceleration</code></td><td><code>False</code></td></tr></tbody></table></div><h3>Nav2, changes from the Humble defaults</h3><p class="source">From <a href="https://github.com/Armanasq/go2-nav-sim/blob/main/src/go2_nav_sim/scripts/make_nav2_params.py">src/go2_nav_sim/scripts/make_nav2_params.py</a>.</p><div class="table-wrap"><table><thead><tr><th>Parameter</th><th>Value</th></tr></thead><tbody><tr><td><code>controller</code></td><td><code>RegulatedPurePursuitController</code></td></tr><tr><td><code>desired_linear_vel</code></td><td><code>0.25</code></td></tr><tr><td><code>lookahead_dist</code></td><td><code>0.6</code></td></tr><tr><td><code>use_rotate_to_heading</code></td><td><code>True</code></td></tr><tr><td><code>robot_radius</code></td><td><code>0.33</code></td></tr><tr><td><code>inflation_radius</code></td><td><code>0.75</code></td></tr><tr><td><code>cost_scaling_factor</code></td><td><code>4.0</code></td></tr><tr><td><code>planner</code></td><td><code>nav2_navfn_planner/NavfnPlanner</code></td></tr><tr><td><code>use_astar</code></td><td><code>True</code></td></tr><tr><td><code>velocity_smoother max_velocity</code></td><td><code>[0.3, 0.0, 0.5]</code></td></tr><tr><td><code>amcl laser_max_range</code></td><td><code>10.0</code></td></tr><tr><td><code>amcl max_beams</code></td><td><code>120</code></td></tr></tbody></table></div><h2 id="commands">Commands</h2><div class="table-wrap"><table><thead><tr><th>Command</th><th>What it does</th></tr></thead><tbody><tr><td><code>scripts/setup.sh</code></td><td>fetch upstream at the pinned commit, apply the patch, plugin overlay if needed, build</td></tr><tr><td><code>source env.sh</code></td><td>ROS 2, workspace, Cyclone DDS on loopback, plugin paths, GPU offload, clean PATH</td></tr><tr><td><code>scripts/up.sh</code></td><td>sim, estimation, then Nav2, with readiness checks; retries the Nav2 bring-up</td></tr><tr><td><code>scripts/stop.sh [nav]</code></td><td>stop everything (or only Nav2), escalating to SIGKILL</td></tr><tr><td><code>scripts/run_mission.sh bags/run1</code></td><td>fresh stack, record a bag, drive A to B, stop recording</td></tr><tr><td><code>python3 src/go2_nav_sim/scripts/go_to_goal.py [x y yaw]</code></td><td>localise AMCL, send a goal, report the result against ground truth</td></tr><tr><td><code>python3 src/go2_nav_sim/scripts/bag_metrics.py BAG</code></td><td>odometry ATE, drift, AMCL error, goal error</td></tr><tr><td><code>python3 src/go2_nav_sim/scripts/render_dashboard.py BAG OUT.mp4 --cards</code></td><td>1080p dashboard video from a bag</td></tr><tr><td><code>python3 src/go2_nav_sim/scripts/export_run.py BAG DIR</code></td><td>compact JSON, map and snapshots for this site</td></tr><tr><td><code>python3 -m pytest -q src/go2_nav_sim/test</code></td><td>unit tests, no ROS needed</td></tr><tr><td><code>python3 site/build.py</code></td><td>build this site into _site/</td></tr></tbody></table></div><h2 id="troubleshooting">Troubleshooting</h2><div class="table-wrap"><table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Goal</td>
+<td>Find the row for a failure you see, and reproduce two failures where data never arrives although nothing crashes, so you recognise them.</td>
+</tr>
+<tr>
+<td>Time</td>
+<td>0.5 h for the two tasks; after that, a reference to come back to.</td>
+</tr>
+<tr>
+<td>Before you start</td>
+<td>The stack from <a href="tutorial/03-install-and-first-run.html">chapter 3</a> runs; RViz opens <code>go2.rviz</code>.</td>
+</tr>
+<tr>
+<td>You will learn</td>
+<td>how to read a symptom down to its cause; a QoS mismatch, which prints only a warning, and a message-type mismatch, which prints nothing.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Each entry is a failure that happened while building this.</p>
+<p><img loading="lazy" alt="Decision tree from the symptom you see to the fix, grouped by kind of failure" src="img/c09-ch12-decision-tree.png" />
+<em>The build, runtime and planner rows of the table as a decision tree: start from what you see, follow the group, read the fix. The last five rows (RViz on wall-clock time, Best Effort displays, Fixed Frame <code>map</code>, <code>TwistStamped</code>, Save vs Serialize) are only in the table.</em></p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Cause</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Gazebo shows sensors, but no <code>/scan</code>, <code>/imu/data</code> or camera topics, and there is no error</td>
+<td><code>libgazebo_ros_*</code> plugins not installed</td>
+<td>install <code>ros-humble-gazebo-plugins</code>, or let <code>setup.sh</code> unpack it into <code>overlay/</code></td>
+</tr>
+<tr>
+<td>Robot stands limp, nothing moves on <code>/cmd_vel</code></td>
+<td>upstream launch calls <code>ros2 control</code>, which needs <code>ros2controlcli</code></td>
+<td>the patch switches to the <code>controller_manager</code> spawner</td>
+</tr>
+<tr>
+<td><code>colcon build</code> fails with <code>No module named 'em'</code></td>
+<td>a virtualenv is first on <code>PATH</code></td>
+<td><code>source env.sh</code>, which strips it; rebuild with <code>--cmake-clean-cache</code></td>
+</tr>
+<tr>
+<td><code>lifecycle_manager ... Failed to bring up all requested nodes</code>, <code>change_state ... client will not receive response</code></td>
+<td>Fast DDS lost a service reply on a busy machine</td>
+<td>use Cyclone DDS (<code>env.sh</code> does); <code>scripts/up.sh</code> also retries the Nav2 step</td>
+</tr>
+<tr>
+<td><code>gzserver</code> exits with code 255 right after a restart</td>
+<td>the previous <code>gzserver</code> still holds port 11345</td>
+<td><code>scripts/stop.sh</code>, wait until <code>ss -ltn \| grep 11345</code> is empty</td>
+</tr>
+<tr>
+<td>Camera topics at 5 to 6 Hz in a Python script</td>
+<td>the script, not the sim: Python deserialises a 0.9 MB message slowly</td>
+<td>measure with <code>ros2 bag record</code> and <code>ros2 bag info</code>, which counts messages in C++</td>
+</tr>
+<tr>
+<td>Planner: "goal is off the global costmap"</td>
+<td>the map covers only what has been seen</td>
+<td>navigate on a complete map, or add exploration</td>
+</tr>
+<tr>
+<td>Planner fails at once; costmap shows a blob in the middle of the room</td>
+<td><code>base_footprint</code> sits 0.209 m below the real ground (constant TF), so a 0.12 m threshold is below the floor and every floor return is an obstacle</td>
+<td><code>min_height: 0.30</code> in <code>config/scan.yaml</code> and <code>lidar_odom.py</code> (about 0.09 m real)</td>
+</tr>
+<tr>
+<td><code>tf2_echo base_footprint base_link</code> shows a constant (0, 0, 0.426) while the robot walks</td>
+<td>CHAMP's <code>base_to_footprint</code> estimator gets no foot contacts: nothing publishes <code>/foot_contacts</code> in Gazebo</td>
+<td>open: publish the transform from IMU roll and pitch plus a kinematic base height (<a href="tutorial/09-state-estimation.html#failures-worth-knowing-about">chapter 9</a>)</td>
+</tr>
+<tr>
+<td>Planner fails; robot sits inside the inflated zone</td>
+<td>the plan went through a gap that the footprint fits but that is high inflation cost all the way across</td>
+<td>widen the gap, or tune inflation and use a polygon footprint</td>
+</tr>
+<tr>
+<td>Planner fails; costmap has long diagonal streaks; AMCL log says <code>Failed to transform initial pose in time</code></td>
+<td>the initial pose was dropped in a TF timing race, so <code>map</code> to <code>odom</code> is wrong</td>
+<td>publish <code>/initialpose</code> with a zero stamp and repeat until <code>/amcl_pose</code> converges, as <code>go_to_goal.py</code> does</td>
+</tr>
+<tr>
+<td><code>waitUntilNav2Active</code> never returns</td>
+<td>AMCL has no initial pose in Humble's commander</td>
+<td><code>go_to_goal.py</code> publishes one</td>
+</tr>
+<tr>
+<td><code>rclpy.spin_once</code> loop never sees TF or odometry</td>
+<td>it runs one callback per call, and TF arrives hundreds of times per second</td>
+<td>drain with a loop, or give the TF listener its own thread</td>
+</tr>
+<tr>
+<td><code>launch</code>: <code>name 'true' is not defined</code></td>
+<td>a launch argument named <code>slam</code> leaks into Nav2's own <code>slam</code> argument</td>
+<td>name your argument differently</td>
+</tr>
+<tr>
+<td>Robot keeps walking after you stop publishing</td>
+<td>CHAMP holds the last <code>cmd_vel</code></td>
+<td>publish a zero Twist</td>
+</tr>
+<tr>
+<td><code>pkill -f</code> kills your own terminal (exit code 144)</td>
+<td>the pattern appears in your shell's command line, and <code>pkill -f</code> matches it too</td>
+<td><code>scripts/stop.sh</code> now skips its own ancestors; with plain <code>pkill -f</code>, never type the pattern in the same command</td>
+</tr>
+<tr>
+<td>Stopping one stack kills another one on the same machine</td>
+<td><code>pkill</code> by name ignores ROS domains</td>
+<td><code>scripts/stop.sh</code> only stops processes whose environment has the caller's <code>ROS_DOMAIN_ID</code>; give each stack its own domain and <code>GAZEBO_MASTER_URI</code> port</td>
+</tr>
+<tr>
+<td>Gazebo cameras about 5 fps</td>
+<td>rendering on an integrated GPU</td>
+<td><code>env.sh</code> enables NVIDIA PRIME offload when <code>nvidia-smi</code> exists</td>
+</tr>
+<tr>
+<td>RViz draws the scan and the map, but the robot model and TF frames are missing or sit at the fixed-frame origin</td>
+<td>RViz runs on wall-clock time (about 1.8·10⁹ s) and asks TF for transforms at that time; the sim stamps them with <code>/clock</code> (a few hundred seconds)</td>
+<td><code>rviz2 -d src/go2_nav_sim/rviz/go2.rviz --ros-args -p use_sim_time:=true</code>; same for any node that reads sensor data or TF</td>
+</tr>
+<tr>
+<td>A LaserScan or PointCloud2 display stays empty; <code>ros2 topic echo --qos-reliability reliable /scan</code> prints one <code>incompatible QoS</code> warning and no messages</td>
+<td><code>pointcloud_to_laserscan</code> publishes <code>/scan</code> Best Effort; a Reliable subscriber does not match it and receives no data; the subscriber logs one warning and nothing fails</td>
+<td>set the display's <strong>Topic → Reliability Policy</strong> to Best Effort (<code>go2.rviz</code> does); compare both ends with <code>ros2 topic info -v /scan</code> (Task 1)</td>
+</tr>
+<tr>
+<td>Global Status red, robot not drawn, Fixed Frame <code>map</code></td>
+<td>nothing publishes <code>map</code> yet: no AMCL initial pose, slam_toolbox not started, or only map_server running</td>
+<td>use <code>odom</code> as the fixed frame (<code>rviz2 ... -f odom</code>) until a localiser runs, then switch to <code>map</code></td>
+</tr>
+<tr>
+<td>Robot stands still although something publishes on <code>/cmd_vel</code>; no error anywhere</td>
+<td>the publisher sends <code>geometry_msgs/msg/TwistStamped</code>; CHAMP and Humble's Nav2 use <code>Twist</code>, and publishers and subscribers of different types never connect</td>
+<td><code>ros2 topic list -t</code> shows two types on one topic (Task 2); publish <code>Twist</code>, or set the publisher's option (for <code>teleop_twist_keyboard</code>, <code>stamped</code> is false by default)</td>
+</tr>
+<tr>
+<td>slam_toolbox cannot continue yesterday's map; or map_server cannot load the map file you have</td>
+<td><strong>Save Map</strong> / <code>map_saver_cli</code> writes <code>.pgm</code> + <code>.yaml</code> (for map_server and AMCL); <strong>Serialize Map</strong> writes <code>.posegraph</code> + <code>.data</code> (for slam_toolbox only); neither converts to the other</td>
+<td>do both before you stop mapping (<a href="tutorial/10-mapping-and-navigation.html">chapter 10</a>, 1.5)</td>
+</tr>
+</tbody>
+</table></div>
+<p>What "stands limp" looks like, reproduced in MuJoCo by setting every joint torque to zero. In Gazebo the cause was different (no
+controller was spawned), but the robot ends up the same way.</p>
+<p><img loading="lazy" alt="Two side views of the MuJoCo Go2: standing under a PD controller, and collapsed with zero joint torques" src="img/c09-ch12-limp.png" />
+<em>MuJoCo Go2 after 1.5 s: with a PD controller holding the home pose the trunk is at 0.256 m; with zero torques it settles at 0.094 m.</em></p>
+<video controls muted playsinline src="media/c09-ch12-limp.mp4"></video>
+
+<p><em>MuJoCo, 5 s: the PD controller holds the Go2 up for 2 s, then all twelve torques drop to zero.</em></p>
+<h3 id="task-1-find-a-qos-mismatch">Task 1: Find a QoS mismatch</h3>
+<h4 id="11-subscribe-to-scan-with-the-wrong-reliability">1.1 Subscribe to /scan with the wrong reliability</h4>
+<p>Objective: see a subscription that matches nothing, receives no data, and reports it with one warning.</p>
+<pre><code class="language-bash">ros2 topic info -v /scan | grep -E &quot;Endpoint type|Reliability&quot;
+timeout 8 ros2 topic echo --qos-reliability reliable /scan --field header.stamp
+timeout 8 ros2 topic echo --qos-reliability best_effort /scan --field header.stamp
+</code></pre>
+<p>The first command shows the publisher (<code>pointcloud_to_laserscan</code>) offering <code>BEST_EFFORT</code>. The Reliable echo receives no message.
+It prints one warning and nothing else until <code>timeout</code> ends it after 8 s (exit code 124):</p>
+<pre><code>[WARN] [1795851052.736919779] [_ros2cli_882839]: New publisher discovered on topic '/scan', offering incompatible QoS. No messages will be received from it. Last incompatible policy: RELIABILITY
+</code></pre>
+<p>The Best Effort one prints at once:</p>
+<pre><code>sec: 25
+nanosec: 344000000
+---
+</code></pre>
+<p>Check: the Reliable echo printed the <code>incompatible QoS</code> warning and no stamp. You can say which end decides. A Reliable subscriber needs a Reliable publisher; a Best Effort subscriber takes both. RViz
+displays are subscribers with a Reliability Policy setting, so the same rule applies to them.</p>
+<h3 id="task-2-find-a-message-type-mismatch">Task 2: Find a message-type mismatch</h3>
+<h4 id="21-publish-twiststamped-on-cmd_vel">2.1 Publish TwistStamped on /cmd_vel</h4>
+<p>Objective: see a robot ignore a command with no error and no warning.</p>
+<p>The publisher runs in the background, so <code>ros2 topic list</code> sees it while it is still publishing:</p>
+<pre><code class="language-bash">ros2 topic echo --once /odom_gt --field pose.pose.position
+timeout 8 ros2 topic pub -r 10 /cmd_vel geometry_msgs/msg/TwistStamped &quot;{twist: {linear: {x: 0.2}}}&quot; &gt; /dev/null &amp;
+sleep 3; ros2 topic list -t | grep cmd_vel; wait
+ros2 topic echo --once /odom_gt --field pose.pose.position
+</code></pre>
+<pre><code>/cmd_vel [geometry_msgs/msg/Twist, geometry_msgs/msg/TwistStamped]
+/cmd_vel_nav [geometry_msgs/msg/Twist]
+/cmd_vel_teleop [geometry_msgs/msg/Twist]
+</code></pre>
+<p>The robot moved 0.005 m in the 8 s: x went from 0.045 to 0.050 m, which is the stepping in place, not 1.6 m of walking. Neither
+end prints a warning: unlike the QoS case, a type mismatch is silent.</p>
+<p>Check: <code>ros2 topic list -t</code> shows two types for <code>/cmd_vel</code>, and x changed by millimetres. Publish a zero <code>Twist</code> afterwards; CHAMP holds the last command it
+received.</p>
+<h3 id="exercise">Exercise</h3>
+<p>A learner reports: "RViz shows the map and the costmap, the planner draws a path, but the LaserScan display is empty and the robot
+walks fine." Which row applies, and which two commands confirm it?</p>
+<p>Answer: the Best Effort row. The scan reaches Nav2 (the costmap updates, the robot avoids obstacles), so the publisher works and
+only RViz's subscription fails to match. <code>ros2 topic info -v /scan</code> shows the publisher's Reliability (<code>BEST_EFFORT</code>) and RViz's
+subscription (<code>RELIABLE</code>) side by side; <code>ros2 topic echo --qos-reliability best_effort /scan</code> prints messages, which proves the
+data is there.</p>
+<h3 id="further-reading">Further reading</h3>
+<ul>
+<li>Southampton robot guides, Go2 troubleshooting (QoS, <code>CYCLONEDDS_URI</code>, daemon restarts on the real robot): https://robots.ecs.soton.ac.uk/go2/troubleshooting</li>
+<li>Articulated Robotics tutorials, including the common gotchas: https://articulatedrobotics.xyz/tutorials/</li>
+</ul><p class="source">Source: <a href="https://github.com/Armanasq/go2-nav-sim/blob/main/docs/12-troubleshooting.md">docs/12-troubleshooting.md</a></p></article></div>
+</main>
+<footer class="site"><div class="wrap">Simulation only. Source and issues on <a href="https://github.com/Armanasq/go2-nav-sim">GitHub</a>.</div></footer>
+<script type="module" src="static/js/site.js"></script>
+</body>
+</html>

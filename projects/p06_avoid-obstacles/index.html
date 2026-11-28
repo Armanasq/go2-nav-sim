@@ -1,0 +1,660 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Reactive obstacle avoidance without a map · go2-nav-sim</title>
+<meta name="description" content="Reactive obstacle avoidance without a map">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../../static/css/site.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5' fill='%230a6a9c'/%3E%3C/svg%3E">
+
+</head>
+<body data-root="../../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar"><div class="inner">
+<a class="brand" href="../../index.html">go2-nav-sim</a>
+<nav aria-label="Main"><a href="../../tutorial/00-overview.html" aria-current="page">Learn</a><a href="../../tasks/index.html">Tasks</a><a href="../../modules/index.html">Deep dives</a><a href="../../reference.html">Reference</a></nav>
+<button class="theme-toggle" type="button" aria-label="Colour theme: auto">auto</button>
+</div></header>
+<main id="main">
+<div class="wrap doc"><details class="side" open><summary>Reactive obstacle avoidance without a map</summary><nav aria-label="Contents"><ol class="parts"><li><a class="part" href="../../tutorial/00-overview.html">Start</a></li><li><a class="part" href="../../tutorial/05-frames-and-tf2.html">The robot</a></li><li><a class="part" href="../p02_teleop-and-safety/index.html">Move it</a></li><li class="open"><p class="part">Sense and avoid</p><ol><li><a href="../../tutorial/08-robot-and-sensors.html"><span class="n">8</span><span>Robot and sensors</span></a></li><li><a href="../../tasks/s06_sensors-and-perception/index.html"><span class="n">S6</span><span>Sensors and perception</span></a></li><li><a href="../p05_sense-and-stop/index.html"><span class="n">P5</span><span>Sense obstacles and stop</span></a></li><li><a href="index.html" aria-current="page"><span class="n">P6</span><span>Reactive obstacle avoidance without a map</span></a><ul class="sections"><li><a href="#goal">Goal</a></li><li><a href="#what-you-will-learn">What you will learn</a></li><li><a href="#before-you-start">Before you start</a></li><li><a href="#steps">Steps</a></li><li><a href="#how-the-code-works">How the code works</a></li><li><a href="#results">Results</a></li><li><a href="#try-this">Try this</a></li><li><a href="#if-it-goes-wrong">If it goes wrong</a></li></ul></li></ol></li><li><a class="part" href="../../tutorial/09-state-estimation.html">Estimate and map</a></li><li><a class="part" href="../p11_command-arbitration/index.html">Navigate</a></li><li><a class="part" href="../p14_test-the-stack/index.html">Beyond simulation</a></li></ol></nav></details><article class="prose"><p class="where">Sense and avoid · Project 6</p><h1>Reactive obstacle avoidance without a map</h1><h2 id="goal">Goal</h2>
+<p>Walk the Go2 from marker A to marker B around the arena obstacles with no map and no Nav2. The node reads only the 2D scan
+(<code>/scan</code>) and its own pose estimate (<code>/odom</code>), and on every scan picks a direction to walk in. You write two ways of picking it:
+a potential field, which adds a pull towards the goal to a push away from every nearby return, and a simplified vector field
+histogram, which takes the free corridor nearest to the goal. You tune both in a 2D model of the arena first, then run at least
+five trials each way in Gazebo, score them on ground truth (success, time, path length, minimum clearance), compare them with
+the Nav2 runs of <a href="../../tutorial/11-record-and-visualise.html">chapter 11</a>, and make each method fail in a way you can explain.</p>
+<h2 id="what-you-will-learn">What you will learn</h2>
+<ul>
+<li>Turning a <code>LaserScan</code> into points the controller can reason about, and dropping the returns that mean "nothing seen".</li>
+<li>A potential field: the pull, Khatib's push, and why their sum can be zero in front of an obstacle (a local minimum).</li>
+<li>A free-corridor test: which directions are clear for a robot of a given width, and how to pick one of them.</li>
+<li>Why a reactive choice needs memory (hysteresis), and the traps that it still walks into.</li>
+<li>Placing a goal given in the world frame into the odometry frame once, at the start, and living with odometry drift after that.</li>
+<li>Tuning against a cheap 2D model before spending simulator time, and checking where the model and Gazebo disagree.</li>
+</ul>
+<h2 id="before-you-start">Before you start</h2>
+<p>You need <a href="../p01_first-steps/index.html">project 1</a> (starting the stack, <code>/odom_gt</code>, why only a zero twist stops CHAMP),
+<a href="../p03_move-in-shapes/index.html">project 3</a> (<code>/odom</code> drifts while the robot stands), <a href="../p04_go-to-pose/index.html">project 4</a>
+(steering on <code>/odom</code>, <code>wrap</code>, reading a pose from <code>nav_msgs/Odometry</code>) and <a href="../p05_sense-and-stop/index.html">project 5</a>
+(bearings of a <code>LaserScan</code>, <code>inf</code> returns, <code>range_min</code> = 0.4 m).</p>
+<p>Every terminal starts with:</p>
+<pre><code class="language-bash">cd go2-nav-sim
+source env.sh
+</code></pre>
+<p>This project needs the simulator only. Nav2 must not run (it would also publish on <code>/cmd_vel</code>), and the estimation stack must
+not run either, because the project's launch file starts its own copy for every trial (step 4 says why). If <code>scripts/up.sh</code> is
+running, stop it with <code>scripts/stop.sh</code> first.</p>
+<p>The arena is defined in <code>src/go2_nav_sim/scripts/make_arena.py</code>: walls at x = ±6 and y = ±5 (inner faces at ±5.9 and ±4.9),
+four boxes, two cylinders, A = (-4.5, -3.5) and B = (4.0, 3.0). The two boxes that matter most here are the long brick box
+centred at (1.0, 0.0), 0.8 × 2.4 m, and the pallet at (2.5, -2.5), 1.2 m square. The gap between their nearest corners is
+0.86 m. <code>/odom_gt</code> is relative to A, so world = <code>/odom_gt</code> + A.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>File</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>reactive.py</code></td>
+<td>the pure logic, no ROS: scan to points, potential field, free corridors, the command, the stuck detector</td>
+</tr>
+<tr>
+<td><code>arena2d.py</code></td>
+<td>the arena in 2D: a ray-cast <code>/scan</code>, distance to the nearest obstacle, a kinematic robot that runs <code>reactive.py</code></td>
+</tr>
+<tr>
+<td><code>test_reactive.py</code></td>
+<td>11 unit tests, including two whole runs in the 2D model</td>
+</tr>
+<tr>
+<td><code>avoid.py</code></td>
+<td>the node: steers on <code>/scan</code> and <code>/odom</code>, logs every scan to <code>results/NAME.csv</code>, prints a <code>RESULT</code> line</td>
+</tr>
+<tr>
+<td><code>avoid.launch.py</code></td>
+<td>one trial: a fresh estimation stack plus <code>avoid.py</code>; ends when <code>avoid.py</code> exits</td>
+</tr>
+<tr>
+<td><code>analyze.py</code></td>
+<td>scores runs on ground truth, adds the Nav2 runs, draws <code>figures/trials.png</code></td>
+</tr>
+<tr>
+<td><code>results/</code></td>
+<td>my logs: <code>ab*</code> (A to B), <code>ba*</code> (B to A), <code>apf_*</code>, <code>vfh_wall</code>, <code>stood_*</code>, the Nav2 tracks <code>nav2_w*.csv</code>, <code>trials.txt</code>, <code>extra.txt</code>, <code>analyze_output.txt</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>Name your own runs <code>my_...</code> so they do not overwrite mine.</p>
+<h2 id="steps">Steps</h2>
+<h3 id="1-run-the-unit-tests">1. Run the unit tests</h3>
+<pre><code class="language-bash">python3 -m pytest -q projects/p06_avoid-obstacles
+</code></pre>
+<p>Expected:</p>
+<pre><code>11 passed in 5.54s
+</code></pre>
+<p>Check: they need no ROS graph, so they pass with the simulator down. The two slowest are whole runs of the 2D model.</p>
+<h3 id="2-try-both-methods-in-the-2d-model">2. Try both methods in the 2D model</h3>
+<p><code>arena2d.py</code> drives a kinematic robot (it walks exactly as commanded, no gait, no sensor noise, no delay) with the same
+<code>reactive.step</code> the node uses, on a scan ray-cast from the arena geometry with the beam layout of <code>config/scan.yaml</code>.</p>
+<pre><code class="language-bash">python3 projects/p06_avoid-obstacles/arena2d.py                                   # vfh, A to B, facing +x
+python3 projects/p06_avoid-obstacles/arena2d.py --method apf                      # potential field, same start
+python3 projects/p06_avoid-obstacles/arena2d.py --method apf --start -1 0 0 --goal 3 0
+</code></pre>
+<p>Expected:</p>
+<pre><code>reached after 46.7 s, path 12.62 m, min clearance 0.55 m, end (3.72, 2.93)
+stuck after 61.3 s, path 6.71 m, min clearance 0.56 m, end (1.14, -1.92)
+stuck after 33.2 s, path 0.93 m, min clearance 0.78 m, end (-0.19, 0.04)
+</code></pre>
+<p>The output is deterministic, so yours should match to the last digit. The second run ends between the brick box and the pallet,
+the third in front of the brick box with the goal straight behind it. Both are local minima of the potential field, explained
+in <a href="#the-potential-field-and-its-local-minimum">How the code works</a>. Check: <code>stuck</code> in lines 2 and 3, <code>reached</code> in line 1.</p>
+<p>Every value of <code>reactive.P</code> can be overridden with <code>--set KEY=VALUE</code>, which is how I tuned it: a run of the model takes a few
+seconds, a Gazebo trial one to two minutes.</p>
+<h3 id="3-start-the-simulator">3. Start the simulator</h3>
+<p>Terminal 1:</p>
+<pre><code class="language-bash">ros2 launch go2_nav_sim sim.launch.py
+</code></pre>
+<p>Gazebo took one to two minutes to come up on my machine. Check, in terminal 2:</p>
+<pre><code class="language-bash">ros2 topic echo --once /odom_gt --field pose.pose.position
+</code></pre>
+<p>prints a position near x = 0, y = 0 (the robot on A). Mine printed x = 0.225, y = 0.022 after the robot had stood for about
+six minutes: it creeps forward by about half a millimetre per second while standing.</p>
+<h3 id="4-run-one-trial-from-a-to-b">4. Run one trial from A to B</h3>
+<pre><code class="language-bash">ros2 launch projects/p06_avoid-obstacles/avoid.launch.py name:=my_ab1
+</code></pre>
+<p>The launch file starts <code>estimation.launch.py</code> (scan, lidar odometry, EKF), waits 10 s, then starts <code>avoid.py</code> with the goal B.
+Expected, in between the estimation logs:</p>
+<pre><code>[python3-4] [INFO] [...] [avoid]: vfh: goal (4.00, 3.00) in the world frame
+[python3-4] [INFO] [...] [avoid]: start at (-4.33, -3.39, -169 deg)
+[python3-4] RESULT REACHED method=vfh time=41.1s path=10.94m min_clearance=0.57m true_dist_to_goal=0.31m odom_err_end=0.03m
+[INFO] [python3-4]: process has finished cleanly [pid ...]
+</code></pre>
+<p>then a <code>KeyboardInterrupt</code> traceback from <code>lidar_odom.py</code> as the launch shuts the estimator down, which is harmless. The RESULT
+line above is my run <code>ab7</code>. <code>time</code> here runs from the first scan to the end; <a href="#results">Results</a> uses a stricter definition.
+Everything after <code>time</code> is measured on <code>/odom_gt</code>: the path walked, the smallest distance from the robot centre to an obstacle
+surface, how far from the goal it really stopped, and how far <code>/odom</code> was from the truth at the end.</p>
+<p>Check: <code>REACHED</code>, <code>true_dist_to_goal</code> below 0.4 m (the node stops when its own estimate is within 0.3 m, plus the odometry
+error) and <code>min_clearance</code> above 0.5 m.</p>
+<p>The estimator is restarted on every trial on purpose: with an estimator that had run for 7 and 11 minutes, mostly with the robot
+standing, my runs ended 0.25 m and 1.87 m away from where <code>/odom</code> placed them (<a href="#if-it-goes-wrong">If it goes wrong</a>).</p>
+<h3 id="5-walk-back-to-a">5. Walk back to A</h3>
+<pre><code class="language-bash">ros2 launch projects/p06_avoid-obstacles/avoid.launch.py gx:=-4.5 gy:=-3.5 name:=my_ba1
+</code></pre>
+<p>My <code>ba7</code>:</p>
+<pre><code>[python3-4] RESULT REACHED method=vfh time=65.3s path=16.65m min_clearance=0.57m true_dist_to_goal=0.31m odom_err_end=0.02m
+</code></pre>
+<p>Check: the path back is about 5 m longer than the path out. <a href="#results">Results</a> shows the two routes and why they differ.</p>
+<h3 id="6-run-five-round-trips">6. Run five round trips</h3>
+<pre><code class="language-bash">for i in 2 3 4 5 6; do
+  ros2 launch projects/p06_avoid-obstacles/avoid.launch.py name:=my_ab$i 2&gt;&amp;1 | grep RESULT
+  ros2 launch projects/p06_avoid-obstacles/avoid.launch.py gx:=-4.5 gy:=-3.5 name:=my_ba$i 2&gt;&amp;1 | grep RESULT
+done
+</code></pre>
+<p>Each leg took one to two minutes of wall time. Each trial starts where the last one ended, so after a <code>STUCK</code> the next leg
+does not start on A or B. In my runs <code>ba4</code> got stuck, and <code>ab5</code> then started 7.8 m from A and walked only 3.1 m; I deleted it
+and ran <code>ab6</code> and <code>ab7</code> after walking the robot back to A. Do the same: after a <code>STUCK</code>, send the robot to the start with one
+more launch, and do not count that leg.</p>
+<p>Check: one <code>RESULT</code> line per leg, each starting with <code>REACHED</code>, <code>STUCK</code> or <code>TIMEOUT</code>.</p>
+<h3 id="7-score-the-trials-and-draw-them">7. Score the trials and draw them</h3>
+<pre><code class="language-bash">python3 projects/p06_avoid-obstacles/analyze.py --runs my_ab1 my_ab2 my_ab3 my_ab4 my_ab5 my_ab6 \
+    my_ba1 my_ba2 my_ba3 my_ba4 my_ba5 my_ba6 --out figures/my_trials.png
+</code></pre>
+<p>prints one line per run plus the three Nav2 runs, and writes <code>figures/my_trials.png</code>. Mine are in <a href="#results">Results</a>.
+<code>analyze.py</code> uses only <code>/odom_gt</code>: a run starts when the robot has moved 5 cm from where it stood and ends when it last moved
+5 cm from where it finished, so standing time at either end is not counted, for our runs and for Nav2 alike.</p>
+<p>The Nav2 tracks are already in <code>results/nav2_w1.csv</code> to <code>nav2_w3.csv</code>. I extracted them from the mission bags of
+<a href="../../tutorial/09-state-estimation.html">chapter 9</a> with <code>--nav2-bags bags/w1 bags/w2 bags/w3</code> (which needs the 0.7 GB bags);
+you do not need to repeat that.</p>
+<p>Check: in each line <code>min clear m</code> is above 0.5 and <code>true miss m</code> below 0.4 for every run that reached its goal.</p>
+<h3 id="8-make-the-potential-field-fail-in-gazebo">8. Make the potential field fail in Gazebo</h3>
+<p>Walk to a point 1.6 m in front of the brick box, then ask the potential field to reach the point straight behind it:</p>
+<pre><code class="language-bash">ros2 launch projects/p06_avoid-obstacles/avoid.launch.py gx:=-1.0 gy:=0.0 name:=my_to_wall
+ros2 launch projects/p06_avoid-obstacles/avoid.launch.py gx:=3.0 gy:=0.0 method:=apf name:=my_apf_wall
+</code></pre>
+<p>Mine (from <code>results/extra.txt</code>, where each line starts with the run name):</p>
+<pre><code>to_wall [python3-4] RESULT REACHED method=vfh time=24.1s path=6.01m min_clearance=0.60m true_dist_to_goal=0.22m odom_err_end=0.07m
+apf_wall [python3-4] RESULT STUCK method=apf time=35.0s path=2.97m min_clearance=0.76m true_dist_to_goal=3.21m odom_err_end=0.00m
+</code></pre>
+<p>The robot walked up to the box, stopped 0.76 to 0.80 m from its face and turned back and forth on the spot until the stuck rule
+ended the run, 30 s after it last got 0.25 m closer. Check: <code>STUCK</code>, and the robot stands near x = -0.2, y = 0 (the 2D model
+of step 2 stopped at -0.19, 0.04). Then try the histogram from the same spot:</p>
+<pre><code class="language-bash">ros2 launch projects/p06_avoid-obstacles/avoid.launch.py gx:=3.0 gy:=0.0 name:=my_vfh_wall
+</code></pre>
+<p>Mine also failed, in a different place (<code>vfh_wall</code> in <code>results/extra.txt</code>, and the right panel of the figure). Section
+<a href="#where-the-histogram-gets-trapped">Where the histogram gets trapped</a> explains both.</p>
+<h3 id="9-record-a-video">9. Record a video</h3>
+<p>In another terminal, before a trial:</p>
+<pre><code class="language-bash">python3 projects/p05_sense-and-stop/record.py ~/p06_ab.mp4 --topic /spectator/cam/image_raw
+</code></pre>
+<p>and Ctrl-C it after the trial. It prints the frame count (mine: <code>627 frames</code>, 62.7 s at 10 frames per second of simulated time).
+Use project 5's recorder, not <code>projects/common/record_cam.py</code>: on my loaded machine the common recorder kept 5 frames of the
+whole run. Speed it up to fit in 25 s:</p>
+<pre><code class="language-bash">ffmpeg -i ~/p06_ab.mp4 -vf &quot;setpts=PTS/2.6,scale=960:-2&quot; -r 15 -c:v libx264 -crf 28 -pix_fmt yuv420p -an ~/p06_ab_fast.mp4
+</code></pre>
+<p>Check: <code>ffprobe ~/p06_ab_fast.mp4</code> gives a duration near 24 s (mine 24.3 s, 105 kB).</p>
+<h3 id="10-stop">10. Stop</h3>
+<p>Every trial ends with zeros on <code>/cmd_vel</code>, so the robot is standing. Ctrl-C the simulator in terminal 1, then
+<code>scripts/stop.sh</code>.</p>
+<h2 id="how-the-code-works">How the code works</h2>
+<h3 id="from-a-scan-to-points">From a scan to points</h3>
+<pre><code class="language-python">def valid_returns(ranges, angle_min, angle_inc, range_min, range_max):
+    r = np.asarray(ranges, dtype=float)
+    a = angle_min + angle_inc * np.arange(len(r))
+    ok = np.isfinite(r) &amp; (r &gt;= range_min) &amp; (r &lt;= range_max)
+    return r[ok], a[ok]
+</code></pre>
+<p>As in project 5: beam i points at <code>angle_min + i * angle_increment</code> in <code>base_footprint</code> (x forward, y left), <code>inf</code> means no
+return, and values outside <code>[range_min, range_max]</code> are unusable. Here the whole 360 degrees is used: 901 beams, 0.4 degrees
+apart. <code>range_min</code> is 0.4 m, so anything closer than 0.4 m to the scan origin is invisible. Both methods below keep the robot
+centre at least 0.5 m from everything for that reason.</p>
+<h3 id="the-potential-field-and-its-local-minimum">The potential field and its local minimum</h3>
+<pre><code class="language-python">def apf_direction(r, a, g, angle_inc, p=P):
+    att = p['k_att'] * np.asarray(g) / max(math.hypot(*g), 1e-9)
+    near = r &lt; p['d0']
+    d, b = r[near], a[near]
+    mag = p['k_rep'] * (1 / d - 1 / p['d0']) / d ** 2 * angle_inc
+    f = att - np.array([np.sum(mag * np.cos(b)), np.sum(mag * np.sin(b))])
+    return math.atan2(f[1], f[0])
+</code></pre>
+<p>The pull has constant size <code>k_att</code> and points at the goal <code>g</code> (in the robot frame). Each return at distance d &lt; d0 pushes
+straight away from itself with</p>
+<pre><code>|push| = k_rep (1/d - 1/d0) / d²
+</code></pre>
+<p>which is minus the gradient of Khatib's potential ½ k_rep (1/d - 1/d0)². Each beam's push is multiplied by its angular
+width, so a wall pushes as hard at 0.4 degree spacing as at 1 degree. With d0 = 1.5 m and k_rep = 1.0 a
+wall starts to matter 1.5 m away and the push grows like 1/d³ close to it.</p>
+<p>The robot walks along the sum. A local minimum is a place where the sum is zero. With the goal straight behind the brick box,
+the pull is +x and, by symmetry, so is the whole push, reversed: the y parts of the push from the upper and lower halves of the
+face cancel. At some distance the two are equal. In my Gazebo run <code>apf_wall</code> the robot reached that point 0.76 m from the face
+and stopped making progress. The direction of a near-zero sum is set by noise, so the log shows it flipping from side to side:</p>
+<pre><code>t       x      y      v     w      th
+20.06  -0.18   0.07   0.00  -0.50  -2.65
+27.64  -0.21  -0.10   0.00   0.50   2.60
+</code></pre>
+<p>(columns <code>t, gt_x, gt_y, v, w, th</code> of <code>results/apf_wall.csv</code>). The second failure in step 2, between the brick box and the
+pallet, is the same balance with two obstacles: their pushes cancel the pull in a gap of 0.86 m between corners. Nothing in the
+field says which way round is shorter, so the method has no way out by itself. The unit test
+<code>test_apf_symmetric_wall_points_straight_at_it</code> checks the symmetric case: the direction comes out as exactly 0.</p>
+<h3 id="free-corridors-the-histogram">Free corridors (the histogram)</h3>
+<pre><code class="language-python">def free_directions(r, a, look, r_safe, n_dir):
+    t = np.linspace(-math.pi, math.pi, n_dir, endpoint=False)
+    rel = a[None, :] - t[:, None]
+    along, side = r * np.cos(rel), np.abs(r * np.sin(rel))
+    blocked = ((along &gt; 0) &amp; (along &lt; look) &amp; (side &lt; r_safe)).any(axis=1)
+    return t, ~blocked
+</code></pre>
+<p>For each of 180 candidate bearings t (2 degrees apart), each return is split into a distance along t and a distance across it.
+The bearing is blocked if any return lies ahead within <code>look</code> = 2.0 m and closer than <code>r_safe</code> = 0.55 m to the centre line:
+the robot, walking that way, would pass within 0.55 m of it. That is the polar histogram of VFH reduced to a yes or no per
+bearing, with the robot's width built in (Nav2's footprint radius for this robot is 0.33 m, <code>config/nav2_params.yaml</code>, which
+leaves 0.22 m of margin). It is a matrix of 180 × up to 901 numbers per scan: 7.6 ms per call on my loaded machine, with a scan every 100 ms.</p>
+<pre><code class="language-python">def vfh_direction(r, a, g, prev=None, p=P):
+    dist = math.hypot(*g)
+    t, free = free_directions(r, a, min(p['look'], dist), p['r_safe'], int(p['n_dir']))
+    if not free.any():
+        return None
+    ang = lambda x: np.abs(np.arctan2(np.sin(t - x), np.cos(t - x)))
+    cost = ang(math.atan2(g[1], g[0])) + p['k_turn'] * np.abs(t) + (0 if prev is None else p['k_prev'] * ang(prev))
+    cost[~free] = np.inf
+    return float(t[np.argmin(cost)])
+</code></pre>
+<p>Of the free bearings it takes the cheapest:</p>
+<pre><code>cost(t) = |t - goal bearing| + k_turn |t| + k_prev |t - last choice|
+</code></pre>
+<p>The second term prefers what is already ahead (k_turn = 0.3), the third keeps the last choice (k_prev = 0.5). The look-ahead
+is cut to the distance to the goal, so a wall behind the goal does not block it. Without the third term my first Gazebo version
+flipped between two gaps of nearly the same cost (chosen bearing +1.75 rad, then -2.83 rad, then back) and turned on the spot
+until it was declared stuck after 25 s. <code>step()</code> takes the last choice in world coordinates and turns it into the robot frame,
+so the choice survives the robot turning. Choosing a corridor 0.55 m wide also closes the 0.86 m gap between the brick box and
+the pallet, which is where the potential field got caught.</p>
+<p>The look-ahead mattered most in tuning. On six starts around A (±0.3 m, ±20 degrees) the 2D model reached B six times with
+<code>look</code> 1.5, 2.0 and 2.5 m, but with 1.5 m it went south round the pallet on three of them (15.5 to 15.8 m), and with 2.0 m it
+took the 11 m route on five.</p>
+<h3 id="from-a-direction-to-a-command">From a direction to a command</h3>
+<pre><code class="language-python">def command(th, front, p=P):
+    if th is None:
+        return 0.0, p['w_max']
+    w = max(-p['w_max'], min(p['w_max'], p['k_w'] * th))
+    brake = min(1.0, max(0.0, (front - p['stop']) / (p['slow'] - p['stop'])))
+    return p['v_max'] * max(0.0, math.cos(th)) * brake, w
+</code></pre>
+<p>Both methods give a bearing th in the robot frame. The robot turns towards it at w = 1.2 th, limited to CHAMP's 0.5 rad/s, and
+walks at 0.3 m/s × cos th: full speed when th = 0, nothing when the direction is 90 degrees or more to the side. <code>front</code> is the
+nearest return within ±35 degrees of straight ahead; the speed falls linearly from full at 1.2 m to zero at 0.5 m. CHAMP keeps
+walking on the last command, so the node sends a command on every scan and five zeros at the end.</p>
+<h3 id="placing-the-goal-and-the-stuck-rule">Placing the goal, and the stuck rule</h3>
+<pre><code class="language-python">if self.anchor is None:                                  # once: where the odom frame sits in the world
+    self.anchor, self.t0 = reactive.compose(self.gt, reactive.inverse(self.odom)), t
+pose = reactive.compose(self.anchor, self.odom)
+</code></pre>
+<p>The goal is given in the world frame, <code>/odom</code> starts wherever the estimator was started. On the first scan, the node takes the
+true pose from <code>/odom_gt</code> once and computes the transform T = T_world_base · T_odom_base⁻¹ that places the odom frame in the
+world. From then on the pose is T · <code>/odom</code>. This is the same shortcut <code>go_to_goal.py</code> takes to start AMCL (top-level README). After that <code>/odom_gt</code> is
+only logged. Without a map nothing corrects the odometry, so its error goes straight into where the robot stops
+(<code>odom_err_end</code> in the RESULT line).</p>
+<pre><code class="language-python">def stuck(self, t, dist):
+    if self.t_best is None or dist &lt; self.best - self.eps:
+        self.best, self.t_best = dist, t
+    return t - self.t_best &gt; self.window
+</code></pre>
+<p>The run is declared stuck when the distance to the goal has not dropped 0.25 m below its best value for 30 s. This cannot
+tell a local minimum from a long detour that first leads away from the goal. With a 20 s window the 2D model declared a run
+stuck that would have arrived (from (-1, 0) to (3, 0) with <code>look</code> = 1.5 m it gave up after 26.6 s; with 30 s it arrives after
+35.7 s, <code>--start -1 0 0 --goal 3 0 --set look=1.5</code>); 30 s was enough for the detours in this arena.</p>
+<h2 id="results">Results</h2>
+<p>Measured on a shared machine running other simulators (load average 44 to 75 on 32 cores from <code>uptime</code> at the start and the
+end, Gazebo real-time factor 0.98 from <code>gz stats</code>). All times are simulated seconds. Simulator only, a fresh estimator for every leg, method <code>vfh</code>
+unless the run name starts with <code>apf</code>. Table from</p>
+<pre><code class="language-bash">python3 projects/p06_avoid-obstacles/analyze.py --runs ab1 ab2 ab3 ab4 ab6 ab7 apf_ab1 ba1 ba2 ba3 ba4 ba5 ba7 --fail ba4 apf_wall vfh_wall
+</code></pre>
+<p>(full output in <code>results/analyze_output.txt</code>; the RESULT lines in <code>results/trials.txt</code> and <code>results/extra.txt</code>):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Run</th>
+<th>Goal</th>
+<th>Result</th>
+<th>Time (s)</th>
+<th>Path (m)</th>
+<th>Min clearance (m)</th>
+<th>True miss (m)</th>
+<th>/odom error at end (m)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ab1</td>
+<td>B</td>
+<td>reached</td>
+<td>38.6</td>
+<td>10.97</td>
+<td>0.57</td>
+<td>0.27</td>
+<td>0.06</td>
+</tr>
+<tr>
+<td>ab2</td>
+<td>B</td>
+<td>reached</td>
+<td>40.0</td>
+<td>10.94</td>
+<td>0.57</td>
+<td>0.27</td>
+<td>0.11</td>
+</tr>
+<tr>
+<td>ab3</td>
+<td>B</td>
+<td>reached</td>
+<td>39.8</td>
+<td>10.85</td>
+<td>0.57</td>
+<td>0.31</td>
+<td>0.06</td>
+</tr>
+<tr>
+<td>ab4</td>
+<td>B</td>
+<td>reached</td>
+<td>40.2</td>
+<td>10.87</td>
+<td>0.57</td>
+<td>0.32</td>
+<td>0.05</td>
+</tr>
+<tr>
+<td>ab6 (video)</td>
+<td>B</td>
+<td>reached</td>
+<td>49.2</td>
+<td>12.57</td>
+<td>0.57</td>
+<td>0.29</td>
+<td>0.13</td>
+</tr>
+<tr>
+<td>ab7</td>
+<td>B</td>
+<td>reached</td>
+<td>39.5</td>
+<td>10.83</td>
+<td>0.57</td>
+<td>0.31</td>
+<td>0.03</td>
+</tr>
+<tr>
+<td>ba1</td>
+<td>A</td>
+<td>reached</td>
+<td>58.6</td>
+<td>15.73</td>
+<td>0.56</td>
+<td>0.36</td>
+<td>0.14</td>
+</tr>
+<tr>
+<td>ba2</td>
+<td>A</td>
+<td>reached</td>
+<td>59.8</td>
+<td>15.94</td>
+<td>0.57</td>
+<td>0.33</td>
+<td>0.18</td>
+</tr>
+<tr>
+<td>ba3</td>
+<td>A</td>
+<td>reached</td>
+<td>58.9</td>
+<td>15.94</td>
+<td>0.57</td>
+<td>0.23</td>
+<td>0.18</td>
+</tr>
+<tr>
+<td>ba4</td>
+<td>A</td>
+<td>stuck</td>
+<td>43.6</td>
+<td>10.94</td>
+<td>0.56</td>
+<td>7.79</td>
+<td>0.03</td>
+</tr>
+<tr>
+<td>ba5</td>
+<td>A</td>
+<td>reached</td>
+<td>59.2</td>
+<td>15.94</td>
+<td>0.57</td>
+<td>0.32</td>
+<td>0.12</td>
+</tr>
+<tr>
+<td>ba7</td>
+<td>A</td>
+<td>reached</td>
+<td>64.2</td>
+<td>16.57</td>
+<td>0.57</td>
+<td>0.31</td>
+<td>0.02</td>
+</tr>
+<tr>
+<td>apf_ab1 (potential field)</td>
+<td>B</td>
+<td>reached</td>
+<td>57.7</td>
+<td>12.29</td>
+<td>0.58</td>
+<td>0.26</td>
+<td>0.13</td>
+</tr>
+<tr>
+<td>Nav2 w1 (map, AMCL)</td>
+<td>B</td>
+<td>succeeded</td>
+<td>50.9</td>
+<td>11.31</td>
+<td>0.62</td>
+<td>0.25</td>
+<td></td>
+</tr>
+<tr>
+<td>Nav2 w2</td>
+<td>B</td>
+<td>succeeded</td>
+<td>51.5</td>
+<td>11.37</td>
+<td>0.62</td>
+<td>0.21</td>
+<td></td>
+</tr>
+<tr>
+<td>Nav2 w3</td>
+<td>B</td>
+<td>succeeded</td>
+<td>79.4</td>
+<td>13.54</td>
+<td>0.51</td>
+<td>0.34</td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<p>Summary:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th></th>
+<th>Success</th>
+<th>Time (s)</th>
+<th>Path (m)</th>
+<th>Min clearance (m)</th>
+<th>True miss (m)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Reactive (vfh), A to B</td>
+<td>6 of 6</td>
+<td>38.6 to 49.2, mean 41.2</td>
+<td>10.83 to 12.57, mean 11.17</td>
+<td>0.57 in every run</td>
+<td>0.27 to 0.32</td>
+</tr>
+<tr>
+<td>Reactive (vfh), B to A</td>
+<td>5 of 6</td>
+<td>58.6 to 64.2</td>
+<td>15.73 to 16.57</td>
+<td>0.56 to 0.57</td>
+<td>0.23 to 0.36</td>
+</tr>
+<tr>
+<td>Nav2 with the map, A to B</td>
+<td>3 of 3</td>
+<td>50.9 to 79.4</td>
+<td>11.31 to 13.54</td>
+<td>0.51 to 0.62</td>
+<td>0.21 to 0.34</td>
+</tr>
+</tbody>
+</table></div>
+<p><img loading="lazy" alt="Three arena plots. Left: six reactive runs from A to B, true paths in black with the odometry estimate dashed in blue, and three Nav2 runs in amber; all but one reactive run follow nearly the Nav2 route north of the low pallet and above the brick box. Middle: five reactive runs from B to A, all going south past the east side of the brick box and the pallet and then west along the south wall. Right: three failures, each ending in a cross: ba4 turning back north beside the pallet and stopping east of the brick box, apf_wall stopping in front of the brick box, vfh_wall stopping between the brick box and the pallet" src="figures/trials.png" /></p>
+<video controls muted playsinline src="media/a_to_b_vfh.mp4"></video>
+
+<p>The video is run <code>ab6</code> from the spectator camera, 62.7 s of simulated time sped up 2.6 times to 24.3 s (step 9). It is the one
+A-to-B run that went south of the first pallet and then north between it and the brick box.</p>
+<p>What the numbers say:</p>
+<ul>
+<li>From A to B the reactive navigator arrived in all six runs, and five of them took almost the route Nav2 plans on the map
+  (10.83 to 10.97 m against Nav2's 11.31 and 11.37 m in w1 and w2). It was faster: 38.6 to 40.2 s against 50.9 and 51.5 s.
+  Nav2's controller is set to <code>desired_linear_vel: 0.25</code> m/s (<code>config/nav2_params.yaml</code>) and slows down in turns tighter than
+  0.9 m radius (<code>use_regulated_linear_velocity_scaling</code>); this node walks at 0.3 m/s whenever the way ahead is clear.</li>
+<li>The minimum clearance was 0.56 to 0.57 m in every reactive run: the robot always passed one obstacle as close as the corridor
+  half-width (0.55 m) allows. Nav2 kept 0.62 m in w1 and w2 and 0.51 m in w3. Measured from the robot centre; with the 0.33 m
+  footprint radius the closest the body came was about 0.24 m.</li>
+<li>B to A is 5 m longer than A to B. The robot arrives on B facing about +25 degrees, and with that start heading the
+  histogram goes south down the east side of the arena and west along the south wall. In the 2D model the same happens:
+  <code>arena2d.py --start 3.75 2.9 25 --goal -4.5 -3.5</code> gives 15.63 m, while the same start facing west (<code>--start 4 3 180</code>) gives
+  10.89 m. Without a plan the route is decided by where the robot happens to be facing.</li>
+<li>The robot stopped 0.23 to 0.36 m from the goal: the 0.3 m tolerance on its own estimate plus an odometry error of 0.02 to
+  0.18 m. Nav2 has the same kind of tolerance (0.25 m) and corrects its odometry with AMCL; this node cannot, and over longer
+  routes the error would grow (<a href="../p03_move-in-shapes/index.html">project 3</a> measures the drift).</li>
+<li>The one potential-field run from A to B (<code>apf_ab1</code>) arrived, although the 2D model of step 2 predicted a stall between the
+  brick box and the pallet. The Gazebo run started facing 180 degrees (it had just walked back to A); the model from that pose
+  (<code>--method apf --start -4.26 -3.62 180</code>) also arrives, after 11.49 m. The local minimum is there, but the robot only falls
+  into it from some starting headings.</li>
+<li>Six and three runs are small samples. One histogram failure in twelve legs is not a failure rate.</li>
+</ul>
+<h3 id="where-the-histogram-gets-trapped">Where the histogram gets trapped</h3>
+<p>All three failures in the right panel of the figure are traps: places where every free bearing points away from the goal and
+the cheapest one changes as the robot turns.</p>
+<ul>
+<li><code>ba4</code>, 29 s into the run, beside the pallet at (3.7, -3.1). In <code>ba3</code> the robot stood in the same place (3.71, -3.04) and
+  chose a bearing of -40 degrees, round the pallet's south-east corner; 4.5 s later it was walking west below the pallet. In
+  <code>ba4</code> it chose -49 degrees, then, half a second later, +91 degrees: the corridor round the corner and the corridor back north
+  cost almost the same, a few degrees of heading tipped it, and <code>k_prev</code> then held it on the way back. It walked north into
+  the space between the brick box's east face and the pallet, where the brick box blocks the way to A, and turned there until
+  the stuck rule ended the run at (2.52, -0.12).</li>
+<li><code>vfh_wall</code> started where <code>apf_wall</code> gave up, facing south (-76 degrees). It walked south past the end of the brick box into
+  the corner between the box and the pallet (closed to it, since 0.86 m &lt; 2 × 0.55 m) and turned there; the chosen bearing went
+  -2.83, -1.57, -0.49, -2.79 rad over 7.5 s. The 2D model from (-1, 0) facing +x went north round the box instead and arrived
+  (<a href="#try-this">Try this</a>, exercise 2).</li>
+<li><code>apf_wall</code> is the potential-field minimum, explained above.</li>
+</ul>
+<p>A reactive method sees only the current scan. It cannot know that a corner is closed until it is in it, and it has no memory
+of where it has been, so it can walk back into the same place. Nav2 plans on the whole map and does not have this problem in
+this arena; that is the price of having no map.</p>
+<h2 id="try-this">Try this</h2>
+<ol>
+<li>Halve the push and predict where the potential field stalls in front of the brick box.</li>
+</ol>
+<p><code>bash
+   python3 projects/p06_avoid-obstacles/arena2d.py --method apf --start -1 0 0 --goal 3 0 --set k_rep=0.5</code></p>
+<p>Answer: <code>stuck after 33.2 s, path 1.07 m, min clearance 0.66 m, end (-0.07, 0.02)</code>, against 0.78 m with k_rep = 1.0. Halving
+   the gain moves the balance only 12 cm closer, because near the wall the push grows like 1/d³: a small step closer makes up
+   for a factor of two.</p>
+<ol start="2">
+<li>Move the goal 1 m to the side and show that the minimum needs symmetry.</li>
+</ol>
+<p><code>bash
+   python3 projects/p06_avoid-obstacles/arena2d.py --method apf --start -1 0 0 --goal 3 1</code></p>
+<p>Answer: <code>reached after 21.4 s, path 5.45 m, min clearance 0.63 m, end (2.82, 1.23)</code>. The pull now points at the upper end of
+   the box, the push no longer cancels its sideways part, and the robot slides off the end. For comparison, the histogram from
+   the original start, <code>--start -1 0 0 --goal 3 0</code> without <code>--method</code>, gives
+   <code>reached after 19.5 s, path 5.54 m, min clearance 0.56 m, end (2.85, 0.24)</code>.</p>
+<ol start="3">
+<li>Show that the start heading picks the route. Run the histogram from B to A facing west and facing +25 degrees:</li>
+</ol>
+<p><code>bash
+   python3 projects/p06_avoid-obstacles/arena2d.py --start 4 3 180 --goal -4.5 -3.5
+   python3 projects/p06_avoid-obstacles/arena2d.py --start 3.75 2.9 25 --goal -4.5 -3.5</code></p>
+<p>Answer: <code>reached after 37.5 s, path 10.89 m</code> and <code>reached after 58.8 s, path 15.63 m</code>. The second matches the Gazebo runs
+   <code>ba1</code> to <code>ba7</code> (15.73 to 16.57 m). Then do it in Gazebo: turn the robot on B to face west before a B-to-A leg (project 4's
+   controller, or <code>ros2 topic pub</code> on <code>/cmd_vel</code> followed by a zero), and the route should be the 11 m one north of the brick box.
+   I did not run this last part.</p>
+<h2 id="if-it-goes-wrong">If it goes wrong</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Cause</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>odom_err_end</code> of several tenths of a metre or more; the robot stops far from the goal or wanders near it and ends <code>STUCK</code></td>
+<td>The estimator had been running for minutes while the robot stood. In my first two runs it had run 7 and 11 minutes: <code>/odom</code> ended 0.25 m and 1.87 m from the truth (<code>results/stood_7min.csv</code>, <code>stood_11min.csv</code>). After about six minutes standing, <code>/odom</code> gave a heading of 18.4 degrees while the true heading was 2.3 degrees, and in the 7-minute run the estimated heading jumped 0.41 rad in 0.09 s as the gait started. Anchoring removes a constant offset, but the position estimate kept drifting during the run: in the 11-minute run the estimated direction of travel was 10 to 27 degrees off the estimated heading, while the true direction of travel stayed within 8 degrees of the true heading. My guess is that the lidar odometry's local map was built while the heading drifted, so later scans match a smeared map; I did not confirm this</td>
+<td>Restart the estimator just before each trial. <code>avoid.launch.py</code> does this; with it, <code>odom_err_end</code> was 0.02 to 0.18 m in all 13 scored legs</td>
+</tr>
+<tr>
+<td>The next trial starts far from A or B (<code>start at</code> line) and its numbers make no sense</td>
+<td>The previous leg ended <code>STUCK</code> or <code>TIMEOUT</code> and left the robot where it gave up (my <code>ab5</code> after <code>ba4</code>)</td>
+<td>Send the robot to the start with one more launch (<code>gx:=-4.5 gy:=-3.5</code>) and do not count that leg</td>
+</tr>
+<tr>
+<td>The robot stops facing an obstacle and never turns, in the 2D model or in Gazebo</td>
+<td>Potential field with a push too weak for the brake: the brake stops forward motion at <code>stop</code> before the push is strong enough to turn the robot. My first parameters (k_rep = 0.06, d0 = 1.2, stop = 0.55) stopped the model 0.55 m from the first pallet: <code>--method apf --set k_rep=0.06 d0=1.2 stop=0.55</code> gives <code>stuck after 39.8 s, path 2.24 m, ... end (-2.66, -2.26)</code></td>
+<td>Raise <code>k_rep</code> (1.0 is the default) or lower <code>stop</code>, and check in <code>arena2d.py</code> first</td>
+</tr>
+<tr>
+<td>The robot turns left and right on the spot in open space</td>
+<td>The histogram flips between two corridors of nearly equal cost; with <code>k_prev</code> = 0 my first Gazebo version did this and was declared stuck after 25 s</td>
+<td>Keep <code>k_prev</code> above 0 (0.5 default)</td>
+</tr>
+<tr>
+<td>The recorder writes only a few frames (<code>... .mp4: 5 frames</code>)</td>
+<td><code>projects/common/record_cam.py</code> subscribes best effort; on a loaded machine most 960 × 540 images were dropped</td>
+<td>Use <code>projects/p05_sense-and-stop/record.py</code>, which subscribes reliable (627 frames for the same kind of run)</td>
+</tr>
+<tr>
+<td>A <code>KeyboardInterrupt</code> traceback from <code>lidar_odom.py</code> and <code>process has died ... exit code -2</code> at the end of every trial</td>
+<td>The launch shuts the estimator down with SIGINT when <code>avoid.py</code> exits, and <code>lidar_odom.py</code> does not catch it</td>
+<td>Harmless: the trial's RESULT line is already printed and the log written</td>
+</tr>
+<tr>
+<td><code>UserWarning: Unable to import Axes3D</code> when running <code>analyze.py</code></td>
+<td>Two matplotlib installs on my machine (system and user); this script draws only 2D plots</td>
+<td>Harmless</td>
+</tr>
+<tr>
+<td><code>avoid.py</code> logs its goal line and nothing more</td>
+<td>No <code>/scan</code>, <code>/odom</code> or <code>/odom_gt</code> yet: the simulator is not up, or you ran <code>avoid.py</code> alone without the estimation stack</td>
+<td>Use the launch file, or start <code>estimation.launch.py</code> yourself and wait for its <code>pose=</code> lines</td>
+</tr>
+</tbody>
+</table></div><nav class="prevnext" aria-label="Previous and next"><a class="pn" href="../p05_sense-and-stop/index.html"><span>Previous</span>Sense obstacles and stop</a><a class="pn next" href="../../tutorial/09-state-estimation.html"><span>Next</span>State estimation</a></nav><p class="source">Source: <a href="https://github.com/Armanasq/go2-nav-sim/blob/main/projects/p06_avoid-obstacles/README.md">projects/p06_avoid-obstacles/README.md</a></p></article></div>
+</main>
+<footer class="site"><div class="wrap">Simulation only. Source and issues on <a href="https://github.com/Armanasq/go2-nav-sim">GitHub</a>.</div></footer>
+<script type="module" src="../../static/js/site.js"></script>
+</body>
+</html>

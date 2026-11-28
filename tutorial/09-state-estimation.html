@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>State estimation · go2-nav-sim</title>
+<meta name="description" content="State estimation">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../static/css/site.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5' fill='%230a6a9c'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"><script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script><script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.querySelector('main'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false})"></script>
+</head>
+<body data-root="../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar"><div class="inner">
+<a class="brand" href="../index.html">go2-nav-sim</a>
+<nav aria-label="Main"><a href="../tutorial/00-overview.html" aria-current="page">Learn</a><a href="../tasks/index.html">Tasks</a><a href="../modules/index.html">Deep dives</a><a href="../reference.html">Reference</a></nav>
+<button class="theme-toggle" type="button" aria-label="Colour theme: auto">auto</button>
+</div></header>
+<main id="main">
+<div class="wrap doc"><details class="side" open><summary>State estimation</summary><nav aria-label="Contents"><ol class="parts"><li><a class="part" href="00-overview.html">Start</a></li><li><a class="part" href="05-frames-and-tf2.html">The robot</a></li><li><a class="part" href="../projects/p02_teleop-and-safety/index.html">Move it</a></li><li><a class="part" href="08-robot-and-sensors.html">Sense and avoid</a></li><li class="open"><p class="part">Estimate and map</p><ol><li><a href="09-state-estimation.html" aria-current="page"><span class="n">9</span><span>State estimation</span></a><ul class="sections"><li><a href="#task-1-model-leg-odometry-from-the-joints">Task 1: Model leg odometry from the joints</a></li><li><a href="#task-2-run-the-lidar-odometry">Task 2: Run the lidar odometry</a></li><li><a href="#task-3-test-the-rep-103-signs">Task 3: Test the REP-103 signs</a></li><li><a href="#task-4-score-against-ground-truth">Task 4: Score against ground truth</a></li><li><a href="#failures-worth-knowing-about">Failures worth knowing about</a></li><li><a href="#exercise">Exercise</a></li><li><a href="#further-reading">Further reading</a></li></ul></li><li><a href="11-record-and-visualise.html"><span class="n">11</span><span>Record and visualise (optional video appendix)</span></a></li><li><a href="10-mapping-and-navigation.html"><span class="n">10</span><span>Mapping and navigation</span></a></li></ol></li><li><a class="part" href="../projects/p11_command-arbitration/index.html">Navigate</a></li><li><a class="part" href="../projects/p14_test-the-stack/index.html">Beyond simulation</a></li></ol></nav></details><article class="prose"><p class="where">Estimate and map · Chapter 9</p><h1>State estimation</h1><div class="table-wrap"><table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Goal</td>
+<td>Estimate where the robot is without the simulator's help, check that the estimate has the right signs, and score it against ground truth.</td>
+</tr>
+<tr>
+<td>Time</td>
+<td>3 h</td>
+</tr>
+<tr>
+<td>Before you start</td>
+<td><a href="05-frames-and-tf2.html">Chapter 5</a> (REP-103, <code>tf2_echo</code>) and <a href="08-robot-and-sensors.html">chapter 8</a>. Start the stack with <code>bash scripts/up.sh</code>; Tasks 1.2, 1.4, 2.1, 3.2, 3.3 and 4.1 need it running; the others work offline.</td>
+</tr>
+<tr>
+<td>You will learn</td>
+<td>the leg-odometry model and why CHAMP's version fails here; how the lidar odometry and the EKF build <code>odom</code> → <code>base_footprint</code>; a sign test you can rerun after any change; how to read ATE, RPE and AMCL error.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Nav2 needs an <code>odom</code> to <code>base_footprint</code> transform that is smooth and does not jump. Simulation tutorials usually take it from
+the simulator. This stack estimates it from the lidar and the IMU. The odometry never reads simulator ground truth; the stack
+uses it once, to initialise AMCL (<a href="10-mapping-and-navigation.html#33-the-ground-truth-shortcut-optional">chapter 10</a>), and otherwise only
+to score the result.</p>
+<h2 id="task-1-model-leg-odometry-from-the-joints">Task 1: Model leg odometry from the joints</h2>
+<h3 id="11-write-down-the-stance-foot-model">1.1 Write down the stance-foot model</h3>
+<p>Objective: one equation for the base velocity from a foot on the ground.</p>
+<p>A foot in stance does not move in the world. Its position in <code>base_link</code>, $\mathbf p_f(\mathbf q)$, comes from the joint angles
+by forward kinematics, and it changes only because the base moves. Setting the foot's world velocity to zero gives the base
+velocity in <code>base_link</code>:</p>
+<p>$$
+\mathbf v_b = -\boldsymbol\omega \times \mathbf p_f(\mathbf q) - J(\mathbf q)\,\dot{\mathbf q}
+$$</p>
+<p>where $\boldsymbol\omega$ is the gyro reading and $J = \partial\mathbf p_f/\partial\mathbf q$ is the 3 × 3 foot Jacobian of that
+leg (column $i$ is $\mathbf z_i \times (\mathbf p_f - \mathbf o_i)$ for joint axis $\mathbf z_i$ at origin $\mathbf o_i$; module
+<a href="../modules/m04_kinematics/index.html">04</a> derives and tests it). With two or more feet down, average their estimates. The model
+needs one more input: which feet are in stance. Real robots read it from foot force sensors or estimate it; nothing measures it
+in this simulation.</p>
+<p><code>docs/img/c09-leg-odometry.py</code> guesses stance from geometry: CHAMP trots, so one diagonal pair (left-front with right-hind, or
+right-front with left-hind) is on the ground at a time, and it is the pair whose feet are lower in <code>base_link</code>.</p>
+<p>Check: in the equation, a foot that sweeps backwards under the body ($\dot{\mathbf p}_f$ along -x) gives a forward base
+velocity.</p>
+<h3 id="12-record-joints-imu-and-ground-truth-during-a-mission">1.2 Record joints, IMU and ground truth during a mission</h3>
+<p>Objective: one bag for the leg model and one for the scoring in Task 4.</p>
+<pre><code class="language-bash">scripts/record_bag.sh bags/mission                         # terminal 1: the full bag (Task 4.2, chapter 11)
+ros2 bag record -o bags/legs /joint_states /imu/data /odom_gt /odom/raw /robot_description   # terminal 2
+python3 src/go2_nav_sim/scripts/go_to_goal.py              # terminal 3: drive A to B with Nav2
+</code></pre>
+<pre><code>[INFO] [1795849472.409316134] [basic_navigator]: distance remaining 1.12 m, recoveries 0
+RESULT SUCCEEDED  sim_time 77.7 s  ground-truth final error 0.28 m  final pos (3.80, 2.80)
+</code></pre>
+<p>Stop both recorders with Ctrl-C after the result line.</p>
+<pre><code class="language-bash">ros2 bag info bags/legs | grep Topic:
+</code></pre>
+<pre><code>Topic information: Topic: /robot_description | Type: std_msgs/msg/String | Count: 1 | Serialization Format: cdr
+                   Topic: /odom_gt | Type: nav_msgs/msg/Odometry | Count: 4647 | Serialization Format: cdr
+                   Topic: /odom/raw | Type: nav_msgs/msg/Odometry | Count: 5006 | Serialization Format: cdr
+                   Topic: /joint_states | Type: sensor_msgs/msg/JointState | Count: 23230 | Serialization Format: cdr
+                   Topic: /imu/data | Type: sensor_msgs/msg/Imu | Count: 9268 | Serialization Format: cdr
+</code></pre>
+<p><code>/robot_description</code> is published once with Transient Local durability, so a recorder started after the robot still receives
+it. This mission took 77.7 s, longer than the 54.8 s of run w2: for about the first 40 s Nav2 turned the robot and started and
+stopped it before it walked steadily (left plot in Task 1.3).</p>
+<p>Check: <code>/robot_description</code> count 1 and <code>/joint_states</code> about 250 per simulated second.</p>
+<h3 id="13-compute-leg-odometry-offline-and-compare">1.3 Compute leg odometry offline and compare</h3>
+<p>Objective: run the model of Task 1.1 on the bag and plot it against ground truth.</p>
+<pre><code class="language-bash">python3 docs/img/c09-leg-odometry.py bags/legs legs.png
+</code></pre>
+<pre><code>standing, first 5 s: mean J(q)dq from the velocity field 0.279 m/s, from differentiated positions 0.020 m/s
+samples 23228  duration 92.9 s  ground-truth path 13.50 m
+leg forward velocity: mean 0.206 m/s vs ground truth 0.233 m/s while walking; RMSE 0.035 m/s (0.1 s bins)
+leg + gyro path: final error 1.60 m (11.9 % of path), max 1.60 m
+CHAMP /odom/raw: 5006 messages, path 0.00 m
+</code></pre>
+<p><img loading="lazy" alt="Left: forward velocity over the 93 s recording from ground truth and from the stance legs, which track each other at about 0.2 m/s once the robot walks, and CHAMP's /odom/raw flat at zero. Right: the paths from ground truth and from legs plus gyro yaw; the leg path drifts about 0.7 m backwards during the turns in place at the start, then runs parallel to the truth and ends 1.60 m away" src="../img/c09-leg-odometry.png" /></p>
+<p><em>The A-to-B mission of Task 1.2. Leg velocity is averaged over 0.1 s bins; the path integrates it with the integrated gyro yaw,
+anchored on the true start. CHAMP's <code>/odom/raw</code> never leaves the origin.</em></p>
+<p>The legs read 12 % slow while walking (0.206 against 0.233 m/s). The guessed contact timing and foot slip during stance both
+shorten the measured stride; this bag cannot separate the two. Integrated, the path ends 1.60 m from the truth after 13.50 m.
+Most of that error comes from the first 40 s, while Nav2 turned the robot: by then the leg path is about 0.7 m behind the start,
+and the true path is not.</p>
+<p>Check: on the <code>standing, first 5 s</code> line, the value from differentiated positions is under 0.05 m/s.</p>
+<p>A constant scale error like this is what VILENS (Further reading) models as a velocity bias on the leg-odometry factor and
+estimates online.</p>
+<p>Common mistakes: using the <code>velocity</code> field of <code>/joint_states</code> for $\dot{\mathbf q}$. The effort controller makes the joints
+chatter, and with the robot standing still $J\dot{\mathbf q}$ from that field averaged 0.279 m/s, against 0.020 m/s from
+differentiating the foot positions. The script differentiates positions. The leg-odometry chapter of the SLAM Handbook (2025) notes
+that joint velocities are usually differentiated from encoders and are a noise source.</p>
+<h3 id="14-see-why-champs-leg-odometry-fails-here">1.4 See why CHAMP's leg odometry fails here</h3>
+<p>Objective: find the missing input.</p>
+<pre><code class="language-bash">ros2 topic info /foot_contacts
+</code></pre>
+<pre><code>Type: champ_msgs/msg/ContactsStamped
+Publisher count: 0
+Subscription count: 1
+</code></pre>
+<p>CHAMP's <code>state_estimation_node</code> subscribes to <code>/foot_contacts</code> and integrates the stance legs it is told about. Nothing publishes
+contacts here: <code>sim.launch.py</code> sets <code>publish_foot_contacts:=false</code>, and the Gazebo contact node that would provide them used over
+200 % of a core, so the patch removes it (<a href="03-install-and-first-run.html#12-read-what-the-patch-changes">chapter 3</a>). With no
+stance leg, <code>/odom/raw</code> stays at the origin (path 0.00 m in Task 1.3). An earlier configuration reported 0.55 m after the
+robot had really moved 3.2 m at 0.3 m/s, and 0.6 m of sideways drift on a straight path. The same missing contacts leave
+<code>base_footprint</code> to <code>base_link</code> at a constant 0.426 m (<a href="08-robot-and-sensors.html">chapter 8</a>, Task 1.2). Task 1.3 shows that the
+joints carry the motion; what is missing is contact. Fixing that is a project of its own, so this stack uses the lidar.</p>
+<p>Check: <code>Publisher count: 0</code>.</p>
+<p><a id="lidar-odometry"></a></p>
+<h2 id="task-2-run-the-lidar-odometry">Task 2: Run the lidar odometry</h2>
+<h3 id="21-find-the-estimator-in-the-running-graph">2.1 Find the estimator in the running graph</h3>
+<p>Objective: see the two nodes that produce <code>odom</code> → <code>base_footprint</code>.</p>
+<pre><code class="language-bash">ros2 topic hz -s /lidar_odom          # average rate: 9.796
+ros2 topic hz -s /odom                # average rate: 50.000
+ros2 param get /odom_ekf publish_tf   # Boolean value is: True
+</code></pre>
+<p><img loading="lazy" alt="Data flow of the estimator: lidar and IMU into lidar_odom.py, its six steps, the EKF and the consumers" src="../img/c09-ch09-dataflow.png" />
+<em>Data flow from the sensors to the <code>odom</code> to <code>base_footprint</code> transform; ground truth only reaches the scoring scripts. EKF inputs as in <code>config/ekf.yaml</code>.</em></p>
+<p><code>src/go2_nav_sim/scripts/lidar_odom.py</code> registers each scan against a local map at the 10 Hz lidar rate. The EKF
+(<code>robot_localization</code>, <code>config/ekf.yaml</code>) fuses its pose and velocity with the gyro yaw rate at 50 Hz and publishes the
+transform.</p>
+<p>Check: <code>/lidar_odom</code> near 10 Hz and <code>/odom</code> at 50 Hz in simulation time.</p>
+<h3 id="22-read-the-six-steps">2.2 Read the six steps</h3>
+<p>Objective: know what each step does and where its numbers come from.</p>
+<ol>
+<li>The cloud is transformed into <code>base_footprint</code> through TF. Because of the constant 0.426 m (Task 1.4), points come out 0.21 m
+   too high (0.426 m minus the 0.216 m standing height of <a href="07-make-it-walk.html">chapter 7</a>, Task 4) and are not levelled, while the real trunk rocks by −2 to +3.6 degrees while walking. The thresholds below are in
+   this shifted frame.</li>
+<li>Points between 0.30 and 1.0 m in <code>base_footprint</code> (about 0.09 to 0.79 m above the real ground) and 0.5 to 12 m away are kept,
+   then voxel-downsampled to 15 cm.</li>
+<li>Translation is predicted at constant velocity; the yaw increment is the integrated gyro. In the recorded runs the integrated
+   gyro matched ground-truth yaw to within 1 to 2 degrees over six seconds, including fast turns.</li>
+<li>Gauss-Newton on point-to-line residuals against the local map, with Geman-McClure weights, solves for translation only and
+   keeps yaw at the gyro prediction (<code>fix_yaw:=false</code> gives a full SE(2) solve). A prior toward the prediction is added only
+   along directions the scan barely constrains (Task 2.3).</li>
+<li>An update that implies more than 0.6 m/s or 0.8 rad/s (plus 5 cm or 0.05 rad of slack per scan) is rejected and the
+   prediction is kept. After eight rejections in a row the local map is rebuilt from the next scan.</li>
+<li>Points are added to the map only after 15 cm or 0.1 rad of motion, and only points within 12 m are kept.</li>
+</ol>
+<p><img loading="lazy" alt="Side view of the Go2 with base_link, the lidar mount, the constant base_footprint 0.209 m below the floor, and the crop band" src="../img/c09-ch09-heights.png" />
+<em>Steps 1 and 2 in metres: the Menagerie Go2 posed by the closed-form IK of module 04 at a 0.217 m trunk height, 1 mm above the 0.216 m used in the text (hence 0.209 m in the drawing); the lidar mount is from <code>urdf/go2_nav.xacro</code>.</em></p>
+<p>Two threading details matter on a busy machine. The TF listener runs in its own thread, because a blocking lookup inside a
+subscriber callback would starve the thread that delivers the transform. If a transform is slightly late, the node falls back to
+the latest one instead of dropping the scan.</p>
+<p>Check: you can say which step removes the floor rings of <a href="08-robot-and-sensors.html">chapter 8</a>, Task 2.2 (step 2, the 0.30 m lower bound).</p>
+<h3 id="23-run-the-registration-on-a-corridor">2.3 Run the registration on a corridor</h3>
+<p>Objective: see the one case where step 4 needs its prior.</p>
+<p>Each scan point is matched to a map point, and its residual is the distance along that map point's normal (point-to-line).
+Geman-McClure weights with σ = 0.12 m limit the pull of outliers, and points on walls count more than points on blobs. With yaw
+held at the gyro prediction, Gauss-Newton solves only for the translation. A prior toward the predicted translation is added
+only along a direction that carries less than 0.02 of information per matched point. In the arena both directions carry about
+0.13 per point, so the prior is off. Between two parallel walls the along-wall direction carries 0, and without the prior the
+pose could slide along the corridor. The equations, the line of <code>registration.py</code> that computes each term, and the figures are
+in <a href="../modules/m11_state_estimation/index.html">module 11</a>.</p>
+<pre><code class="language-bash">python3 -m pytest -q src/go2_nav_sim/test/test_registration.py -k corridor
+</code></pre>
+<pre><code>.                                                                        [100%]
+1 passed, 9 deselected in 0.28s
+</code></pre>
+<p>The test starts 0.3 m off along the corridor and 0.2 m across it. Registration corrects the across offset to under 2 cm and
+keeps the along offset at the prediction to within 2 cm.</p>
+<p>Check: <code>1 passed</code>. Then name the direction in which the scan alone cannot correct the pose (along the walls).</p>
+<h3 id="24-run-the-unit-tests">2.4 Run the unit tests</h3>
+<p>Objective: test the registration without ROS.</p>
+<pre><code class="language-bash">python3 -m pytest -q src/go2_nav_sim/test
+</code></pre>
+<pre><code>.............sss                                                         [100%]
+13 passed, 3 skipped in 0.55s
+</code></pre>
+<p>The tests check that a 25 cm offset is recovered to under 2 cm from three poses, that a full SE(2) solve recovers 0.05 rad, that
+20 % clutter moves the result by at most 3 cm, that a scan with no overlap is reported as a failure, that the corridor prior holds
+the along-wall estimate while correcting across, and that the gyro integration is independent of callback timing. The three
+skipped tests are the sign test of Task 3, which drives the robot or reads a bag and runs only when asked.</p>
+<p>Check: 13 passed, 3 skipped.</p>
+<h2 id="task-3-test-the-rep-103-signs">Task 3: Test the REP-103 signs</h2>
+<h3 id="31-read-what-the-test-checks">3.1 Read what the test checks</h3>
+<p>Objective: know the three conventions a wrong sign would break.</p>
+<p><code>src/go2_nav_sim/test/test_rep103_signs.py</code> reads <code>/cmd_vel</code>, <code>/odom</code>, <code>/odom_gt</code>, <code>/imu/data</code>, <code>/tf</code> and <code>/tf_static</code> from one
+of two sources. Live, it drives the robot itself: 4 s forward at 0.25 m/s and 4 s counter-clockwise at 0.5 rad/s, with pauses,
+and ends with zero velocity. From a bag, it reads the same topics, and each message takes the phase of the last <code>/cmd_vel</code>
+before it: forward when only x is commanded, turn when only z is. The same three tests then run on either source:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Test</th>
+<th>REP-103 / REP-105 rule</th>
+<th>Asserted</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>test_forward_walk_raises_x</code></td>
+<td>x points forward</td>
+<td>on <code>/odom</code> and <code>/odom_gt</code>: displacement along the heading &gt; 0.3 m and mean forward velocity in the body &gt; 0.1 m/s</td>
+</tr>
+<tr>
+<td><code>test_ccw_turn_raises_yaw</code></td>
+<td>z up, so a turn to the left is positive</td>
+<td>unwrapped yaw change &gt; 0.5 rad and mean <code>twist.angular.z</code> &gt; 0.2 rad/s on both; mean gyro z &gt; 0.2 rad/s</td>
+</tr>
+<tr>
+<td><code>test_only_the_ekf_publishes_odom_to_base_footprint</code></td>
+<td>each frame has one parent and one publisher</td>
+<td><code>odom</code> is the only parent of <code>base_footprint</code>; live, <code>odom_ekf</code> is the only <code>/odom</code> publisher; every <code>odom</code> → <code>base_footprint</code> transform equals the <code>/odom</code> pose with the same stamp in x, y (1 mm) and yaw (1 mrad)</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>/odom</code> carries its twist in the child frame <code>base_footprint</code> (REP-105), so its <code>twist.linear.x</code> is the forward speed. <code>/odom_gt</code>
+does not: <code>gazebo_ros_p3d</code> publishes its twist in <code>world</code> (<code>&lt;frame_name&gt;world&lt;/frame_name&gt;</code> in <code>sensors.xacro</code>). The test
+rotates it into the body by the yaw before it averages. Without that, a robot walking forward while facing +y reads a world
+x velocity near zero.</p>
+<p>The last test compares transforms, not node names on <code>/tf</code>, because several nodes publish on <code>/tf</code> here (<code>ros2 topic info /tf -v</code>
+lists them) and only one of them may publish this edge. It checks only transforms stamped at or before the last <code>/odom</code> message:
+the EKF can put a transform on <code>/tf</code> before the <code>/odom</code> message with the same stamp arrives, and the run may end between the two.</p>
+<p>Check: you can say which assertion a gyro mounted upside down would break (the gyro z in <code>test_ccw_turn_raises_yaw</code>).</p>
+<h3 id="32-run-it-against-the-running-stack">3.2 Run it against the running stack</h3>
+<p>Objective: a pass in under a minute, with the robot standing in the open.</p>
+<pre><code class="language-bash">time python3 src/go2_nav_sim/test/test_rep103_signs.py
+</code></pre>
+<pre><code>odom  forward: moved +0.87 m along its heading, mean body forward velocity +0.20 m/s
+
+gt    forward: moved +0.89 m along its heading, mean body forward velocity +0.23 m/s
+.
+odom  ccw turn: yaw changed +1.84 rad, mean twist.angular.z +0.47 rad/s
+
+gt    ccw turn: yaw changed +1.84 rad, mean twist.angular.z +0.46 rad/s
+imu   ccw turn: mean angular_velocity.z +0.46 rad/s
+.
+parents of base_footprint: ['odom']; /odom publishers: ['odom_ekf']; odom-&gt;base_footprint transforms 599, not matching an /odom pose 0
+.
+3 passed in 13.72s
+
+real    0m16.612s
+</code></pre>
+<p>The robot needs about 1 m of free space ahead. From A after <code>scripts/up.sh</code> there is room for this task, Task 3.3 and the
+exercise in a row: I ran four from A (left, right, left, left turns) without reaching an obstacle, and each matched every
+transform (599 to 601).</p>
+<p>Check: <code>3 passed</code>.</p>
+<p>Common mistakes: running it through plain <code>pytest</code>. That collects it, finds neither a bag nor <code>GO2_LIVE_TEST=1</code>, and skips it
+(the 3 skipped in Task 2.4), so a "pass" there tests nothing. Run the file directly.</p>
+<h3 id="33-run-it-on-a-bag">3.3 Run it on a bag</h3>
+<p>Objective: the same test without a running robot, for example on a bag from another machine or from the real Go2.</p>
+<p>Record while the live test drives (two terminals), stop the recorder with Ctrl-C, then point the test at the bag:</p>
+<pre><code class="language-bash">ros2 bag record -s mcap -o bags/signs /cmd_vel /odom /odom_gt /imu/data /tf /tf_static   # terminal 1
+python3 src/go2_nav_sim/test/test_rep103_signs.py                                         # terminal 2
+python3 src/go2_nav_sim/test/test_rep103_signs.py bags/signs                              # after Ctrl-C in terminal 1
+</code></pre>
+<pre><code>odom  forward: moved +0.93 m along its heading, mean body forward velocity +0.20 m/s
+
+gt    forward: moved +0.90 m along its heading, mean body forward velocity +0.23 m/s
+.
+odom  ccw turn: yaw changed +1.90 rad, mean twist.angular.z +0.48 rad/s
+
+gt    ccw turn: yaw changed +1.90 rad, mean twist.angular.z +0.48 rad/s
+imu   ccw turn: mean angular_velocity.z +0.47 rad/s
+.
+parents of base_footprint: ['odom']; /odom publishers: not in a bag; odom-&gt;base_footprint transforms 1631, not matching an /odom pose 0
+.
+3 passed in 7.63s
+</code></pre>
+<p>The live run during that recording printed +0.93, +0.90, +1.88 and +1.90 for the same four quantities. The bag holds 1631
+transforms against 601 live because the recorder ran for 36 s, before and after the test.</p>
+<p>Check: <code>3 passed</code> and the same signs as the live run.</p>
+<p>Common mistakes: using a Nav2 mission bag. <code>bags/mission</code> from Task 1.2 has every topic, but Nav2's turns in place go both ways,
+so the turn phase averages +0.08 rad/s and <code>test_ccw_turn_raises_yaw</code> fails although the signs are right. The bag needs one
+forward walk and one left turn, commanded separately.</p>
+<h2 id="task-4-score-against-ground-truth">Task 4: Score against ground truth</h2>
+<h3 id="41-live-while-you-drive">4.1 Live, while you drive</h3>
+<p>Objective: one line with ATE, yaw error and drift.</p>
+<p>Start from A on a fresh stack. Each <code>timeout</code> stops one <code>ros2 topic pub</code> after that many wall-clock seconds, and the last line
+publishes zero, because CHAMP keeps walking on the last command:</p>
+<pre><code class="language-bash">python3 src/go2_nav_sim/scripts/odom_eval.py 45 &amp;        # scores for 45 s
+timeout 4 ros2 topic pub -r 10 /cmd_vel geometry_msgs/msg/Twist &quot;{angular: {z: 0.5}}&quot;    # turn left
+timeout 10 ros2 topic pub -r 10 /cmd_vel geometry_msgs/msg/Twist &quot;{linear: {x: 0.25}}&quot;   # walk forward
+timeout 4 ros2 topic pub -r 10 /cmd_vel geometry_msgs/msg/Twist &quot;{angular: {z: -0.5}}&quot;   # turn back
+ros2 topic pub -t 5 -r 10 /cmd_vel geometry_msgs/msg/Twist &quot;{}&quot;                         # stop
+wait
+</code></pre>
+<pre><code>samples 216  path 2.66 m  ATE RMSE 0.036 m  max 0.079 m  final 0.079 m  yaw err RMSE 4.90 deg  drift 2.95 % of path
+</code></pre>
+<p>0.5 rad/s is also the most the robot can turn: CHAMP clips yaw commands to 0.5 rad/s (<a href="07-make-it-walk.html">chapter 7</a>, Task 3).
+The run had a real-time factor of 0.84 with five other simulators on the machine (load average 80 on 32 threads). A first run with
+6 s turns, at a factor of 0.83, read ATE RMSE 0.111 m and yaw error 5.72°.</p>
+<p><code>odom_eval.py</code> pairs the latest <code>/odom</code> and <code>/odom_gt</code> messages every 0.2 s of wall-clock time. During a 0.5 rad/s turn, a 0.1 s
+delay between the two topics alone shows as 2.9° of yaw error, so part of the 4.9° is likely pairing, not estimation (my
+reading; I did not separate the two).</p>
+<p>Check: ATE RMSE of a few centimetres to about 0.1 m, and yaw error of a few degrees.</p>
+<p>Common mistakes: scoring on an overloaded machine. The same sequence on a machine running eight simulators (real-time factor
+0.56, load average 113 on 32 threads) gave</p>
+<pre><code>samples 211  path 1.96 m  ATE RMSE 0.637 m  max 0.834 m  final 0.708 m  yaw err RMSE 11.54 deg  drift 36.12 % of path
+</code></pre>
+<p>The estimator was starved, the failure described under "Other processes starved the estimator" below. Check <code>gz stats</code> and
+<code>top</code> before trusting a bad number.</p>
+<h3 id="42-from-a-bag-for-a-whole-mission">4.2 From a bag, for a whole mission</h3>
+<p>Objective: the standard numbers for the mission you recorded in Task 1.2.</p>
+<pre><code class="language-bash">python3 src/go2_nav_sim/scripts/bag_metrics.py bags/mission --json results/mission.json
+</code></pre>
+<pre><code>{
+  &quot;duration_s&quot;: 92.3,
+  &quot;path_m&quot;: 13.48,
+  &quot;mean_speed_ms&quot;: 0.146,
+  &quot;odom_ate_aligned_cm&quot;: 2.4,
+  &quot;odom_ate_anchored_cm&quot;: 6.8,
+  &quot;odom_final_err_cm&quot;: 16.1,
+  &quot;odom_drift_pct&quot;: 1.19,
+  &quot;odom_rpe_1m_pct&quot;: 2.2,
+  &quot;amcl_rmse_cm&quot;: 8.6,
+  &quot;amcl_max_cm&quot;: 18.2,
+  &quot;amcl_updates&quot;: 194,
+  &quot;goal_error_m&quot;: 0.27,
+  &quot;goal_tolerance_m&quot;: 0.25
+}
+</code></pre>
+<p><code>bag_metrics.py</code> pairs every estimate with ground truth interpolated at the estimate's own timestamp. ATE aligned is the RMSE
+after the best rigid SE(2) fit; ATE anchored aligns only the first pose and so keeps the drift; RPE is the error over 1 m
+segments of travel (Sturm et al., IROS 2012, in their planar form). Run w2 is the run the README and the videos show; its
+numbers are in <code>results/run_w2.json</code>, and the Nav2 output in <code>site/evidence/missions.txt</code>:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Run w2</th>
+<th>Your mission above</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Time to goal (Nav2 result)</td>
+<td>54.8 s</td>
+<td>77.7 s</td>
+</tr>
+<tr>
+<td>Path length</td>
+<td>11.6 m</td>
+<td>13.48 m</td>
+</tr>
+<tr>
+<td>Distance to B at the end of the recording</td>
+<td>0.21 m</td>
+<td>0.27 m</td>
+</tr>
+<tr>
+<td>Odometry ATE, SE(2)-aligned / anchored on the first pose</td>
+<td>1.1 cm / 2.5 cm</td>
+<td>2.4 cm / 6.8 cm</td>
+</tr>
+<tr>
+<td>Odometry relative error over 1 m of travel</td>
+<td>1.6 %</td>
+<td>2.2 %</td>
+</tr>
+<tr>
+<td>AMCL error at its updates</td>
+<td>10.8 cm RMSE, 21.8 cm maximum</td>
+<td>8.6 cm RMSE, 18.2 cm maximum</td>
+</tr>
+</tbody>
+</table></div>
+<p><img loading="lazy" alt="Run w2 trajectories of ground truth, odometry and AMCL in the arena, and position error over time" src="../img/c09-ch09-run-w2.png" />
+<em>Run w2 from <code>site/data/runs/w2/run.json</code> (10 Hz, odometry anchored on the first pose): odometry 2.6 cm RMSE and 7.7 cm maximum, AMCL 12.0 cm RMSE at its 171 updates. <code>bag_metrics.py</code>, which interpolates ground truth at each estimate's stamp, reports 2.5 cm and 10.8 cm.</em></p>
+<p><img loading="lazy" alt="Bar charts of odometry error, AMCL error and final distance to B for runs w1 to w3" src="../img/c09-ch11-runs.png" />
+<em>All three runs from <code>results/run_w1.json</code> to <code>run_w3.json</code>; run w3 ends 0.34 m from B, outside the 0.25 m tolerance drawn dashed.</em></p>
+<p>Over the three recorded runs the odometry ATE after alignment is 1.1 to 1.7 cm over 11.6 to 13.8 m of path, and the relative
+error over 1 m of travel is 1.6 to 2.4 %. Read those numbers with care: the arena is small, so the 12 m local map covers the
+whole room and the estimator behaves partly like localisation against a fixed map. Expect more drift in larger or featureless
+spaces. The method has no loop closure, and its degeneracy threshold was chosen from two synthetic cases rather than calibrated
+on real data. With odometry at 1 to 2 cm and AMCL at 10 to 18 cm, localisation is the weakest link in this stack. The end
+distance to B mostly reflects Nav2's <code>xy_goal_tolerance</code> of 0.25 m. In run w3 it is 0.34 m: Nav2 stopped when AMCL, then about
+10 cm off, put the robot inside the tolerance.</p>
+<p>An earlier version of <code>bag_metrics.py</code> held the last AMCL pose between updates and compared it with a moving ground truth, which
+overstated AMCL's error by about 2 to 3 cm; an independent review caught it.</p>
+<p><img loading="lazy" alt="Six seconds of run w2: ground-truth x, the held AMCL pose as a staircase, and the error compared at every sample versus only at updates" src="../img/c09-ch11-pairing.png" />
+<em>Why the pairing matters. On the 10 Hz export of run w2 (time axis: wall-clock seconds since the bag started), the held pose gives 13.1 cm RMSE over the run against 12.0 cm at the updates; <code>bag_metrics.py</code>, which interpolates ground truth at each AMCL stamp, reports 10.8 cm.</em></p>
+<video controls muted playsinline src="../media/c09-ch09-lidar-odometry.mp4"></video>
+
+<p><em>Run w2, lidar sweep and map panels of the dashboard (14 s): the robot turns in place toward the first plan, then starts walking while the SLAM map fills in.</em></p>
+<p>Check: your <code>odom_ate_aligned_cm</code> is a few centimetres, and <code>goal_error_m</code> is close to <code>goal_tolerance_m</code> (0.25). Above it means
+AMCL was off when Nav2 stopped, as in run w3 above.</p>
+<h2 id="failures-worth-knowing-about">Failures worth knowing about</h2>
+<ul>
+<li>Gyro bias is not estimated. Yaw comes from the integrated gyro and the scan matching does not correct it, so any bias turns into
+  heading drift. Measurements disagree on how large it is: integrating <code>/imu/data</code> alone drifted 6.4° over 60 s standing and
+  4.0° over the first 60 s of a recorded run (chapter 4's <code>imu_yaw</code> node), and one long standing test on a machine running two
+  stacks saw the odometry drift 2.6 m and 22° in a few minutes; a 130 s standing test on a single stack drifted 0.27° (yaw RMSE)
+  and 1.9 cm. The three missions are about 60 s long, which keeps this hidden. The fix is to estimate the bias online, for
+  example from the difference between the scan-matched and the integrated yaw while the robot stands still.</li>
+<li>The trunk tilt never reaches TF. <code>tf2_echo base_footprint base_link</code> on a running stack prints a constant (0, 0, 0.426), against
+  a ground-truth base height of 0.216 m (chapter 7, Task 4). The IMU orientation is correct but unused there. The fix, still open, is to publish
+  <code>base_footprint</code> to <code>base_link</code> from the IMU roll and pitch and a base height from leg kinematics (module 04). Until then, a
+  tilt of 3.6 degrees moves a point 3 m away by about 0.19 m in height.</li>
+<li>IMU samples arrived late. The IMU and point-cloud callbacks shared one thread. While a registration ran, IMU samples queued up and
+  were then dropped from the next scan's integration window, so yaw was under-integrated by about half during turns and the
+  odometry diverged. The fix: integrate the gyro continuously into a cumulative yaw history, look it up by timestamp, and run the
+  two callbacks in separate groups of a multi-threaded executor (ROS 2 guide: <a href="https://docs.ros.org/en/humble/How-To-Guides/Using-callback-groups.html">Using callback groups</a>). After this, three missions in a row succeeded.</li>
+<li>Other processes starved the estimator. Earlier, two repeated missions diverged (ATE 100 cm and 199 cm). At the time, three orphaned
+  <code>lifecycle_manager</code> processes from earlier runs were spinning at 100 % CPU each, because they ignore SIGTERM. Scans arrived late,
+  the TF lookups fell back to stale data and registration was rejected. <code>scripts/stop.sh</code> now escalates to SIGKILL. If the
+  odometry log shows <code>registration rejected</code>, check <code>top</code> first. Task 4.1 shows the same effect from a fully loaded machine.</li>
+<li>A yaw prior made it worse. I tried tying ICP's yaw to the gyro with a stiff prior. In an earlier controlled test, whose
+  output is not in the repository, the error went from under 1 cm to 2.3 m, so it is not in the code. That experiment ran
+  before the late-IMU fix above, when the integrated gyro yaw was itself wrong during turns, and I have not re-tested it since.</li>
+<li>The rotation flipped. With a full SE(2) solve, the registration jumped to the 180-degree-flipped solution of the rectangular room
+  when Nav2's spin recovery turned the robot (odometry yaw off by 175 degrees). The recovery asks for up to 1.0 rad/s
+  (<code>max_rotational_vel</code> in <code>nav2_params.yaml</code>); CHAMP clips that to 0.5 rad/s. The gyro was right all along, hence the
+  translation-only solve. The cost: gyro bias is not corrected, which is harmless in simulation and would need handling on
+  hardware.</li>
+<li>A uniform prior biased every solution. The first version added the translation prior in all directions. A unit test showed
+  the cost: with the prediction 25 cm off, the result landed 2.5 cm short of the truth, against 1 to 2 mm without the prior. The
+  degeneracy-aware version removes that bias where the scan is informative.</li>
+<li>Planar ICP can slide along parallel walls. The first degeneracy test used an absolute eigenvalue threshold of 10, so the same
+  geometry passed or failed depending on how many points the scan had; an expert review pointed this out and the threshold is now
+  per matched point (0.02). The threshold is still a hand-picked number; a real deployment would add a second source such as the
+  leg odometry of Task 1.</li>
+</ul>
+<p><img loading="lazy" alt="Timeline of scan registrations and IMU samples, before with one thread and after with two callback groups" src="../img/c09-ch09-callbacks.png" />
+<em>The late-IMU failure. Before, IMU callbacks waited behind registration in one thread; after, each sample goes into the yaw history at once. Schematic, durations not to scale.</em></p>
+<p><img loading="lazy" alt="Arena scan at the true yaw and turned 180 degrees, and the robust cost over yaw offsets with a second minimum at 180 degrees" src="../img/c09-ch09-yaw-flip.png" />
+<em>The flipped rotation. Mean robust cost of the synthetic scan at (0, 0) over yaw offsets: 0.007 at the truth, 0.24 at 180°, and 0.004 at 180° for the outer walls alone, so a full SE(2) solve can settle in the flipped minimum.</em></p>
+<h2 id="exercise">Exercise</h2>
+<p>Copy the sign test, change its turn to clockwise (<code>FORWARD, TURN = 0.25, -0.5</code>), and run the copy. Which test fails, and with
+what numbers?</p>
+<p>Answer: <code>test_ccw_turn_raises_yaw</code> fails at its first assertion; the other two pass.</p>
+<pre><code>odom  ccw turn: yaw changed -1.81 rad, mean twist.angular.z -0.45 rad/s
+E           assert -1.808391551068846 &gt; 0.5
+1 failed, 2 passed in 15.43s
+</code></pre>
+<p>A clockwise turn lowers yaw under REP-103, so the failure shows that the test can tell the two directions apart. A test that
+also passed with the sign flipped would check nothing.</p>
+<h2 id="further-reading">Further reading</h2>
+<ul>
+<li>Bloesch et al., "State estimation for legged robots: consistent fusion of leg kinematics and IMU", RSS 2012: https://www.roboticsproceedings.org/rss08/p03.html</li>
+<li>Camurri et al., "Pronto: a multi-sensor state estimator for legged robots in real-world scenarios", Frontiers in Robotics and AI 2020: https://doi.org/10.3389/frobt.2020.00068, code in <code>ori-drs/pronto</code></li>
+<li>Wisth et al., "VILENS: visual, inertial, lidar, and leg odometry for all-terrain legged robots": https://arxiv.org/abs/2107.07243</li>
+</ul><nav class="prevnext" aria-label="Previous and next"><a class="pn" href="../projects/p06_avoid-obstacles/index.html"><span>Previous</span>Reactive obstacle avoidance without a map</a><a class="pn next" href="11-record-and-visualise.html"><span>Next</span>Record and visualise (optional video appendix)</a></nav><p class="source">Source: <a href="https://github.com/Armanasq/go2-nav-sim/blob/main/docs/09-state-estimation.md">docs/09-state-estimation.md</a></p></article></div>
+</main>
+<footer class="site"><div class="wrap">Simulation only. Source and issues on <a href="https://github.com/Armanasq/go2-nav-sim">GitHub</a>.</div></footer>
+<script type="module" src="../static/js/site.js"></script>
+</body>
+</html>

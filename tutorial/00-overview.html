@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>What you will build · go2-nav-sim</title>
+<meta name="description" content="What you will build">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../static/css/site.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5' fill='%230a6a9c'/%3E%3C/svg%3E">
+
+</head>
+<body data-root="../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar"><div class="inner">
+<a class="brand" href="../index.html">go2-nav-sim</a>
+<nav aria-label="Main"><a href="../tutorial/00-overview.html" aria-current="page">Learn</a><a href="../tasks/index.html">Tasks</a><a href="../modules/index.html">Deep dives</a><a href="../reference.html">Reference</a></nav>
+<button class="theme-toggle" type="button" aria-label="Colour theme: auto">auto</button>
+</div></header>
+<main id="main">
+<div class="wrap doc"><details class="side" open><summary>What you will build</summary><nav aria-label="Contents"><ol class="parts"><li class="open"><p class="part">Start</p><ol><li><a href="00-overview.html" aria-current="page"><span class="n">0</span><span>What you will build</span></a><ul class="sections"><li><a href="#task-1-look-at-a-finished-run">Task 1: Look at a finished run</a></li><li><a href="#task-2-plan-your-route">Task 2: Plan your route</a></li><li><a href="#the-stack-node-by-node">The stack, node by node</a></li><li><a href="#exercise">Exercise</a></li><li><a href="#further-reading">Further reading</a></li></ul></li><li><a href="01-legged-robot-foundations.html"><span class="n">1</span><span>Legged robot foundations</span></a></li><li><a href="02-prerequisites.html"><span class="n">2</span><span>Prerequisites</span></a></li><li><a href="03-install-and-first-run.html"><span class="n">3</span><span>Install and first run</span></a></li><li><a href="04-ros2-from-scratch.html"><span class="n">4</span><span>ROS 2 from scratch</span></a></li><li><a href="../projects/p01_first-steps/index.html"><span class="n">P1</span><span>First steps</span></a></li></ol></li><li><a class="part" href="05-frames-and-tf2.html">The robot</a></li><li><a class="part" href="../projects/p02_teleop-and-safety/index.html">Move it</a></li><li><a class="part" href="08-robot-and-sensors.html">Sense and avoid</a></li><li><a class="part" href="09-state-estimation.html">Estimate and map</a></li><li><a class="part" href="../projects/p11_command-arbitration/index.html">Navigate</a></li><li><a class="part" href="../projects/p14_test-the-stack/index.html">Beyond simulation</a></li></ol></nav></details><article class="prose"><p class="where">Start · Chapter 0</p><h1>What you will build</h1><p>A simulated Unitree Go2 that walks across a room to a goal, using a 3D lidar, an IMU and Nav2. The pose estimate that Nav2
+uses is computed from the robot's own sensors. The simulator's ground truth is used once, to initialise AMCL, and after that
+only recorded to score the run, so every run ends with numbers as well as a video.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Goal</td>
+<td>Know what the finished stack does, how its result is scored, and which chapters and projects to do in which order.</td>
+</tr>
+<tr>
+<td>Time</td>
+<td>0.5 h</td>
+</tr>
+<tr>
+<td>Before you start</td>
+<td>Nothing. Task 1 reads files in a clone of the repository; no ROS needed.</td>
+</tr>
+<tr>
+<td>You will learn</td>
+<td>what each part of the stack does; how a run is scored against ground truth; the core path and the optional deep dives, with hours.</td>
+</tr>
+</tbody>
+</table></div>
+<p><img loading="lazy" alt="The Unitree Go2 rendered in MuJoCo, three-quarter and side view" src="../img/c00-00-go2-render.png" /></p>
+<p><em>The Go2 as modelled in MuJoCo Menagerie (<code>modules/assets/unitree_go2</code>, used by the modules); the ROS stack simulates the URDF from <code>unitree-go2-ros2</code> in Gazebo.</em></p>
+<video controls muted playsinline src="../media/c00-00-a2b-start.mp4"></video>
+
+<p><em>From 0:03 to 0:15 of the dashboard video <code>media/go2_a2b_dashboard.mp4</code>: the robot stands at A, Nav2 publishes a plan (amber) and the robot starts to walk.</em></p>
+<h2 id="task-1-look-at-a-finished-run">Task 1: Look at a finished run</h2>
+<h3 id="11-read-the-score-of-a-recorded-run">1.1 Read the score of a recorded run</h3>
+<p>Objective: see what "scored against ground truth" means before you build anything.</p>
+<pre><code class="language-bash">git clone https://github.com/Armanasq/go2-nav-sim.git &amp;&amp; cd go2-nav-sim
+python3 -c &quot;import json; r = json.load(open('results/run_w2.json')); print({k: r[k] for k in ('duration_s', 'path_m', 'odom_ate_aligned_cm', 'amcl_rmse_cm', 'goal_error_m', 'goal_tolerance_m')})&quot;
+</code></pre>
+<pre><code>{'duration_s': 63.5, 'path_m': 11.59, 'odom_ate_aligned_cm': 1.1, 'amcl_rmse_cm': 10.8, 'goal_error_m': 0.21, 'goal_tolerance_m': 0.25}
+</code></pre>
+<p>The file was written by <code>bag_metrics.py</code> from the rosbag of run w2. <code>duration_s</code> is the length of the recording in simulated
+time, <code>path_m</code> the distance the robot really walked, <code>odom_ate_aligned_cm</code> the odometry error and <code>amcl_rmse_cm</code> the AMCL error,
+both against ground truth, and <code>goal_error_m</code> how far from B the robot really stopped.</p>
+<p>Check: <code>goal_error_m</code> (0.21) is smaller than <code>goal_tolerance_m</code> (0.25).</p>
+<p><img loading="lazy" alt="Top view of the arena with obstacles, start A, goal B and the ground-truth path" src="../img/c00-00-arena.png" /></p>
+<p><em>The room, from <code>site/data/runs/w2/run.json</code>: start A at (-4.5, -3.5), goal B at (4.0, 3.0), six obstacles, and the path the robot walked in run w2.</em></p>
+<p><img loading="lazy" alt="Pipeline after a run: record_bag.sh writes one MCAP bag; bag_metrics.py, render_dashboard.py and export_run.py read it into the metrics file, the dashboard video and the website data" src="../img/c00-00-scoring-pipeline.png" /></p>
+<p><em>How a run becomes numbers, a video and website data, from the usage lines of the three scripts and the topic list in <code>scripts/record_bag.sh</code>. <code>/odom_gt</code> is in the bag only so that it can be scored.</em></p>
+<h3 id="12-read-the-stack">1.2 Read the stack</h3>
+<p>Objective: know which parts you will run unmodified and which were written for this course.</p>
+<p>Gazebo Classic simulates the robot, its CHAMP gait controller and the sensors. A lidar odometry node registers each lidar scan
+against a local map, with yaw taken from the gyro. An EKF fuses that with the IMU and publishes the <code>odom</code> frame. AMCL localises
+on a known map and Nav2 plans and drives. A second mapper, <code>slam_toolbox</code>, builds its own map in the background so you can
+compare it with the real layout. Every run is recorded to a rosbag, scored against ground truth and rendered to a video.</p>
+<pre><code class="language-bash">ls src/go2_nav_sim/scripts/*.py | xargs -n1 basename | paste -sd' '
+</code></pre>
+<pre><code>bag_metrics.py export_run.py go_to_goal.py gt_odom.py lidar_odom.py make_arena.py make_nav2_params.py odom_eval.py registration.py render_dashboard.py
+</code></pre>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Simulated</td>
+<td>the robot, its gait, the sensors and the room. Nothing here drives a physical Go2.</td>
+</tr>
+<tr>
+<td>Used unmodified</td>
+<td>Nav2, AMCL, <code>robot_localization</code>, <code>slam_toolbox</code>, <code>pointcloud_to_laserscan</code></td>
+</tr>
+<tr>
+<td>Written for this project</td>
+<td>the lidar odometry (<code>lidar_odom.py</code> and <code>registration.py</code>), the launch and bring-up scripts, the evaluation and the dashboard. The registration has unit tests that run without ROS.</td>
+</tr>
+<tr>
+<td>Shortcuts</td>
+<td>AMCL is started from the true pose, and navigation uses a map that is known in advance. <a href="10-mapping-and-navigation.html">Chapter 10</a> explains both.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Check: <code>lidar_odom.py</code> and <code>registration.py</code> are in the list; there is no gait or planner code, because those come from CHAMP
+and Nav2.</p>
+<p><img loading="lazy" alt="ROS 2 graph of the stack: Gazebo, CHAMP, lidar odometry, EKF, AMCL, slam_toolbox, Nav2 and the topics between them" src="../img/c00-00-ros-graph.png" /></p>
+<p><em>The nodes and topics of the running stack, read from <code>src/go2_nav_sim/launch/*.py</code>; the fill says where each node comes from. <code>scripts/record_bag.sh</code> records the sensor, odometry, map, plan and command topics.</em></p>
+<h2 id="task-2-plan-your-route">Task 2: Plan your route</h2>
+<h3 id="21-pick-the-core-path">2.1 Pick the core path</h3>
+<p>Objective: decide how far to go and in which order.</p>
+<pre><code class="language-bash">ls -d docs/[0-9]*.md projects/p*/
+ls projects/*/README.md
+</code></pre>
+<pre><code>docs/00-overview.md
+docs/01-legged-robot-foundations.md
+docs/02-prerequisites.md
+docs/03-install-and-first-run.md
+docs/04-ros2-from-scratch.md
+docs/05-frames-and-tf2.md
+docs/06-import-the-go2.md
+docs/07-make-it-walk.md
+docs/08-robot-and-sensors.md
+docs/09-state-estimation.md
+docs/10-mapping-and-navigation.md
+docs/11-record-and-visualise.md
+docs/12-troubleshooting.md
+projects/p01_first-steps/
+projects/p02_teleop-and-safety/
+projects/p03_move-in-shapes/
+projects/p04_go-to-pose/
+projects/p05_sense-and-stop/
+projects/p11_command-arbitration/
+projects/p12_tune-nav2/
+projects/p13_behaviour-trees/
+projects/p14_test-the-stack/
+projects/p01_first-steps/README.md
+projects/p02_teleop-and-safety/README.md
+projects/p03_move-in-shapes/README.md
+projects/p04_go-to-pose/README.md
+projects/p05_sense-and-stop/README.md
+projects/p12_tune-nav2/README.md
+projects/p13_behaviour-trees/README.md
+projects/p14_test-the-stack/README.md
+</code></pre>
+<p>Thirteen chapters and nine project folders. p01 to p05 and p11 to p14 have a <code>README.md</code>; the other folders hold code and results
+without instructions yet, so the table marks them as not yet published. Work through the steps in this
+order. Hours are estimates for a beginner from <code>research/gap-plan.md</code>; two marked * were not in that plan and are my estimates:
+p04 by comparison with p03, p11 from its measured runs (about 9 min of wall-clock time in my session) plus reading and typing.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Chapter or project</th>
+<th>You end with</th>
+<th>Hours</th>
+<th>Total</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><a href="00-overview.html">0. What you will build</a></td>
+<td>this plan</td>
+<td>0.5</td>
+<td>0.5</td>
+</tr>
+<tr>
+<td>2</td>
+<td><a href="01-legged-robot-foundations.html">1. Legged robot foundations</a></td>
+<td>the layers between a URDF and a walking robot</td>
+<td>1.5</td>
+<td>2</td>
+</tr>
+<tr>
+<td>3</td>
+<td><a href="02-prerequisites.html">2. Prerequisites</a> and <a href="03-install-and-first-run.html">3. Install and first run</a></td>
+<td>the stack built, running and reaching the goal</td>
+<td>2</td>
+<td>4</td>
+</tr>
+<tr>
+<td>4</td>
+<td><a href="04-ros2-from-scratch.html">4. ROS 2 from scratch</a></td>
+<td>the running graph inspected, a node of your own built and tested</td>
+<td>4</td>
+<td>8</td>
+</tr>
+<tr>
+<td>5</td>
+<td><a href="../projects/p01_first-steps/index.html">p01 First steps</a></td>
+<td>the robot walked and stopped from the command line, measured</td>
+<td>2</td>
+<td>10</td>
+</tr>
+<tr>
+<td>6</td>
+<td><a href="05-frames-and-tf2.html">5. Frames and TF2</a></td>
+<td>the TF tree read, one wrong transform found</td>
+<td>2.5</td>
+<td>12.5</td>
+</tr>
+<tr>
+<td>7</td>
+<td><a href="06-import-the-go2.html">6. Import the Go2</a></td>
+<td>how the description, ros2_control and CHAMP fit together</td>
+<td>2</td>
+<td>14.5</td>
+</tr>
+<tr>
+<td>8</td>
+<td><a href="07-make-it-walk.html">7. Make it walk</a></td>
+<td>velocity limits and gait parameters measured</td>
+<td>2</td>
+<td>16.5</td>
+</tr>
+<tr>
+<td>9</td>
+<td><a href="../projects/p02_teleop-and-safety/index.html">p02 Teleop and safety</a></td>
+<td>a dead-man timeout of your own, measured</td>
+<td>3</td>
+<td>19.5</td>
+</tr>
+<tr>
+<td>10</td>
+<td><a href="../projects/p03_move-in-shapes/index.html">p03 Move in shapes</a></td>
+<td>open loop vs closed loop, scored</td>
+<td>2</td>
+<td>21.5</td>
+</tr>
+<tr>
+<td>11</td>
+<td><a href="../projects/p04_go-to-pose/index.html">p04 Go to pose</a></td>
+<td>a polar-coordinate pose controller</td>
+<td>2*</td>
+<td>23.5</td>
+</tr>
+<tr>
+<td>12</td>
+<td><a href="08-robot-and-sensors.html">8. Robot and sensors</a></td>
+<td>lidar, RGB-D and IMU checked in their frames</td>
+<td>2</td>
+<td>25.5</td>
+</tr>
+<tr>
+<td>13</td>
+<td>p05 Sense and stop (<code>projects/p05_sense-and-stop</code>): not yet published</td>
+<td>a stop in front of an obstacle from <code>/scan</code></td>
+<td>2</td>
+<td>27.5</td>
+</tr>
+<tr>
+<td>14</td>
+<td><a href="09-state-estimation.html">9. State estimation</a> and <a href="11-record-and-visualise.html">11. Record and visualise</a></td>
+<td>odometry scored against ground truth; a bag and its dashboard</td>
+<td>4</td>
+<td>31.5</td>
+</tr>
+<tr>
+<td>15</td>
+<td><a href="10-mapping-and-navigation.html">10. Mapping and navigation</a></td>
+<td>Nav2 driving A to B, a map built alongside</td>
+<td>4.5</td>
+<td>36</td>
+</tr>
+<tr>
+<td>16</td>
+<td>p06 to p10</td>
+<td>no such folders yet</td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td>17</td>
+<td><a href="../projects/p11_command-arbitration/index.html">p11 Command arbitration</a></td>
+<td>teleop above Nav2 through <code>twist_mux</code>, a Collision Monitor and an e-stop lock</td>
+<td>2*</td>
+<td>38</td>
+</tr>
+<tr>
+<td>18</td>
+<td>p12 Tune Nav2 (<code>projects/p12_tune-nav2</code>): not yet published</td>
+<td>Nav2 settings justified by measured runs</td>
+<td>2.5</td>
+<td>40.5</td>
+</tr>
+<tr>
+<td>19</td>
+<td><a href="../projects/p13_behaviour-trees/index.html">p13 Behaviour trees</a></td>
+<td>a recovery reordered in Nav2's tree, and a waypoint patrol</td>
+<td>1.5</td>
+<td>42</td>
+</tr>
+<tr>
+<td>20</td>
+<td><a href="../projects/p14_test-the-stack/index.html">p14 Test the stack</a></td>
+<td>a ROS-level smoke test</td>
+<td>1.5</td>
+<td>43.5</td>
+</tr>
+<tr>
+<td>21</td>
+<td><a href="13-toward-the-real-go2.html">13. Toward the real Go2</a></td>
+<td>the network recipe, the safety page and a <code>cmd_vel</code> bridge whose clamp and timeout logic is tested with pure-Python unit tests (<code>unitree_mujoco</code> has no sport-mode service, so it cannot test the bridge); no hardware needed</td>
+<td>2.5</td>
+<td>46</td>
+</tr>
+<tr>
+<td>22</td>
+<td>Capstone: not yet published</td>
+<td>three goals reached while mapping, with a moved obstacle and a new start, over 3 runs</td>
+<td>3</td>
+<td>49</td>
+</tr>
+<tr>
+<td>any</td>
+<td><a href="../reference.html#troubleshooting">12. Troubleshooting</a></td>
+<td>a lookup table, not read front to back</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<p>The plan's 45 h are steps 1 to 22 without the two starred projects; with them the route is 49 h. Steps 13, 18 and 22, 7.5 h, have
+no instructions yet.</p>
+<p><img loading="lazy" alt="The core path as bars on a cumulative-hours axis, chapters in blue and projects in amber, the first 10 h shaded, the steps without instructions pale" src="../img/c00-00-route.png" /></p>
+<p><em>The table above on one time axis. Hatched: the two estimates marked *. Pale: not yet published.</em></p>
+<p>Deep dives are outside these hours and no core chapter depends on them. Each <a href="../modules/index.html">module</a> solves one problem
+on the Go2 model in MuJoCo and checks the result against an established library: <a href="../modules/m00_math/index.html">m00 maths</a>,
+<a href="../modules/m01_anatomy/index.html">m01 anatomy</a>, <a href="../modules/m04_kinematics/index.html">m04 kinematics</a>. The derivations the
+chapters skip live there.</p>
+<p>Check: <code>ls projects/*/README.md</code> lists the four projects that the table links; the route adds up to 49 h. Steps 1 to 5
+(10 h) already give you a running stack that you can inspect and drive.</p>
+<h3 id="22-check-the-hardware">2.2 Check the hardware</h3>
+<p>Objective: know before installing whether your machine can run the stack.</p>
+<p>You need about 5 GB of disk, 8 or more CPU threads, and a GPU for the cameras and the GPU lidar. A recording
+needs about 10.5 MiB per simulated second, about 0.6 GiB per simulated minute. One run of <code>scripts/run_mission.sh</code>
+(<a href="03-install-and-first-run.html">chapter 3</a>, task 3) wrote a 710.2 MiB bag (<code>ros2 bag info</code>) for 67.7 s of simulated time
+(<code>duration_s</code> of <code>bag_metrics.py</code>) and 112.7 s of wall-clock time, a real-time factor of 0.60. Per wall-clock second that is
+6.3 MiB/s, and that rate falls when the machine is slower.</p>
+<pre><code class="language-bash">nproc; df -h . | tail -1
+</code></pre>
+<p>On the test machine:</p>
+<pre><code>32
+/dev/nvme1n1p2  1.9T  1.5T  288G  84% /
+</code></pre>
+<p>Check: <code>nproc</code> prints 8 or more, and the fourth column of <code>df</code> (free space) is above 5 GB plus 0.6 GB for each simulated minute
+you plan to record. With fewer than 8 threads the simulator runs slower than real time. Every rate and time in this course is
+in simulated time, so results stay comparable; only the wall-clock wait grows. <a href="02-prerequisites.html">Chapter 2</a>, task 1,
+checks the operating system and the GPU.</p>
+<h2 id="the-stack-node-by-node">The stack, node by node</h2>
+<p>Select a node for what it does, the topics it publishes and the files that configure it.</p><div class="instrument" data-mount="arch"></div>
+<h2 id="exercise">Exercise</h2>
+<p>Run 1.1 for all three recorded runs. Which run stopped outside the goal tolerance, and how far was AMCL off on average in that
+run?</p>
+<pre><code class="language-bash">python3 -c &quot;
+import json, glob
+for f in sorted(glob.glob('results/run_w*.json')):
+    r = json.load(open(f)); print(f, r['goal_error_m'], r['goal_tolerance_m'], r['amcl_rmse_cm'])&quot;
+</code></pre>
+<p>Answer:</p>
+<pre><code>results/run_w1.json 0.25 0.25 8.3
+results/run_w2.json 0.21 0.25 10.8
+results/run_w3.json 0.34 0.25 18.7
+</code></pre>
+<p>Run w3 stopped 0.34 m from B, outside the 0.25 m tolerance, and it has the largest AMCL error (18.7 cm RMSE). Nav2 stops when
+its own estimate, which comes from AMCL, is inside the tolerance, so an AMCL error moves the real stopping point. Nav2 still
+reported success in all three runs.</p>
+<p><img loading="lazy" alt="Close-up of goal B for runs w1, w2 and w3: ground-truth path, AMCL path, the 0.25 m tolerance circle, and the final points" src="../img/c00-00-final-approach.png" /></p>
+<p><em>The last metres of each run (<code>site/data/runs/wN/run.json</code>). The last <code>/amcl_pose</code> of every run lies inside the circle; the true stop of w3 lies 0.34 m from B.</em></p>
+<h2 id="further-reading">Further reading</h2>
+<ul>
+<li>F. Rico, <em>A Concise Introduction to Robot Programming with ROS 2</em>, 2025, code in <code>fmrico/book_ros2</code>: the order this course
+  follows from reactive behaviour to behaviour trees to Nav2.</li>
+<li>Nav2, first-time robot setup guide: https://docs.nav2.org/rolling/configuration_and_development/first_time_robot_setup_guide/</li>
+</ul><nav class="prevnext" aria-label="Previous and next"><span></span><a class="pn next" href="01-legged-robot-foundations.html"><span>Next</span>Legged robot foundations</a></nav><p class="source">Source: <a href="https://github.com/Armanasq/go2-nav-sim/blob/main/docs/00-overview.md">docs/00-overview.md</a></p></article></div>
+</main>
+<footer class="site"><div class="wrap">Simulation only. Source and issues on <a href="https://github.com/Armanasq/go2-nav-sim">GitHub</a>.</div></footer>
+<script type="module" src="../static/js/site.js"></script>
+</body>
+</html>

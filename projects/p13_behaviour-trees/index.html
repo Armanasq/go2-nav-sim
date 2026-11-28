@@ -1,0 +1,495 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Behaviour trees: read, change and write one · go2-nav-sim</title>
+<meta name="description" content="Behaviour trees: read, change and write one">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../../static/css/site.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5' fill='%230a6a9c'/%3E%3C/svg%3E">
+
+</head>
+<body data-root="../../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar"><div class="inner">
+<a class="brand" href="../../index.html">go2-nav-sim</a>
+<nav aria-label="Main"><a href="../../tutorial/00-overview.html" aria-current="page">Learn</a><a href="../../tasks/index.html">Tasks</a><a href="../../modules/index.html">Deep dives</a><a href="../../reference.html">Reference</a></nav>
+<button class="theme-toggle" type="button" aria-label="Colour theme: auto">auto</button>
+</div></header>
+<main id="main">
+<div class="wrap doc"><details class="side" open><summary>Behaviour trees</summary><nav aria-label="Contents"><ol class="parts"><li><a class="part" href="../../tutorial/00-overview.html">Start</a></li><li><a class="part" href="../../tutorial/05-frames-and-tf2.html">The robot</a></li><li><a class="part" href="../p02_teleop-and-safety/index.html">Move it</a></li><li><a class="part" href="../../tutorial/08-robot-and-sensors.html">Sense and avoid</a></li><li><a class="part" href="../../tutorial/09-state-estimation.html">Estimate and map</a></li><li class="open"><p class="part">Navigate</p><ol><li><a href="../p11_command-arbitration/index.html"><span class="n">P11</span><span>Command arbitration</span></a></li><li><a href="../p12_tune-nav2/index.html"><span class="n">P12</span><span>Tune Nav2 with evidence</span></a></li><li><a href="index.html" aria-current="page"><span class="n">P13</span><span>Behaviour trees</span></a><ul class="sections"><li><a href="#task-1-read-nav2s-default-tree">Task 1: Read Nav2&#x27;s default tree</a></li><li><a href="#task-2-make-the-default-tree-fail-and-log-it">Task 2: Make the default tree fail and log it</a></li><li><a href="#task-3-change-the-recovery-order">Task 3: Change the recovery order</a></li><li><a href="#task-4-write-a-patrol-tree">Task 4: Write a patrol tree</a></li><li><a href="#how-the-code-works">How the code works</a></li><li><a href="#results">Results</a></li><li><a href="#exercise">Exercise</a></li><li><a href="#if-it-goes-wrong">If it goes wrong</a></li><li><a href="#further-reading">Further reading</a></li></ul></li></ol></li><li><a class="part" href="../p14_test-the-stack/index.html">Beyond simulation</a></li></ol></nav></details><article class="prose"><p class="where">Navigate · Project 13</p><h1>Behaviour trees: read, change and write one</h1><div class="table-wrap"><table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Goal</td>
+<td>Open the behaviour tree that Nav2 runs for every goal, draw it, change the order of its recoveries in your own copy, load the copy into <code>bt_navigator</code> and show from the tree's own log that the robot now recovers in the new order. Then write a small tree of your own that patrols three waypoints twice, with no Python node in the loop.</td>
+</tr>
+<tr>
+<td>Time</td>
+<td>1.5 h</td>
+</tr>
+<tr>
+<td>Before you start</td>
+<td><a href="../../tutorial/10-mapping-and-navigation.html">Chapter 10</a>, Task 4, where you start Nav2 and AMCL and send goals with <code>go_to_goal.py</code>.</td>
+</tr>
+<tr>
+<td>You will learn</td>
+<td>how Nav2's <code>navigate_to_pose_w_replanning_and_recovery.xml</code> is built (control nodes, conditions, actions, and the <code>RecoveryNode</code> / <code>RoundRobin</code> pair that decides what to try when planning fails); how <code>bt_navigator</code> picks its tree (<code>default_nav_to_pose_bt_xml</code>) and how to check which tree is loaded; how to read <code>/behavior_tree_log</code> to see each node change state, in simulated time; how to write a tree from nodes that ship with Nav2 Humble, and what goes wrong when a waypoint is badly placed.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Every terminal starts with:</p>
+<pre><code class="language-bash">cd go2-nav-sim
+source env.sh
+</code></pre>
+<p>Groot2 (the graphical tree editor the Nav2 docs use) is not installed in this course. A tree is a short XML file: you edit it
+in a text editor and draw it with <code>bt_tools.py</code>, which needs only Graphviz (<code>dot</code>).</p>
+<p>The files of this project:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>File</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>trees/default.xml</code></td>
+<td>an unmodified copy of Nav2 Humble's <code>navigate_to_pose_w_replanning_and_recovery.xml</code></td>
+</tr>
+<tr>
+<td><code>trees/recovery_swapped.xml</code></td>
+<td>the same tree with <code>Spin</code> and <code>BackUp</code> swapped</td>
+</tr>
+<tr>
+<td><code>trees/patrol.xml</code></td>
+<td>the patrol tree (A → W1 → W2 → A, twice)</td>
+</tr>
+<tr>
+<td><code>trees/patrol_tight_w2.xml</code></td>
+<td>the first version of the patrol, kept to reproduce the failure in "If it goes wrong"</td>
+</tr>
+<tr>
+<td><code>nav_bt.launch.py</code></td>
+<td>Nav2 + AMCL as <code>nav.launch.py</code> starts them, with <code>bt_xml:=&lt;tree&gt;</code></td>
+</tr>
+<tr>
+<td><code>bt_log.py</code></td>
+<td>prints <code>/behavior_tree_log</code> one line per state change, and can log the true pose</td>
+</tr>
+<tr>
+<td><code>bt_tools.py</code></td>
+<td>ROS-free: draw a tree, list its recoveries and waypoints, summarise a log</td>
+</tr>
+<tr>
+<td><code>plot.py</code></td>
+<td>the two result figures</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="task-1-read-nav2s-default-tree">Task 1: Read Nav2's default tree</h2>
+<h3 id="11-check-the-copy-and-list-its-recoveries">1.1 Check the copy and list its recoveries</h3>
+<p>Objective: know which node runs when the planner fails.</p>
+<pre><code class="language-bash">diff /opt/ros/humble/share/nav2_bt_navigator/behavior_trees/navigate_to_pose_w_replanning_and_recovery.xml \
+     projects/p13_behaviour-trees/trees/default.xml &amp;&amp; echo identical
+python3 projects/p13_behaviour-trees/bt_tools.py recoveries projects/p13_behaviour-trees/trees/default.xml
+</code></pre>
+<pre><code>identical
+ClearingActions -&gt; Spin -&gt; Wait -&gt; BackUp
+</code></pre>
+<p>Check: <code>identical</code>, and four recoveries in this order.</p>
+<h3 id="12-draw-the-tree-and-read-it-from-the-top">1.2 Draw the tree and read it from the top</h3>
+<p>Objective: say what each control node does with a failure.</p>
+<pre><code class="language-bash">python3 projects/p13_behaviour-trees/bt_tools.py draw projects/p13_behaviour-trees/trees/default.xml /tmp/default_tree.png
+</code></pre>
+<pre><code>/tmp/default_tree.png: 18 nodes
+</code></pre>
+<p><img loading="lazy" alt="Nav2's default NavigateToPose tree, drawn from the XML" src="figures/default_tree.png" /></p>
+<p>Boxes are control nodes, the hexagon is a condition, ellipses are actions; the recoveries are shaded. Read it from the top:</p>
+<ul>
+<li><code>RecoveryNode "NavigateRecovery"</code> ticks its first child. If that child fails, it ticks the second child (the recovery)
+  and, if the recovery succeeds, tries the first child again. It gives up after <code>number_of_retries=6</code> recoveries.</li>
+<li>The first child, <code>PipelineSequence "NavigateWithReplanning"</code>, replans at 1 Hz (<code>RateController</code>) and follows the latest
+  path. Each of the two has its own small <code>RecoveryNode</code> that clears a costmap once before failing upwards.</li>
+<li>The second child, <code>ReactiveFallback "RecoveryFallback"</code>, first checks <code>GoalUpdated</code> (a new goal cancels the recovery),
+  then ticks <code>RoundRobin "RecoveryActions"</code>. A <code>RoundRobin</code> runs one child per tick and remembers where it stopped, so
+  successive failures get ClearingActions, Spin, Wait, BackUp, ClearingActions, Spin.</li>
+</ul>
+<p>Check: you can say which recovery runs third (Wait) and how many recoveries happen before the goal fails (6).</p>
+<h2 id="task-2-make-the-default-tree-fail-and-log-it">Task 2: Make the default tree fail and log it</h2>
+<h3 id="21-start-nav2-with-a-tree-you-name">2.1 Start Nav2 with a tree you name</h3>
+<p>Objective: run Nav2 with a tree you name, so the later swap is the only change.</p>
+<pre><code class="language-bash">scripts/up.sh                       # terminal 1: sim, estimation, Nav2; wait for &quot;stack up&quot;
+bash scripts/stop.sh nav            # terminal 1: stop the Nav2 that up.sh started; Gazebo and estimation keep running
+ros2 launch projects/p13_behaviour-trees/nav_bt.launch.py     # terminal 2, leave it running
+</code></pre>
+<pre><code>nav_bt: /tmp/nav2_params_bt_tf9wwvk1.yaml uses /opt/ros/humble/share/nav2_bt_navigator/behavior_trees/navigate_to_pose_w_replanning_and_recovery.xml
+...
+[lifecycle_manager-3] [INFO] [...] [lifecycle_manager_localization]: Managed nodes are active
+[lifecycle_manager-11] [INFO] [...] [lifecycle_manager_navigation]: Managed nodes are active
+</code></pre>
+<p><code>nav_bt.launch.py</code> copies <code>config/nav2_params.yaml</code>, adds <code>bt_navigator.default_nav_to_pose_bt_xml</code>, and starts the same
+<code>nav2_bringup</code> launch file as <code>nav.launch.py</code> (without the passive mapper). Without <code>bt_xml:=</code> it loads Nav2's own file,
+so this run is today's behaviour.</p>
+<p>Check: both "Managed nodes are active" lines appear (localization and navigation).</p>
+<h3 id="22-check-which-tree-is-loaded">2.2 Check which tree is loaded</h3>
+<p>Objective: read the tree's path from the running node, not from your launch command.</p>
+<pre><code class="language-bash">ros2 param get /bt_navigator default_nav_to_pose_bt_xml          # terminal 1
+</code></pre>
+<pre><code>String value is: /opt/ros/humble/share/nav2_bt_navigator/behavior_trees/navigate_to_pose_w_replanning_and_recovery.xml
+</code></pre>
+<p>Check: the parameter names Nav2's file.</p>
+<h3 id="23-send-an-unreachable-goal-and-log-the-tree">2.3 Send an unreachable goal and log the tree</h3>
+<p>Objective: force the recoveries to run, and record their order.</p>
+<p>The goal (1.0, 0.0) is the centre of the brick wall (<code>box1</code> in Gazebo, <code>BOXES[1]</code> in <code>make_arena.py</code>: 0.8 m × 2.4 m at
+(1.0, 0.0)). The planner can never reach it, so every recovery runs.</p>
+<pre><code class="language-bash">python3 projects/p13_behaviour-trees/bt_log.py | tee /tmp/default.log          # terminal 3
+python3 src/go2_nav_sim/scripts/go_to_goal.py 1.0 0.0 0.0                       # terminal 4
+</code></pre>
+<p>Terminal 4:</p>
+<pre><code>[INFO] [...] [basic_navigator]: goal -&gt; (1.00, 0.00, yaw 0.00)
+[INFO] [...] [basic_navigator]: distance remaining 0.00 m, recoveries 3
+...
+[INFO] [...] [basic_navigator]: distance remaining 0.00 m, recoveries 14
+RESULT FAILED  sim_time 17.9 s  ground-truth final error 6.68 m  final pos (-4.38, -3.96)
+</code></pre>
+<p>Terminal 3 (Ctrl-C it after the result; an excerpt):</p>
+<pre><code>    0.40  RecoveryFallback             IDLE     -&gt; RUNNING
+    0.40  RecoveryActions              IDLE     -&gt; RUNNING
+    0.40  Spin                         IDLE     -&gt; RUNNING
+    3.81  Spin                         RUNNING  -&gt; SUCCESS
+    3.81  RecoveryActions              RUNNING  -&gt; SUCCESS
+...
+   16.41  NavigateRecovery             RUNNING  -&gt; FAILURE
+</code></pre>
+<p>Check: <code>RESULT FAILED</code>, and the log ends with <code>NavigateRecovery ... -&gt; FAILURE</code>.</p>
+<p>Common mistakes: trusting the <code>recoveries</code> number in the feedback. It reached 14 for six recoveries in this run, and it
+rose to 5 or 6 during the patrols of Task 4, which had no failed legs (their <code>Wait</code> stops are behaviour-server actions too).
+The tree log is the record of what ran.</p>
+<h3 id="24-summarise-the-log">2.4 Summarise the log</h3>
+<p>Objective: reduce the log to the recoveries and their start times.</p>
+<pre><code class="language-bash">python3 projects/p13_behaviour-trees/bt_tools.py summary /tmp/default.log
+</code></pre>
+<pre><code>    0.1 s  ClearLocalCostmap-Subtree
+    0.4 s  Spin
+    3.9 s  Wait
+    9.0 s  BackUp
+   12.7 s  ClearLocalCostmap-Subtree
+   12.9 s  Spin
+</code></pre>
+<p>Check: six recoveries in the order of Task 1.</p>
+<h2 id="task-3-change-the-recovery-order">Task 3: Change the recovery order</h2>
+<h3 id="31-swap-two-recoveries-in-a-copy">3.1 Swap two recoveries in a copy</h3>
+<p>Objective: change one thing in the tree.</p>
+<p><code>trees/recovery_swapped.xml</code> is <code>trees/default.xml</code> with <code>Spin</code> and <code>BackUp</code> exchanged inside <code>RoundRobin</code>:</p>
+<pre><code class="language-bash">cd projects/p13_behaviour-trees
+diff trees/default.xml trees/recovery_swapped.xml
+python3 bt_tools.py recoveries trees/recovery_swapped.xml
+cd ../..
+</code></pre>
+<pre><code>5a6
+&gt;   p13 change: BackUp runs before Spin in RecoveryActions (one swap, nothing else changed).
+29,30d29
+&lt;           &lt;Spin spin_dist=&quot;1.57&quot;/&gt;
+&lt;           &lt;Wait wait_duration=&quot;5&quot;/&gt;
+31a31,32
+&gt;           &lt;Wait wait_duration=&quot;5&quot;/&gt;
+&gt;           &lt;Spin spin_dist=&quot;1.57&quot;/&gt;
+ClearingActions -&gt; BackUp -&gt; Wait -&gt; Spin
+</code></pre>
+<p>Check: the diff touches only the comment and the <code>RoundRobin</code> children.</p>
+<h3 id="32-load-the-copy">3.2 Load the copy</h3>
+<p>Objective: make <code>bt_navigator</code> use your file.</p>
+<p>Stop <code>nav_bt.launch.py</code> in terminal 2 with Ctrl-C (or <code>bash scripts/stop.sh nav</code> in terminal 1), then:</p>
+<pre><code class="language-bash">ros2 launch projects/p13_behaviour-trees/nav_bt.launch.py bt_xml:=$PWD/projects/p13_behaviour-trees/trees/recovery_swapped.xml   # terminal 2
+ros2 param get /bt_navigator default_nav_to_pose_bt_xml          # terminal 1, after &quot;Managed nodes are active&quot; twice
+</code></pre>
+<pre><code>nav_bt: /tmp/nav2_params_bt_bd80zc85.yaml uses /home/.../go2-nav-sim/projects/p13_behaviour-trees/trees/recovery_swapped.xml
+String value is: /home/.../go2-nav-sim/projects/p13_behaviour-trees/trees/recovery_swapped.xml
+</code></pre>
+<p>Check: the parameter shows your file. The path must be absolute: <code>bt_navigator</code> does not know your working directory.</p>
+<h3 id="33-rerun-the-mission-and-compare-the-logs">3.3 Rerun the mission and compare the logs</h3>
+<p>Objective: show the change in the log, not in the XML.</p>
+<p>Repeat 2.3 (log to <code>/tmp/swapped.log</code>). The result line was
+<code>RESULT FAILED  sim_time 18.2 s  ground-truth final error 6.13 m  final pos (-4.03, -3.52)</code>, and:</p>
+<pre><code class="language-bash">python3 projects/p13_behaviour-trees/bt_tools.py summary /tmp/swapped.log
+</code></pre>
+<pre><code>    0.1 s  ClearLocalCostmap-Subtree
+    0.5 s  BackUp
+    4.1 s  Wait
+    9.2 s  Spin
+   12.7 s  ClearLocalCostmap-Subtree
+   13.0 s  BackUp
+</code></pre>
+<p><img loading="lazy" alt="Recovery actions over time for the default and the swapped tree" src="figures/recovery_timeline.png" /></p>
+<p>The chase camera during the swapped run: the robot backs up first, waits, then turns.</p>
+<video controls muted playsinline src="media/recovery_swapped_chase.mp4"></video>
+
+<p>To redraw the figure from your own logs, copy them to <code>results/default.log</code> and <code>results/swapped.log</code> and run
+<code>python3 projects/p13_behaviour-trees/plot.py</code>.</p>
+<p>Check: <code>BackUp</code> is the first action after the clearing step, and <code>Spin</code> is third.</p>
+<h3 id="34-give-up-sooner">3.4 Give up sooner</h3>
+<p>Objective: change how many recoveries the tree allows, and see when the goal fails.</p>
+<p>Make a copy with <code>number_of_retries="2"</code> on <code>NavigateRecovery</code> (the two inner <code>RecoveryNode</code>s have <code>1</code> and stay as they are),
+load it as in 3.2 and repeat 2.3:</p>
+<pre><code class="language-bash">sed 's/number_of_retries=&quot;6&quot;/number_of_retries=&quot;2&quot;/' projects/p13_behaviour-trees/trees/default.xml &gt; /tmp/retries2.xml
+ros2 launch projects/p13_behaviour-trees/nav_bt.launch.py bt_xml:=/tmp/retries2.xml           # terminal 2, after stopping the old one
+python3 projects/p13_behaviour-trees/bt_log.py | tee /tmp/retries2.log                         # terminal 3
+python3 src/go2_nav_sim/scripts/go_to_goal.py 1.0 0.0 0.0                                      # terminal 4
+</code></pre>
+<p>The saved run (<code>results/try_retries2.log</code>):</p>
+<pre><code class="language-bash">python3 projects/p13_behaviour-trees/bt_tools.py summary projects/p13_behaviour-trees/results/try_retries2.log
+grep 'NavigateRecovery.*FAILURE' projects/p13_behaviour-trees/results/try_retries2.log
+</code></pre>
+<pre><code>    0.1 s  ClearLocalCostmap-Subtree
+    0.3 s  Spin
+    4.26  NavigateRecovery             RUNNING  -&gt; FAILURE
+</code></pre>
+<p>Two recoveries ran. <code>NavigateRecovery</code> failed at 4.26 s, as soon as the first <code>Spin</code> ended and planning failed once more,
+instead of at 16.4 s.</p>
+<p>Check: two lines in the summary and a <code>FAILURE</code> near 4 s.</p>
+<h2 id="task-4-write-a-patrol-tree">Task 4: Write a patrol tree</h2>
+<h3 id="41-read-the-patrol-tree">4.1 Read the patrol tree</h3>
+<p>Objective: a tree that visits A → W1 → W2 → A twice and stops 2 s at each point.</p>
+<p>There are two ways to do this without new software. <code>py_trees</code> is not installed, and a Python state machine (as in
+project 4's polar controller or Rico's <code>br2_fsm_bumpgo_py</code>) would sit outside Nav2 and need its own retry logic. A Nav2 BT
+XML runs inside <code>bt_navigator</code>, where the planner and controller clients, the costmap-clearing services and the action
+feedback are already loaded, and uses only nodes listed in <code>plugin_lib_names</code> in <code>nav2_params.yaml</code>. This project uses the
+XML.</p>
+<p><code>trees/patrol.xml</code>, with one leg shown (the other two differ only in the goal):</p>
+<pre><code class="language-xml">&lt;Repeat num_cycles=&quot;2&quot;&gt;
+  &lt;Sequence name=&quot;Patrol&quot;&gt;
+    &lt;RecoveryNode number_of_retries=&quot;2&quot; name=&quot;LegW1&quot;&gt;
+      &lt;Sequence&gt;
+        &lt;ComputePathToPose goal=&quot;0;map;0.5;-3.5;0;0;0;0.0;1.0&quot; path=&quot;{path}&quot; planner_id=&quot;GridBased&quot;/&gt;
+        &lt;FollowPath path=&quot;{path}&quot; controller_id=&quot;FollowPath&quot;/&gt;
+      &lt;/Sequence&gt;
+      &lt;ClearEntireCostmap name=&quot;ClearLocalW1&quot; service_name=&quot;local_costmap/clear_entirely_local_costmap&quot;/&gt;
+    &lt;/RecoveryNode&gt;
+    &lt;Wait name=&quot;AtW1&quot; wait_duration=&quot;2&quot;/&gt;
+    ...
+</code></pre>
+<p>Each leg's recovery clears only the local costmap. A leg that fails in <code>FollowPath</code> (the controller) can be helped by that;
+a leg that fails in <code>ComputePathToPose</code> (the global planner) cannot, because the planner reads the global costmap, so the
+retries fail the same way and the leg fails.</p>
+<p><img loading="lazy" alt="The patrol tree" src="figures/patrol_tree.png" /></p>
+<pre><code class="language-bash">python3 projects/p13_behaviour-trees/bt_tools.py waypoints projects/p13_behaviour-trees/trees/patrol.xml
+</code></pre>
+<pre><code>( 0.50, -3.50)  yaw     0.0 deg
+(-3.50, -1.50)  yaw   153.4 deg
+(-4.50, -3.50)  yaw  -116.6 deg
+</code></pre>
+<p>Check: three waypoints, the last one A.</p>
+<h3 id="42-run-the-patrol">4.2 Run the patrol</h3>
+<p>Objective: run the tree from a fresh stack with the robot on A.</p>
+<p>Terminal 1, a fresh stack, then stop its Nav2 (Gazebo and estimation keep running):</p>
+<pre><code class="language-bash">scripts/up.sh &amp;&amp; bash scripts/stop.sh nav
+</code></pre>
+<p>Terminal 2, Nav2 with the patrol tree (it keeps running):</p>
+<pre><code class="language-bash">ros2 launch projects/p13_behaviour-trees/nav_bt.launch.py bt_xml:=$PWD/projects/p13_behaviour-trees/trees/patrol.xml
+</code></pre>
+<p>Terminal 3, after "Managed nodes are active" has appeared twice in terminal 2, the tree log and the true pose:</p>
+<pre><code class="language-bash">python3 projects/p13_behaviour-trees/bt_log.py --gt /tmp/patrol_gt.csv | grep -E 'Leg|At|Repeat' | grep -v 'IDLE     -&gt; RUNNING'
+</code></pre>
+<p>Terminal 4, any goal starts the tree. The tree ignores the goal's pose; A is given so that the script reports the error at A:</p>
+<pre><code class="language-bash">python3 src/go2_nav_sim/scripts/go_to_goal.py -4.5 -3.5 -2.03
+</code></pre>
+<p>Output of the logger, from the first successful run in the Results table:</p>
+<pre><code>   21.21  LegW1                        RUNNING  -&gt; SUCCESS
+   23.22  AtW1                         RUNNING  -&gt; SUCCESS
+   54.35  LegW2                        RUNNING  -&gt; SUCCESS
+   56.38  AtW2                         RUNNING  -&gt; SUCCESS
+   71.43  LegHome                      RUNNING  -&gt; SUCCESS
+   73.48  AtHome                       RUNNING  -&gt; SUCCESS
+  101.24  LegW1                        RUNNING  -&gt; SUCCESS
+  103.31  AtW1                         RUNNING  -&gt; SUCCESS
+  135.22  LegW2                        RUNNING  -&gt; SUCCESS
+  137.27  AtW2                         RUNNING  -&gt; SUCCESS
+  152.16  LegHome                      RUNNING  -&gt; SUCCESS
+  154.25  AtHome                       RUNNING  -&gt; SUCCESS
+  154.25  Repeat                       RUNNING  -&gt; SUCCESS
+</code></pre>
+<p>and <code>go_to_goal.py</code> ends with <code>RESULT SUCCEEDED  sim_time 155.8 s  ground-truth final error 0.32 m  final pos (-4.28, -3.26)</code>.</p>
+<p>Check: <code>Repeat ... -&gt; SUCCESS</code> and <code>RESULT SUCCEEDED</code>. The 0.32 m at A is inside what Nav2 accepts: <code>xy_goal_tolerance</code>
+0.25 m on AMCL's estimate, plus AMCL's own error.</p>
+<p>This patrol does not always succeed: one of the nine fresh-stack runs in Results failed when AMCL lost the robot (see
+"If it goes wrong").</p>
+<h2 id="how-the-code-works">How the code works</h2>
+<p><strong>Loading a tree.</strong> <code>bt_navigator</code> reads <code>default_nav_to_pose_bt_xml</code> once, when it is configured, and uses that tree for
+every <code>NavigateToPose</code> goal that does not name its own. The course's <code>nav2_params.yaml</code> does not contain the key, so
+<code>nav_bt.launch.py</code> adds it to a copy:</p>
+<pre><code class="language-python">params = yaml.safe_load(open(os.path.join(me, 'config/nav2_params.yaml')))
+params['bt_navigator']['ros__parameters']['default_nav_to_pose_bt_xml'] = LaunchConfiguration('bt_xml').perform(context)
+</code></pre>
+<p><code>nav2_common</code>'s <code>RewrittenYaml</code>, which the Nav2 launch files use for overrides, only replaces keys that already exist in the
+file (<code>substitute_params</code> in <code>nav2_common/launch/rewritten_yaml.py</code> walks the existing leaves), so passing the key as a
+rewrite silently does nothing.</p>
+<p><strong>Reading the log.</strong> <code>bt_navigator</code> publishes <code>/behavior_tree_log</code> (<code>nav2_msgs/BehaviorTreeLog</code>): a batch of
+<code>(node_name, previous_status, current_status)</code> per tick in which something changed. <code>bt_log.py</code> prints them with the
+message's stamp (simulated time) relative to the first one, and drops two kinds of line that hide the rest: changes back to
+<code>IDLE</code> (the tree resetting a node) and <code>GoalUpdated -&gt; FAILURE</code>, which the <code>ReactiveFallback</code> re-checks on every tick while a
+recovery runs (about 100 lines per second).</p>
+<p><strong>Recovery order.</strong> With <code>RoundRobin</code> the k-th recovery (counting from 0) is child <code>k mod 4</code>, so with retries <code>N = 6</code> the
+sequence is children 0, 1, 2, 3, 0, 1. Swapping children 1 and 3 changes which action runs first and last, and nothing
+else: the same six recoveries, the same <code>FAILURE</code> at the end.</p>
+<p><strong>Waypoints in the XML.</strong> A port such as <code>goal</code> accepts a string that <code>nav2_behavior_tree/bt_conversions.hpp</code> converts to a
+<code>PoseStamped</code>: <code>stamp;frame;x;y;z;qx;qy;qz;qw</code>. <code>bt_tools.waypoints</code> parses it back. The yaw of each waypoint is the direction
+of the leg that reaches it, <code>yaw = atan2(y_to - y_from, x_to - x_from)</code>, so the controller does not have to turn on the spot
+on arrival; <code>qz = sin(yaw/2)</code>, <code>qw = cos(yaw/2)</code>. The unit test checks this for all three waypoints.</p>
+<p><strong>Tests.</strong> The XML handling and the log parser run without ROS:</p>
+<pre><code class="language-bash">/usr/bin/python3 -m pytest -q projects/p13_behaviour-trees/tests
+</code></pre>
+<pre><code>...                                                                      [100%]
+3 passed
+</code></pre>
+<h2 id="results">Results</h2>
+<p>All runs on the arena, one robot, <code>ROS_DOMAIN_ID</code> of my own, one run per row unless stated. "Fresh stack" means
+<code>scripts/up.sh</code>, then <code>bash scripts/stop.sh nav</code>, then <code>nav_bt.launch.py</code> with the tree, as in 4.2.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Run</th>
+<th>Tree</th>
+<th>Outcome</th>
+<th>Sim time</th>
+<th>Recoveries, in order (from <code>/behavior_tree_log</code>)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>unreachable goal (1.0, 0.0)</td>
+<td>default</td>
+<td>FAILED after 6 recoveries</td>
+<td>16.4 s to <code>NavigateRecovery</code> FAILURE</td>
+<td>Clear, Spin, Wait, BackUp, Clear, Spin</td>
+</tr>
+<tr>
+<td>unreachable goal (1.0, 0.0)</td>
+<td>Spin and BackUp swapped</td>
+<td>FAILED after 6 recoveries</td>
+<td>16.5 s</td>
+<td>Clear, BackUp, Wait, Spin, Clear, BackUp</td>
+</tr>
+<tr>
+<td>patrol, W2 at (-3.0, -1.0)</td>
+<td><code>patrol_tight_w2.xml</code></td>
+<td>stalled at W2 on lap 2, stopped by me after 590 s wall</td>
+<td>lap 1 119.0 s; lap 2 W2 leg 197.2 s</td>
+<td>199 "collision ahead" warnings at W2</td>
+</tr>
+<tr>
+<td>patrol, W2 at (-3.5, -1.5), fresh stack</td>
+<td><code>patrol.xml</code></td>
+<td>SUCCEEDED, 2 laps, final error 0.32 m</td>
+<td>154.3 s</td>
+<td>none</td>
+</tr>
+<tr>
+<td>patrol, W2 at (-3.5, -1.5), same stack again</td>
+<td><code>patrol.xml</code></td>
+<td>FAILED on leg W1</td>
+<td>43.6 s</td>
+<td>AMCL 2.5 m off (see "If it goes wrong")</td>
+</tr>
+<tr>
+<td>patrol, W2 at (-3.5, -1.5), fresh stack</td>
+<td><code>patrol.xml</code></td>
+<td>SUCCEEDED, 2 laps, final error 0.36 m</td>
+<td>164.7 s</td>
+<td>none</td>
+</tr>
+<tr>
+<td>patrol, W2 at (-3.5, -1.5), fresh stack, 5 runs</td>
+<td><code>patrol.xml</code></td>
+<td>SUCCEEDED 5 of 5, 2 laps, final error 0.33 to 0.39 m</td>
+<td>158.0 to 175.2 s</td>
+<td>none</td>
+</tr>
+<tr>
+<td>patrol, W2 at (-3.5, -1.5), fresh stack, second tester, run 1</td>
+<td><code>patrol.xml</code></td>
+<td>FAILED on leg LegHome, final error 0.47 m</td>
+<td>211.2 s to LegHome FAILURE; <code>go_to_goal.py</code> 213.1 s</td>
+<td>AMCL at (-0.86, 0.40), true pose (-4.23, -3.12) (see "If it goes wrong")</td>
+</tr>
+<tr>
+<td>patrol, W2 at (-3.5, -1.5), fresh stack, second tester, run 2</td>
+<td><code>patrol.xml</code></td>
+<td>SUCCEEDED, 2 laps, final error 0.39 m</td>
+<td>158.8 s</td>
+<td>none</td>
+</tr>
+</tbody>
+</table></div>
+<p>The five-run row is <code>patrol_run4</code> to <code>patrol_run8</code> in <code>results/</code>, five fresh stacks one after another: <code>Repeat</code> reached
+<code>SUCCESS</code> at 166.0, 161.5, 161.3, 158.0 and 175.2 s, with final errors 0.33, 0.39, 0.36, 0.35 and 0.35 m, and no
+<code>FAILURE</code> line in any tree log. The two "second tester" rows are from a reviewer who ran 4.2 on a fresh stack; their logs
+are not in <code>results/</code>. Counting every fresh-stack patrol above, 8 of 9 succeeded.</p>
+<p>Measured action durations in the two unreachable-goal runs (<code>bt_tools.intervals</code>): <code>Spin</code> (1.57 rad) 3.35 to 3.46 s;
+<code>Wait</code> (5 s) 5.05 and 5.07 s; <code>BackUp</code> (0.30 m at 0.05 m/s) 3.48 to 3.63 s.</p>
+<p>Commands that produced the table: Tasks 2 to 4 above, then</p>
+<pre><code class="language-bash">python3 projects/p13_behaviour-trees/bt_tools.py summary projects/p13_behaviour-trees/results/default.log
+python3 projects/p13_behaviour-trees/bt_tools.py summary projects/p13_behaviour-trees/results/swapped.log
+grep -E 'Leg|At|Repeat' projects/p13_behaviour-trees/results/patrol.log | grep -v 'IDLE     -&gt; RUNNING'
+python3 projects/p13_behaviour-trees/plot.py
+</code></pre>
+<p>The raw logs are in <code>results/</code>: <code>default.log</code>, <code>swapped.log</code>, <code>patrol.log</code> (+ <code>_gt.csv</code>, <code>_mission.txt</code>),
+<code>patrol_first_try*</code>, <code>patrol_run2*</code> and <code>patrol_run3*</code> <code>patrol_run4*</code> to <code>patrol_run8*</code> (the rows of the table, in order). <code>try_retries2.log</code> is the
+run behind 3.4 and <code>try_waitfirst.log</code> the run behind the Exercise.</p>
+<p><img loading="lazy" alt="Ground-truth path of the first patrol (left) and of the patrol with W2 moved (right)" src="figures/patrol_path.png" /></p>
+<h2 id="exercise">Exercise</h2>
+<p><strong>Make the robot wait first.</strong> In a copy of <code>trees/default.xml</code>, put <code>Wait</code> before <code>Spin</code> and <code>BackUp</code> in
+<code>RecoveryActions</code>, load it and send the unreachable goal of 2.3. What does the summary show in the first 5 s after the goal,
+and does the robot move?</p>
+<p><em>Answer:</em> with the order ClearingActions, Wait, Spin, BackUp the summary of <code>results/try_waitfirst.log</code> starts
+<code>0.1 s ClearLocalCostmap-Subtree</code>, <code>0.4 s Wait</code>, <code>5.6 s Spin</code>, <code>9.2 s BackUp</code>: the robot stands still for the first 5.6 s.
+The goal failed at 18.52 s instead of 16.4 s; on an unreachable goal this order only delays the failure.</p>
+<h2 id="if-it-goes-wrong">If it goes wrong</h2>
+<ul>
+<li><strong>The new tree is not used.</strong> <code>ros2 param get /bt_navigator default_nav_to_pose_bt_xml</code> still shows Nav2's file. The
+  key was passed as a <code>RewrittenYaml</code> override or a relative path; use <code>nav_bt.launch.py</code> with an absolute <code>bt_xml:=</code>.</li>
+<li><strong>A waypoint the robot cannot settle on.</strong> The first patrol put W2 at (-3.0, -1.0), 0.72 m from the orange pillar at
+  (-3.5, 0.0), with the arrival heading (144°) passing the pillar. On lap 2 the leg to W2 took 197 s: the controller logged
+  <code>RegulatedPurePursuitController detected collision ahead!</code> 199 times, all in the last 100 s (wall clock) while the robot was
+  within 0.27 m of W2 (<code>results/patrol_first_try_nav_warnings.log</code>), and one <code>Failed to make progress</code>. When the leg finally
+  succeeded, the next <code>ComputePathToPose</code> to A failed three times in 20 ms (<code>GridBased: failed to create plan with tolerance
+  0.30</code>) and the goal failed. The robot ended 0.35 m from the pillar's surface, about one robot radius (0.33 m); a start
+  inside the inscribed cost makes the planner fail this way (my inference, I did not save the costmap). Moving W2 to
+  (-3.5, -1.5), 1.1 m from the pillar, removed all of these warnings in the next run.</li>
+<li><strong>AMCL loses the robot during a patrol, on the same stack or a fresh one.</strong> Running the patrol again on the same stack,
+  right after a successful one, failed after 43.6 s on leg W1: <code>/amcl_pose</code> was (-0.46, -1.46) while the true pose was
+  (-0.91, -3.92). The global costmap had W1 in inscribed cost (value 99 of 100) although nothing stands there, and the
+  planner failed; with the robot placed 2.5 m off, the scans were most likely painted in the wrong place (my inference)
+  (<code>results/patrol_run2_nav_warnings.log</code>). A fresh stack does not prevent this. A second tester's first fresh-stack run
+  failed the same way: <code>LegHome -&gt; FAILURE</code> at 211.17 s after <code>Controller patience exceeded</code>, then <code>GridBased</code> failed twice
+  to plan to (-4.50, -3.50); at the end <code>/amcl_pose</code> was (-0.86, 0.40), the true pose (-4.23, -3.12), and the global costmap
+  read 99 at W2. Their second fresh run and my seven succeeded. The tree cannot recover from a wrong AMCL pose: each leg's
+  <code>RecoveryNode</code> clears only the local costmap (4.1), and <code>go_to_goal.py</code> re-initialises AMCL from ground truth only before
+  the goal, not between legs. Watch for it during the run: <code>ros2 topic echo /amcl_pose --field pose.pose.position</code> against
+  <code>ros2 topic echo /odom_gt --field pose.pose.position</code> (add (-4.5, -3.5) to <code>/odom_gt</code>, which starts at 0 on A). If they
+  drift apart by more than about 0.5 m, stop Nav2 (<code>bash scripts/stop.sh nav</code>, then a zero <code>/cmd_vel</code>) and start the run
+  again. <a href="../../tutorial/10-mapping-and-navigation.html">Chapter 10</a> covers AMCL.</li>
+<li><strong>The robot keeps going after you stop the script.</strong> Killing <code>go_to_goal.py</code> does not cancel the goal. In the first
+  patrol the script was stopped by <code>timeout</code>, and the planner log shows the next leg being planned after that.
+  <code>bt_navigator</code> keeps ticking the tree until it finishes; stop it with <code>bash scripts/stop.sh nav</code>, then publish a zero
+  <code>/cmd_vel</code>.</li>
+<li><strong><code>Behavior Tree tick rate 100.00 was exceeded!</code></strong> appeared up to 31 times per run. It means one tick took longer than
+  10 ms on a loaded machine; it did not change any result above.</li>
+</ul>
+<h2 id="further-reading">Further reading</h2>
+<ul>
+<li>F. Rico, <em>A Concise Introduction to Robot Programming with ROS 2</em>, 2025, chapters 3 and 6; code in <code>fmrico/book_ros2</code>
+  (<code>br2_fsm_bumpgo_py</code>, <code>br2_bt_patrolling</code>).</li>
+<li>Nav2, "Groot2" tutorial: https://docs.nav2.org/rolling/tutorials/general_tutorials/groot_tutorials/groot2/groot2/</li>
+</ul><nav class="prevnext" aria-label="Previous and next"><a class="pn" href="../p12_tune-nav2/index.html"><span>Previous</span>Tune Nav2 with evidence</a><a class="pn next" href="../p14_test-the-stack/index.html"><span>Next</span>Test the stack: a launch smoke test</a></nav><p class="source">Source: <a href="https://github.com/Armanasq/go2-nav-sim/blob/main/projects/p13_behaviour-trees/README.md">projects/p13_behaviour-trees/README.md</a></p></article></div>
+</main>
+<footer class="site"><div class="wrap">Simulation only. Source and issues on <a href="https://github.com/Armanasq/go2-nav-sim">GitHub</a>.</div></footer>
+<script type="module" src="../../static/js/site.js"></script>
+</body>
+</html>

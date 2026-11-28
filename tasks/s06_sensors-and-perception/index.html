@@ -1,0 +1,489 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sensors and perception · go2-nav-sim</title>
+<meta name="description" content="Sensors and perception">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../../static/css/site.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5' fill='%230a6a9c'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"><script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script><script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.querySelector('main'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false})"></script>
+</head>
+<body data-root="../../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar"><div class="inner">
+<a class="brand" href="../../index.html">go2-nav-sim</a>
+<nav aria-label="Main"><a href="../../tutorial/00-overview.html" aria-current="page">Learn</a><a href="../../tasks/index.html">Tasks</a><a href="../../modules/index.html">Deep dives</a><a href="../../reference.html">Reference</a></nav>
+<button class="theme-toggle" type="button" aria-label="Colour theme: auto">auto</button>
+</div></header>
+<main id="main">
+<div class="wrap doc"><details class="side" open><summary>Sensors and perception</summary><nav aria-label="Contents"><ol class="parts"><li><a class="part" href="../../tutorial/00-overview.html">Start</a></li><li><a class="part" href="../../tutorial/05-frames-and-tf2.html">The robot</a></li><li><a class="part" href="../../projects/p02_teleop-and-safety/index.html">Move it</a></li><li class="open"><p class="part">Sense and avoid</p><ol><li><a href="../../tutorial/08-robot-and-sensors.html"><span class="n">8</span><span>Robot and sensors</span></a></li><li><a href="index.html" aria-current="page"><span class="n">S6</span><span>Sensors and perception</span></a></li><li><a href="../../projects/p05_sense-and-stop/index.html"><span class="n">P5</span><span>Sense obstacles and stop</span></a></li><li><a href="../../projects/p06_avoid-obstacles/index.html"><span class="n">P6</span><span>Reactive obstacle avoidance without a map</span></a></li></ol></li><li><a class="part" href="../../tutorial/09-state-estimation.html">Estimate and map</a></li><li><a class="part" href="../../projects/p11_command-arbitration/index.html">Navigate</a></li><li><a class="part" href="../../projects/p14_test-the-stack/index.html">Beyond simulation</a></li></ol></nav></details><article class="prose"><p class="where">Sense and avoid · Stage 6 tasks</p><h1>Sensors and perception</h1><p>At the end of this stage the Go2 reads its IMU, RGB-D camera and 3D lidar, turns them into numbers it can act on, and acts:
+it finds the obstacles around it, stops 0.5 m before a face that was not there when it started walking, stops when its
+range sensor goes quiet, and measures the height and edges of a raised platform from one depth image. Each task has an
+acceptance test that runs against the simulator and scores the result on Gazebo's ground truth (<code>/odom_gt</code>), which no
+algorithm here reads.</p>
+<p>Run everything from the repository root:</p>
+<pre><code class="language-bash">cd go2-nav-sim
+source env.sh
+python3 -m pytest -q tasks/s06_sensors-and-perception/tests          # 10 tests, no simulator
+python3 tasks/s06_sensors-and-perception/run.py all                  # every task; or one id, e.g. run.py 6.03
+</code></pre>
+<p><code>run.py</code> starts the simulator and the estimation launch (for <code>/scan</code>) when they are not running, with logs in <code>logs/</code>, and
+restarts them when a task needs the robot fresh on marker A or the platform world. Nav2 is not needed. Each task writes
+<code>results/&lt;id&gt;.json</code> with its metrics, the thresholds from <code>acceptance.json</code> (written before the first run, never loosened)
+and the verdict. Three tasks whose verdict changed between runs of the same code (6.01, 6.06, 6.17) run 5 times, each on a
+fresh simulator, and count as verified only when all 5 pass; their results list every run under <code>per_run</code>. Stop the stack
+with <code>bash scripts/stop.sh</code>. The video for 6.14 is recorded only with
+<code>flock /tmp/go2_render.lock python3 tasks/s06_sensors-and-perception/run.py 6.14 --video</code>.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Id</th>
+<th>Capability</th>
+<th>Status</th>
+<th>Key number</th>
+<th>Where it lives</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>6.01</td>
+<td>stationary IMU</td>
+<td>failed</td>
+<td>3 of 5 runs passed: tilt within 0.01 deg of truth in all, gyro mean up to 0.0103 rad/s against 0.005</td>
+<td><code>run.py</code>, <a href="../../tutorial/08-robot-and-sensors.html#25-imu-gravity-points-up">chapter 8, 2.5</a></td>
+</tr>
+<tr>
+<td>6.02</td>
+<td>angular rate while turning</td>
+<td>failed</td>
+<td>mean rate within 0.28 %, but sample RMS 0.0200 rad/s against 0.02</td>
+<td><code>run.py</code></td>
+</tr>
+<tr>
+<td>6.03</td>
+<td>IMU noise and bias</td>
+<td>failed</td>
+<td>gyro white noise 139 to 495 times the configured value</td>
+<td><code>run.py</code>, <code>perception.allan_deviation</code></td>
+</tr>
+<tr>
+<td>6.04</td>
+<td>heading from the gyro</td>
+<td>failed</td>
+<td>0.75 deg after the turns; 1.45 to 6.5 deg drift in 30 s standing over five runs</td>
+<td><code>run.py</code></td>
+</tr>
+<tr>
+<td>6.05</td>
+<td>RGB camera</td>
+<td>verified</td>
+<td>fx = 467.74 px, as 320 / tan(0.6)</td>
+<td><code>run.py</code>, <a href="../../tutorial/08-robot-and-sensors.html#24-camera-and-depth-grid-and-distance">chapter 8, 2.4</a></td>
+</tr>
+<tr>
+<td>6.06</td>
+<td>depth camera</td>
+<td>verified</td>
+<td>5 of 5 runs passed: floor depth 1.16 to 1.44 % off the model (worst of 5 frames per run)</td>
+<td><code>run.py</code>, <code>perception.floor_depth</code></td>
+</tr>
+<tr>
+<td>6.07</td>
+<td>distance to a wall, depth and scan</td>
+<td>verified</td>
+<td>depth 0.002 m, scan 0.025 m from the true 2.088 m</td>
+<td><a href="../../projects/p05_sense-and-stop/index.html#4-walk-to-the-start-of-the-test-lane-and-take-a-snapshot">p05 step 4</a></td>
+</tr>
+<tr>
+<td>6.08</td>
+<td>lidar point cloud</td>
+<td>verified</td>
+<td>floor ring 1.171 m against 1.179 m predicted</td>
+<td><code>run.py</code>, <a href="../../tutorial/08-robot-and-sensors.html#22-lidar-rings-on-the-floor-columns-on-obstacles">chapter 8, 2.2</a></td>
+</tr>
+<tr>
+<td>6.09</td>
+<td>cloud into <code>base_link</code> with tf2</td>
+<td>verified</td>
+<td>floor at z = -0.213 m, true -0.216 m</td>
+<td><code>run.py</code>, <a href="../../tutorial/05-frames-and-tf2.html">chapter 5</a></td>
+</tr>
+<tr>
+<td>6.10</td>
+<td>floor and body removal</td>
+<td>verified</td>
+<td>100 % of floor removed, 98.2 % of obstacle points kept</td>
+<td><code>perception.remove_floor_and_body</code></td>
+</tr>
+<tr>
+<td>6.11</td>
+<td>detect one obstacle</td>
+<td>verified</td>
+<td>pallet face 2 mm, width 10 mm from truth</td>
+<td><code>perception.cluster</code></td>
+</tr>
+<tr>
+<td>6.12</td>
+<td>detect several</td>
+<td>verified</td>
+<td>6 of 6 visible obstacles, 0 false clusters</td>
+<td><code>perception.cluster</code>, <code>perception.visible</code></td>
+</tr>
+<tr>
+<td>6.13</td>
+<td>stop before a wall</td>
+<td>verified</td>
+<td>0.476 to 0.499 m for a 0.5 m target, 3 runs</td>
+<td><a href="../../projects/p05_sense-and-stop/index.html#6-measure-the-stop-over-several-runs">p05 steps 5-6</a></td>
+</tr>
+<tr>
+<td>6.14</td>
+<td>stop before a new obstacle</td>
+<td>verified</td>
+<td>0.500 m after the box appeared 1.0 m ahead</td>
+<td><code>run.py</code>, <code>worlds/new_box.sdf</code>, p05 nodes</td>
+</tr>
+<tr>
+<td>6.15</td>
+<td>missing measurements</td>
+<td>verified</td>
+<td>zero sent 0.56 s after the node received the last scan; 0 m walked without readings</td>
+<td>p05 <code>stop_at_obstacle.py</code></td>
+</tr>
+<tr>
+<td>6.16</td>
+<td>detect a raised platform from depth</td>
+<td>verified</td>
+<td>top plane found, 7389 pixels, 0.48 deg from the floor</td>
+<td><code>perception.platform_from_points</code>, <code>worlds/platform.world</code></td>
+</tr>
+<tr>
+<td>6.17</td>
+<td>platform height and edges</td>
+<td>failed</td>
+<td>3 of 5 runs passed: height 0.118 m (true 0.12) in all, far edge 0.017 to 0.069 m short</td>
+<td>same</td>
+</tr>
+</tbody>
+</table></div>
+<p>Files: <code>perception.py</code> (the logic, no ROS), <code>tests/test_perception.py</code>, <code>run.py</code> (ROS side and the acceptance tests),
+<code>acceptance.json</code>, <code>worlds/make_worlds.py</code> (writes <code>platform.world</code> and <code>new_box.sdf</code> from one set of dimensions),
+<code>results/</code>, <code>figures/</code>, <code>media/</code>.</p>
+<p>The robot creeps while it stands: in one session it moved 0.31 m from A in about three minutes with zero commanded. Tasks
+that need the robot on A restart the simulator when it is more than 0.3 m or 3 deg away.</p>
+<h3 id="601-stationary-imu">6.01 Stationary IMU <span class="st failed">failed</span></h3>
+<p><strong>Objective.</strong> Read <code>/imu/data</code> while the robot stands and check that it measures gravity and no rotation.</p>
+<p><strong>Prerequisites.</strong> Stage 1 (the robot spawns and stands); <a href="../../tutorial/08-robot-and-sensors.html#25-imu-gravity-points-up">chapter 8, 2.5</a> reads the same topic by hand.</p>
+<p><strong>Theory.</strong> At rest an accelerometer measures the reaction to gravity in its own frame, $a = R^\top (0, 0, g)^\top$. Roll and
+pitch follow without knowing yaw: $\phi = \operatorname{atan2}(a_y, a_z)$, $\theta = \operatorname{atan2}(-a_x, \sqrt{a_y^2 + a_z^2})$.</p>
+<p><strong>Implementation.</strong> <code>t601</code> in <code>run.py</code> records 20 s of IMU and ground truth and averages; <code>perception.tilt_from_accel</code>.</p>
+<p><strong>Execution.</strong> <code>python3 tasks/s06_sensors-and-perception/run.py 6.01</code></p>
+<p><strong>Demonstration.</strong> <code>results/6.01.json</code>, last run: mean acceleration (0.033, -0.006, 9.800) m/s², 2020 samples at 99.6 Hz
+of simulated time. <code>per_run</code> holds the checked numbers of all 5 runs.</p>
+<p><strong>Measurement.</strong> Over 5 runs $\big||\bar a| - 9.8\big|$ was 0.0000 to 0.0052 m/s² and the tilt from the accelerometer
+within 0.01 deg of <code>/odom_gt</code> (last run: pitch -0.194 deg against -0.190 deg). The largest gyro mean per run was 0.0044,
+0.0085, 0.0037, 0.0009 and 0.0103 rad/s; the last was the y axis. An earlier batch of 5 (<code>results/6.01_batch1.json</code>) passed
+all 5, with 0.0005 to 0.0044 rad/s. The single-sample spread is large: accelerometer z standard deviation 0.90 m/s².</p>
+<p><strong>Acceptance.</strong> $\big||\bar a| - 9.8\big| \le 0.1$ m/s², tilt within 0.5 deg, every gyro mean $\le 0.005$ rad/s, rate
+$\ge 95$ Hz, in each of 5 runs. Failed: 3 of 5 runs passed, both failures on the gyro mean. Gravity, tilt and rate passed
+in every run. Across the two batches 8 of 10 runs passed; single runs before the 5-run rule failed at 0.0079, 0.0082 and
+0.0064 rad/s.</p>
+<p><strong>Failure analysis.</strong> In a diagnostic run the gyro y mean integrated to 8.3 deg in 20 s while the true pitch changed by
+0.1 deg, so it is not body rotation. CHAMP's stance controller makes the trunk vibrate (gyro standard deviation 0.06 to
+0.09 rad/s, 300 to 450 times the configured noise). The offset changes from run to run, which is why the verdict did.
+My inference, not checked: vibration above the IMU's 50 Hz Nyquist rate folds down to a near-constant offset.</p>
+<p><strong>Next task.</strong> 6.03 measures that vibration as noise; 6.04 shows what it does to heading.</p>
+<h3 id="602-rotate-and-measure-angular-rate">6.02 Rotate and measure angular rate <span class="st failed">failed</span></h3>
+<p><strong>Objective.</strong> Turn in place and compare the gyro's yaw rate with the true one.</p>
+<p><strong>Prerequisites.</strong> 6.01; stage 4 turning.</p>
+<p><strong>Theory.</strong> For a level body the gyro z axis measures $\dot\psi$. The commanded rate is not what CHAMP delivers, so the
+reference is <code>/odom_gt</code> (angular velocity in the world frame, 50 Hz); the gyro is interpolated to those stamps.</p>
+<p><strong>Implementation.</strong> <code>t602</code>: stand 2 s, $\omega_z = +0.5$ rad/s for 8 s, stand 2 s, $-0.5$ rad/s for 8 s; statistics over
+the last 5 s of each turn.</p>
+<p><strong>Execution.</strong> <code>python3 tasks/s06_sensors-and-perception/run.py 6.02</code></p>
+<p><strong>Demonstration.</strong></p>
+<p><img loading="lazy" alt="Gyro z and true yaw rate during two turns in place: both oscillate between about -0.3 and 1.5 rad/s around the commanded 0.5, and the two lines lie on top of each other" src="figures/6.02_turn_rate.png" /></p>
+<p><strong>Measurement.</strong> Mean rate: true 0.4964 and gyro 0.4950 rad/s (+0.5 commanded), true -0.4873 and gyro -0.4866 rad/s (-0.5
+commanded). RMS of sample differences 0.0200 and 0.0170 rad/s. CHAMP delivered 99.3 % and 97.5 % of the command.</p>
+<p><strong>Acceptance.</strong> Mean relative error $\le 1$ %: 0.28 %, passed. Sample RMS $\le 0.02$ rad/s: 0.02002, failed. An earlier run
+gave 0.0182 and passed.</p>
+<p><strong>Failure analysis.</strong> The yaw rate swings by about ±1 rad/s with every step, so linear interpolation between 20 ms
+ground-truth samples leaves a residual of the same size as the threshold. The 0.02 threshold was too tight for that
+reference, not for the sensor; I keep it, and the task stays failed.</p>
+<p><strong>Next task.</strong> 6.04 integrates the same signal.</p>
+<h3 id="603-imu-noise-and-bias">6.03 IMU noise and bias <span class="st failed">failed</span></h3>
+<p><strong>Objective.</strong> Estimate the gyro's white noise and bias from a short stationary record, the way you would on a bench.</p>
+<p><strong>Prerequisites.</strong> 6.01.</p>
+<p><strong>Theory.</strong> With $\theta_k$ the integrated rate and $m = \tau / \Delta t$, the overlapping Allan variance is
+$$\sigma^2(\tau) = \frac{1}{2\tau^2 (N - 2m)} \sum_k (\theta_{k+2m} - 2\theta_{k+m} + \theta_k)^2 .$$
+White noise of density $N$ gives $\sigma(\tau) = N / \sqrt{\tau}$. The simulated gyro has $\sigma = 2 \times 10^{-4}$ rad/s
+per sample at 100 Hz (<code>go2_description</code> <code>gazebo.xacro</code>), so $N = \sigma \sqrt{\Delta t} = 2 \times 10^{-5}$ rad/s/√Hz.</p>
+<p><strong>Implementation.</strong> <code>t603</code>: 60 s standing, <code>perception.allan_deviation</code> (tested on synthetic white noise in <code>tests/</code>).</p>
+<p><strong>Execution.</strong> <code>python3 tasks/s06_sensors-and-perception/run.py 6.03</code></p>
+<p><strong>Demonstration.</strong></p>
+<p><img loading="lazy" alt="Allan deviation of the three gyro and three accelerometer axes against the configured white-noise line: the gyro curves sit about two to 2.6 decades above it, the accelerometer curves 0.7 to 1.8 decades" src="figures/6.03_allan.png" /></p>
+<p><strong>Measurement.</strong> $N$ at $\tau = 0.1$ s: 0.0099, 0.0087, 0.0028 rad/s/√Hz for x, y, z. Means 0.0023, 0.0047, 0.0005 rad/s.
+The z curve reaches its lowest value, 0.00055 rad/s, at the longest $\tau$ tested (6.7 s). Accelerometer $N$: 0.048, 0.042,
+0.101 m/s²/√Hz against 0.0017 configured.</p>
+<p><strong>Acceptance.</strong> Bias $\le 0.001$ rad/s and $N$ within a factor of 2 of the configured value. Failed: $N$ is 139 to 495 times
+too large and the bias 4.7 times the limit.</p>
+<p><strong>Failure analysis.</strong> The robot cannot be still in this simulation: CHAMP holds it in stance and the trunk vibrates (6.01).
+The record measures that vibration, not the sensor. Measuring the sensor needs the IMU off the robot, or the robot lying
+with its joints unpowered, which this stack does not offer. Gyro z is the least affected axis.</p>
+<p><strong>Next task.</strong> 6.04 shows that this "bias" moves heading by degrees per minute.</p>
+<h3 id="604-integrate-the-gyro-for-heading">6.04 Integrate the gyro for heading <span class="st failed">failed</span></h3>
+<p><strong>Objective.</strong> Turn by a measured angle using only the gyro, then hold still and watch the integrated heading drift.</p>
+<p><strong>Prerequisites.</strong> 6.02, 6.03.</p>
+<p><strong>Theory.</strong> $\psi(t) = \int_0^t \omega_z \, dt$ (trapezoids, <code>perception.integrate</code>). A constant bias $b$ adds $b\,t$; white
+noise adds a random walk with standard deviation $N \sqrt{t}$.</p>
+<p><strong>Implementation.</strong> <code>t604</code>: turn at +0.5 rad/s until the integrated gyro reads 90 deg, stand 3 s, turn back until it reads
+0, stand 3 s, then stand 30 s.</p>
+<p><strong>Execution.</strong> <code>python3 tasks/s06_sensors-and-perception/run.py 6.04</code></p>
+<p><strong>Demonstration.</strong></p>
+<p><img loading="lazy" alt="Top: integrated gyro and true yaw through a 90 degree turn and back. Bottom: their difference, within 0.8 degree during the turns, then falling to -7 degrees over 30 s of standing" src="figures/6.04_heading.png" /></p>
+<p><strong>Measurement.</strong> Heading error at the end of the turns 0.50 and -0.75 deg. True yaw at those points 96.1 and -7.2 deg: the
+robot keeps turning after the zero command, which the gyro tracks. Standing drift 6.5 deg in 30 s (mean gyro z while
+standing -0.0039 rad/s). With the mean rate of the first 15 s of standing subtracted, the drift over the last 15 s fell
+from -3.17 to 0.23 deg; in an earlier run the same correction only halved it (-1.75 to -0.92 deg).</p>
+<p><strong>Acceptance.</strong> Turn error $\le 1$ deg: passed. Standing drift $\le 0.1$ deg in 30 s: failed in all five runs on record
+(1.45, 2.57, 3.00, 4.05 and 6.53 deg; turn error at most 0.75 deg).</p>
+<p><strong>Failure analysis.</strong> The configured white noise alone would drift $2 \times 10^{-5} \sqrt{30} \approx 0.006$ deg. The
+measured drift comes from the vibration offset of 6.01, which changes from minute to minute, so a bias estimated while
+standing helps only partly.</p>
+<p><strong>Next task.</strong> 7.01 (rotation from the gyro) and 7.11, where the lidar bounds this drift.</p>
+<h3 id="605-rgb-camera">6.05 RGB camera <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Read one image from <code>/camera/image_raw</code> and check its geometry.</p>
+<p><strong>Prerequisites.</strong> Stage 1, <a href="../../tutorial/05-frames-and-tf2.html#16-read-the-camera-optical-frame">chapter 5, 1.6</a> (optical frame).</p>
+<p><strong>Theory.</strong> A pinhole camera with horizontal field of view $\alpha$ and width $W$ has $f_x = (W/2) / \tan(\alpha/2)$; for
+$W = 640$ and $\alpha = 1.2$ rad (<code>sensors.xacro</code>) that is 467.74 px.</p>
+<p><strong>Implementation.</strong> <code>t605</code> grabs one image and <code>/camera/camera_info</code>.</p>
+<p><strong>Execution.</strong> <code>python3 tasks/s06_sensors-and-perception/run.py 6.05</code></p>
+<p><strong>Demonstration.</strong></p>
+<p><img loading="lazy" alt="The onboard RGB view from A: floor grid, the pallet 6 m ahead, a brick box on the left and the arena wall on the right" src="figures/6.05_rgb.png" /></p>
+<p><strong>Measurement.</strong> 640 × 360, <code>rgb8</code>, frame <code>camera_optical</code>, $f_x = f_y = 467.74$, $c = (320.5, 180.5)$, 10.0 Hz of simulated
+time, pixel standard deviation 70.9 (the image is not blank).</p>
+<p><strong>Acceptance.</strong> All checks passed: verified.</p>
+<p><strong>Failure analysis.</strong> On a loaded machine the camera rate falls (chapter 8 measured 1.6 to 5 Hz); the image itself does not
+change.</p>
+<p><strong>Next task.</strong> 6.06 uses the same intrinsics for depth.</p>
+<h3 id="606-depth-camera">6.06 Depth camera <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Read <code>/camera/depth/image_raw</code> and check it against the floor, whose geometry is known.</p>
+<p><strong>Prerequisites.</strong> 6.05.</p>
+<p><strong>Theory.</strong> A floor point on row $v$, with $y_n = (v - c_y)/f_y$, a camera $h$ above the floor and pitched by $\theta$
+(positive nose down) has optical depth
+$$z = \frac{h}{y_n \cos\theta + \sin\theta} .$$</p>
+<p><strong>Implementation.</strong> <code>t606</code>, <code>perception.floor_depth</code>. Five consecutive frames; for each, the camera height and pitch come
+from <code>/odom_gt</code> interpolated at the frame's stamp. Per frame, the median over the 40 centre columns of the rows where the
+model predicts 0.7 to 6 m; the checked number is the worst frame.</p>
+<p><strong>Execution.</strong> <code>python3 tasks/s06_sensors-and-perception/run.py 6.06</code></p>
+<p><strong>Demonstration.</strong></p>
+<p><img loading="lazy" alt="Left: the depth image at A, near floor dark, the pallet 6 m ahead, no return above the horizon. Right: measured floor depth per row on the predicted curve, worst of five frames" src="figures/6.06_depth.png" /></p>
+<p><strong>Measurement.</strong> <code>32FC1</code>. Last run: camera height 0.245 to 0.247 m, pitch at the frame stamps -0.02 to -0.24 deg, per-frame
+median relative error 1.09 to 1.21 %. Worst frame per run over 5 runs: 1.21, 1.44, 1.16, 1.26 and 1.21 %.</p>
+<p><strong>Acceptance.</strong> Median error $\le 3$ % on every frame, in each of 5 runs: verified, 5 of 5. History (<code>acceptance.json</code>,
+<code>changes</code>): a level camera failed at 3.7 % (<code>results/6.06_level_model_failed.json</code>). With pitch added but <code>/odom_gt</code>
+read after the frame arrived, single runs gave 0.5 %, 3.8 %, 0.6 %, 1.1 %, 1.9 % and 1.5 %, so the verdict depended on the run.</p>
+<p><strong>Failure analysis.</strong> Near the horizon 0.4 deg of pitch moves the floor by 10 to 15 %, so the test checks the camera's
+attitude at the image's instant. The trunk pitch swings by about 0.3 deg while standing (-0.39 to -0.01 deg in 3.3 s), and
+the old reference sample came from another instant. On 20 consecutive frames the stamp-interpolated reference gave 1.06 to
+1.46 %. The remaining 1.1 % is steady: the pitch that fits each frame best is 0.11 to 0.16 deg more nose-down than the
+interpolated <code>/odom_gt</code> pitch on every frame, an offset between the camera and the trunk that this test does not
+resolve. 6.16 avoids the reference altogether by fitting the floor plane in the depth image.</p>
+<p><strong>Next task.</strong> 6.07 (distance), 6.16 (planes).</p>
+<h3 id="607-distance-to-a-wall-from-depth-and-from-the-scan">6.07 Distance to a wall from depth and from the scan <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Measure the distance to a flat face with both range sensors.</p>
+<p><strong>Prerequisites.</strong> 6.06; <a href="../../projects/p05_sense-and-stop/index.html">project 5</a> steps 2 and 4 (<code>front_min</code>, <code>centre_depth</code>).</p>
+<p><strong>Theory.</strong> The scan is in <code>base_footprint</code> and the head is 0.28 m ahead of it, so gap $= r_{\min} - 0.28$. The depth
+camera is at the head and its pixel value is already the perpendicular distance for a face square to it.</p>
+<p><strong>Implementation.</strong> Reuses project 5: <code>measure_stops.py --goto-start</code> walks to a 2.0 ± 0.1 m gap before the pallet's west
+face and <code>snapshot.py</code> saves one scan and one depth image; <code>t607</code> applies p05's <code>obstacle.py</code> and scores on <code>/odom_gt</code>.</p>
+<p><strong>Execution.</strong> <code>python3 tasks/s06_sensors-and-perception/run.py 6.07</code></p>
+<p><strong>Demonstration.</strong> <code>results/6.07_snapshot.npz</code> (plot it with p05's <code>plot.py --snap</code>).</p>
+<p><strong>Measurement.</strong> True gap 2.088 m. Depth 2.090 m (+0.002), scan 2.063 m (-0.025).</p>
+<p><strong>Acceptance.</strong> Scan $\le 0.05$ m, depth $\le 0.03$ m: verified.</p>
+<p><strong>Failure analysis.</strong> The scan reads short because the minimum over 100 noisy beams picks the most negative noise
+(<a href="../../projects/p05_sense-and-stop/index.html#try-this">p05, exercise 3</a>).</p>
+<p><strong>Next task.</strong> 6.13 stops on this number.</p>
+<h3 id="608-lidar-point-cloud">6.08 Lidar point cloud <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Read <code>/lidar/points</code> and check it against the floor.</p>
+<p><strong>Prerequisites.</strong> Stage 1; <a href="../../tutorial/08-robot-and-sensors.html#22-lidar-rings-on-the-floor-columns-on-obstacles">chapter 8, 2.2</a> shows the same cloud in RViz with <code>go2.rviz</code>.</p>
+<p><strong>Theory.</strong> The lowest of the 16 beams points 15 deg down, so on a flat floor it draws a ring of radius $r = h / \tan 15°$,
+with $h$ the lidar height.</p>
+<p><strong>Implementation.</strong> <code>t608</code>: points of the -15 ± 0.5 deg beam, median horizontal range.</p>
+<p><strong>Execution.</strong> <code>python3 tasks/s06_sensors-and-perception/run.py 6.08</code>; in RViz: <code>rviz2 -d src/go2_nav_sim/rviz/go2.rviz --ros-args -p use_sim_time:=true</code>.</p>
+<p><strong>Demonstration.</strong></p>
+<p><img loading="lazy" alt="Top view of one cloud at A coloured by height: floor rings around the robot, walls and obstacles as lines and arcs, the predicted 1.18 m ring dashed" src="figures/6.08_cloud.png" /></p>
+<p><strong>Measurement.</strong> Frame <code>lidar_link</code>, fields x, y, z, intensity, 12699 points. Lidar 0.316 m above the floor; ring 1.171 m
+against 1.179 m predicted.</p>
+<p><strong>Acceptance.</strong> Ring error $\le 0.03$ m: 0.008, verified.</p>
+<p><strong>Failure analysis.</strong> I did not trace the 8 mm. A tilted trunk moves the ring forward on one side and back on the other,
+which the median over all azimuths mostly cancels.</p>
+<p><strong>Next task.</strong> 6.09.</p>
+<h3 id="609-cloud-into-the-robot-frame">6.09 Cloud into the robot frame <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Transform the cloud into <code>base_link</code> with tf2 and check where the floor lands.</p>
+<p><strong>Prerequisites.</strong> 6.08, <a href="../../tutorial/05-frames-and-tf2.html">chapter 5</a>.</p>
+<p><strong>Theory.</strong> $p_b = R\,p_l + t$ with $(R, t)$ the transform <code>base_link</code> ← <code>lidar_link</code> (URDF: $t = (0, 0, 0.10)$, $R = I$).</p>
+<p><strong>Implementation.</strong> <code>t609</code>: <code>tf_buffer.lookup_transform('base_link', 'lidar_link', Time())</code> and
+<code>tf2_sensor_msgs.do_transform_cloud</code>; the floor is the median z of points below -0.1 m between 1 and 4 m.</p>
+<p><strong>Execution.</strong> <code>python3 tasks/s06_sensors-and-perception/run.py 6.09</code></p>
+<p><strong>Demonstration.</strong></p>
+<p><img loading="lazy" alt="Side view of the cloud in base_link: the floor returns on the dashed line of the true floor at -0.216 m" src="figures/6.09_base_link.png" /></p>
+<p><strong>Measurement.</strong> Translation (0, 0, 0.100). Floor at -0.213 m, true base height 0.216 m. In <code>base_footprint</code> the same floor
+is at +0.213 m: CHAMP publishes <code>base_footprint</code> → <code>base_link</code> as a constant 0.426 m, so that frame sits under the floor
+(<a href="../../tutorial/08-robot-and-sensors.html#12-measure-the-base_footprint-to-base_link-offset">chapter 8, 1.2</a>).</p>
+<p><strong>Acceptance.</strong> Translation within 1 mm, floor within 0.02 m: verified.</p>
+<p><strong>Failure analysis.</strong> Any height threshold written for <code>base_footprint</code> as if it were on the ground is 0.21 m off.</p>
+<p><strong>Next task.</strong> 6.10 removes the floor in this frame.</p>
+<h3 id="610-remove-floor-and-body-returns">6.10 Remove floor and body returns <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Keep only returns from obstacles.</p>
+<p><strong>Prerequisites.</strong> 6.09.</p>
+<p><strong>Theory.</strong> Fit the floor plane $n \cdot p + d = 0$ with RANSAC (normal within 10 deg of up) and keep a point when
+$n \cdot p + d &gt; 0.05$ m and it is outside the body footprint $|x| \le 0.40$, $|y| \le 0.20$.</p>
+<p><strong>Implementation.</strong> <code>perception.ransac_plane</code>, <code>perception.remove_floor_and_body</code>; <code>filtered_cloud</code> in <code>run.py</code>.</p>
+<p><strong>Execution.</strong> <code>python3 tasks/s06_sensors-and-perception/run.py 6.10</code></p>
+<p><strong>Demonstration.</strong></p>
+<p><img loading="lazy" alt="Two top views in base_link: all returns with the floor rings grey, and only the kept walls and obstacles" src="figures/6.10_floor_removed.png" /></p>
+<p><strong>Measurement.</strong> Labels from ground truth: 3888 floor points (world z &lt; 0.02 m), 7993 obstacle points (z &gt; 0.10 m). All floor
+points removed, 98.2 % of obstacle points kept; 142 returns fell inside the body footprint and none were kept.</p>
+<p><strong>Acceptance.</strong> Floor removed $\ge 99$ %, obstacles kept $\ge 98$ %, no body points: verified, with little margin on the
+second check.</p>
+<p><strong>Failure analysis.</strong> The fitted floor normal leans 0.37 deg (x component 0.0064), so 10 m away the plane is 6 cm above
+the true floor and the bottom of the far walls falls inside the 0.05 m tolerance; that is my reading of the 1.8 % lost.
+A low obstacle of 5 cm or less disappears entirely.</p>
+<p><strong>Next task.</strong> 6.11, 6.12 cluster what is left.</p>
+<h3 id="611-detect-one-obstacle">6.11 Detect one obstacle <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Find the pallet ahead as one cluster and measure its face.</p>
+<p><strong>Prerequisites.</strong> 6.10.</p>
+<p><strong>Theory.</strong> Euclidean clustering: two points closer than 0.15 m belong to the same object (KD-tree neighbour pairs and
+connected components, <code>perception.cluster</code>). The lidar's 0.4 deg azimuth step puts neighbours 1.6 cm apart at 2.3 m.</p>
+<p><strong>Implementation.</strong> <code>t611</code>: p05 lane start, filtered cloud, clusters of at least 5 points whose centroid lies 0.3 to 4 m
+ahead and within ±1.0 m sideways.</p>
+<p><strong>Execution.</strong> <code>python3 tasks/s06_sensors-and-perception/run.py 6.11</code></p>
+<p><strong>Demonstration.</strong></p>
+<p><img loading="lazy" alt="World top view: the detected cluster on the pallet's west face at x = 1.9, the robot 2.4 m before it" src="figures/6.11_one_obstacle.png" /></p>
+<p><strong>Measurement.</strong> 1 cluster in the region, 284 points. Face at x = 1.902 m (true 1.9), width 1.190 m (true 1.2).</p>
+<p><strong>Acceptance.</strong> One cluster, face $\le 0.05$ m, width $\le 0.10$ m: verified.</p>
+<p><strong>Failure analysis.</strong> The lidar sees only the face: the pallet top (0.45 m) is above the lidar's line of sight from 0.32 m.</p>
+<p><strong>Next task.</strong> 6.12.</p>
+<h3 id="612-detect-several-obstacles">6.12 Detect several obstacles <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Cluster the whole room and match clusters to the known obstacles.</p>
+<p><strong>Prerequisites.</strong> 6.11.</p>
+<p><strong>Theory.</strong> An obstacle counts as visible when at least 3 of 720 rays from the lidar hit it first in a 2D ray cast against
+the footprints in <code>make_arena.py</code> (<code>perception.visible</code>). A cluster matches an obstacle when its points' median distance to
+that footprint is under 0.15 m.</p>
+<p><strong>Implementation.</strong> <code>t612</code>.</p>
+<p><strong>Execution.</strong> <code>python3 tasks/s06_sensors-and-perception/run.py 6.12</code></p>
+<p><strong>Demonstration.</strong></p>
+<p><img loading="lazy" alt="World top view from A: 18 clusters, each obstacle labelled found" src="figures/6.12_several.png" /></p>
+<p><strong>Measurement.</strong> 18 clusters (the walls split at occlusions). All 6 obstacles visible and found, median point distance to
+the footprint under 1 mm, no unmatched cluster. Box 1 was visible to only 4 rays.</p>
+<p><strong>Acceptance.</strong> Recall 1.0, 0 false clusters, and the largest median point distance of a matched cluster to its footprint
+$\le 0.05$ m (0.000 m here): verified.</p>
+<p><strong>Failure analysis.</strong> Clusters only separate objects more than 0.15 m apart; a box against a wall would merge with it.</p>
+<p><strong>Next task.</strong> Stage 9 maps with the same filtered cloud; 10.03 navigates among these obstacles.</p>
+<h3 id="613-stop-before-a-wall">6.13 Stop before a wall <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Walk at a face and stop 0.5 m from it.</p>
+<p><strong>Prerequisites.</strong> 6.07; project 5 (the stop rule and its error budget).</p>
+<p><strong>Theory.</strong> Stop when $r - 0.28 \le 0.5$; the error is the scan bias, the distance walked between scans and in transit,
+and the coast after the zero (<a href="../../projects/p05_sense-and-stop/index.html#where-the-stopping-error-comes-from">p05</a>).</p>
+<p><strong>Implementation.</strong> Reuses p05: <code>sense.py</code> and <code>measure_stops.py --speeds 0.2 --runs 3</code>, on the pallet's flat west face.</p>
+<p><strong>Execution.</strong> <code>python3 tasks/s06_sensors-and-perception/run.py 6.13</code></p>
+<p><strong>Demonstration.</strong> <code>results/6.13_p05_runs/stop.csv</code>; <a href="../../projects/p05_sense-and-stop/media/stop_0.3.mp4">p05's video</a>.</p>
+<p><strong>Measurement.</strong> Final true gaps 0.476, 0.499, 0.486 m; coast 0.019 to 0.027 m.</p>
+<p><strong>Acceptance.</strong> $|{\rm gap} - 0.5| \le 0.05$ m on every run: verified.</p>
+<p><strong>Failure analysis.</strong> None at 0.2 m/s; p05 shows the error growing to -0.054 m at 0.3 m/s.</p>
+<p><strong>Next task.</strong> 6.14.</p>
+<h3 id="614-stop-before-a-newly-spawned-obstacle">6.14 Stop before a newly spawned obstacle <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Stop for an obstacle that appears while the robot walks.</p>
+<p><strong>Prerequisites.</strong> 6.13.</p>
+<p><strong>Theory.</strong> The stop node has no map: it reacts to whatever is nearest in its ±20 deg sector, so a new object needs no
+special handling, only a gap at appearance larger than the 0.5 m target plus the coast (0.02 to 0.03 m at 0.2 m/s, 6.13).</p>
+<p><strong>Implementation.</strong> <code>t614</code>: from the p05 lane start, start p05's <code>stop_at_obstacle.py</code> at 0.2 m/s, and 1 s after walking
+begins call <code>/spawn_entity</code> with <code>worlds/new_box.sdf</code> (0.4 × 0.6 × 0.5 m, west face at x = 1.2, 0.7 m before the pallet).</p>
+<p><strong>Execution.</strong> <code>python3 tasks/s06_sensors-and-perception/run.py 6.14</code></p>
+<p><strong>Demonstration.</strong></p>
+<p><img loading="lazy" alt="Gap to the new box against time: the scan reads the pallet at 1.9 m until the spawn, then the box, and the robot stops on the 0.5 m line" src="figures/6.14_new_obstacle.png" /></p>
+<video controls muted playsinline src="media/6.14_new_obstacle.mp4"></video>
+
+<p><em>Chase camera, 9.9 s: the red box appears in front of the pallet and the robot stops before it.</em></p>
+<p><strong>Measurement.</strong> True gap when the spawn returned 0.999 m. Final gap 0.500 m to the box, 1.200 m to the pallet. STOP line:
+<code>range=0.774 gap=0.494 age=0.107</code>.</p>
+<p><strong>Acceptance.</strong> Gap at spawn $\ge 0.8$ m, $|{\rm gap} - 0.5| \le 0.06$ m, final gap $\ge 0$ (no contact): verified.</p>
+<p><strong>Failure analysis.</strong> Spawned closer than the stopping distance, the box would be hit; <code>run.py</code> reads the gap at spawn so
+that case is visible in the result.</p>
+<p><strong>Next task.</strong> 10.08 (replan when blocked) uses the same event with Nav2.</p>
+<h3 id="615-handle-missing-measurements">6.15 Handle missing measurements <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Show that the stop node does not walk without readings, and stops when they end.</p>
+<p><strong>Prerequisites.</strong> 6.13.</p>
+<p><strong>Theory.</strong> "No news is not good news": the node starts in a waiting state and, while walking, stops when no reading has
+arrived for 0.5 s (<a href="../../projects/p05_sense-and-stop/index.html#stop_at_obstaclepy-walk-stop-and-stop-anyway-when-the-sensor-goes-quiet">p05</a>).
+At 0.2 m/s that costs at most $0.2 \times (0.5 + 0.1) = 0.12$ m plus the coast.</p>
+<p><strong>Implementation.</strong> <code>t615</code>: (a) start <code>stop_at_obstacle.py</code> with no <code>/front_range</code> for 3 s; (b) with <code>sense.py</code> running,
+start walking and stop <code>sense.py</code> after 2 s.</p>
+<p><strong>Execution.</strong> <code>python3 tasks/s06_sensors-and-perception/run.py 6.15</code></p>
+<p><strong>Demonstration.</strong></p>
+<p><img loading="lazy" alt="Speed against time from the last scan's stamp: walking at 0.2 m/s while scans arrive; the command drops to zero 0.65 s after that stamp (0.56 s after the node received the scan) and the robot stands" src="figures/6.15_missing.png" /></p>
+<p><strong>Measurement.</strong> (a) 0.3 mm moved, no non-zero command. (b) node output <code>TIMEOUT ...: no reading for 0.56 s, stopping</code>,
+counted on the node's clock from when it received the last reading. From the last scan's header stamp to the zero: 0.651 s;
+the difference is the scan's age on arrival. 0.159 m walked after the last scan's stamp.</p>
+<p><strong>Acceptance.</strong> $\le 0.02$ m without readings, TIMEOUT printed, zero within 0.65 s of the node receiving the last reading
+(<code>zero_after_last_reading_s</code>, the node's receive clock), $\le 0.25$ m walked: verified, 0.56 s. The 0.65 s limit does not
+apply to the stamp clock: measured from the last scan's stamp this run took 0.651 s, and another run 0.705 s (0.59 s from
+receipt), which would fail.</p>
+<p><strong>Failure analysis.</strong> The robot walks blind for the timeout. A shorter timeout stops sooner but trips on normal gaps
+between messages on a loaded machine (<a href="../../projects/p05_sense-and-stop/index.html#try-this">p05, exercise 2</a>).</p>
+<p><strong>Next task.</strong> 4.20 (publisher lost) applies the same rule to <code>/cmd_vel</code>.</p>
+<h3 id="616-detect-a-raised-platform-from-depth">6.16 Detect a raised platform from depth <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Find a raised horizontal surface in one depth image.</p>
+<p><strong>Prerequisites.</strong> 6.06, 6.10.</p>
+<p><strong>Theory.</strong> Back-project pixels, $p = z\,((u - c_x)/f_x, (v - c_y)/f_y, 1)$; fit the floor plane (RANSAC, normal within
+10 deg of up); every point's height above it is $h = n \cdot p + d$. A horizontal surface puts its points into one height
+bin, a vertical face spreads them over many, so the top is the most common height between 0.03 and 0.5 m, kept as the
+largest connected patch.</p>
+<p><strong>Implementation.</strong> <code>perception.backproject</code>, <code>perception.platform_from_points</code>; <code>worlds/platform.world</code> is the arena plus
+a 1.0 × 1.2 × 0.12 m box centred at (-2.2, -3.5), 1.5 m ahead of the camera at A (<code>worlds/make_worlds.py</code>).</p>
+<p><strong>Execution.</strong> <code>python3 tasks/s06_sensors-and-perception/run.py 6.16</code> (starts the platform world).</p>
+<p><strong>Demonstration.</strong></p>
+<p><img loading="lazy" alt="Depth image at A with the floor plane tinted blue and the platform top amber, its front face dark between them" src="figures/6.16_platform_depth.png" /></p>
+<p><strong>Measurement.</strong> Median of 3 frames, points within 4 m: 76804 floor, 7389 top pixels; normals 0.48 deg apart.</p>
+<p><strong>Acceptance.</strong> Detected, $\ge 1000$ pixels, $\le 2$ deg: verified.</p>
+<p><strong>Failure analysis.</strong> The first version took both planes by sequential RANSAC with 300 iterations. The top holds 6 % of the
+points, so three random samples land on it with probability $0.06^3$; one run picked a horizontal slice through the walls
+at 0.09 m instead (<code>results/6.17_ransac_failed.json</code>). The height histogram has no such failure mode.</p>
+<p><strong>Next task.</strong> 6.17; 11.01 (detect a step).</p>
+<h3 id="617-estimate-platform-height-and-edges">6.17 Estimate platform height and edges <span class="st failed">failed</span></h3>
+<p><strong>Objective.</strong> Measure the platform's height and its four edges in the world frame.</p>
+<p><strong>Prerequisites.</strong> 6.16.</p>
+<p><strong>Theory.</strong> Height = median of $n \cdot p + d$ over the top points. Edges: express the top points in a frame on the floor
+(x along the camera axis projected on the floor, z along $n$, <code>perception.ground_frame</code>), rotate by the robot's yaw and add
+the camera's position from <code>/odom_gt</code>, take the 1st and 99th percentiles of world x and y.</p>
+<p><strong>Implementation.</strong> <code>t617</code>.</p>
+<p><strong>Execution.</strong> <code>python3 tasks/s06_sensors-and-perception/run.py 6.17</code></p>
+<p><strong>Demonstration.</strong></p>
+<p><img loading="lazy" alt="World top view of the top-plane points, the true platform dashed and the estimated rectangle on it" src="figures/6.17_platform_edges.png" /></p>
+<p><strong>Measurement.</strong> Last run: height 0.1182 m (true 0.12). Edges: near x -2.700 (true -2.7), far x -1.717 (-1.7), right y
+-4.084 (-4.1), left y -2.909 (-2.9). Over 5 runs the height was 0.1182 to 0.1184 m and the far x edge 0.017, 0.030, 0.033,
+0.065 and 0.069 m short of the truth; it was the largest edge error in every run. The two farthest rows of top
+points are 0.086 to 0.097 m apart, and the farthest row holds 116 to 233 points.</p>
+<p><strong>Acceptance.</strong> Height $\le 0.01$ m, every edge $\le 0.05$ m, in each of 5 runs. Failed: 3 of 5 runs passed, both failures
+on the far x edge (0.065 and 0.069 m). The height passed in every run. An earlier batch passed 5 of 5 (largest edge error
+0.047 m, <code>results/6.17_batch1.json</code>), and of four single runs before the 5-run rule one failed with the far edge 0.093 m short.</p>
+<p><strong>Failure analysis.</strong> The far edge is limited by the depth image's row spacing, not by the estimator. Seen from A, the top
+is 0.13 m below the camera and its far edge 2.2 m away, so one image row covers about 0.09 m of it there (the figure shows
+the rows spreading out with distance). The true edge lies anywhere between the last row that hits the top and the next row, which already misses it, so the far
+edge reads 0 to one row spacing short, depending on where the rows fall for that start. The 99th percentile is not the cause:
+the last row holds 1.6 to 3.1 % of the top points, so the percentile lands inside it. A 5 cm far edge needs rows at most
+0.05 m apart; row spacing grows with the square of distance, so that means the camera within about 1.6 m of the far edge
+(computed from the measured spacing, not run). Height is not affected: it is a median over about 7400 top points.</p>
+<p>A second version measured the height as the difference of the two planes' offsets, which are taken at the camera: with
+normals 0.5 deg apart and the platform 2 m away that read 0.103 m (<code>results/6.17_offset_failed.json</code>). Measure at the
+platform.</p>
+<p><strong>Next task.</strong> Stage 5 step trials use the measured height; stage 11 (11.01 to 11.05) turns this into a step detector and
+foothold estimate.</p><nav class="prevnext" aria-label="Previous and next"><a class="pn" href="../../tutorial/08-robot-and-sensors.html"><span>Previous</span>Robot and sensors</a><a class="pn next" href="../../projects/p05_sense-and-stop/index.html"><span>Next</span>Sense obstacles and stop</a></nav><p class="source">Source: <a href="https://github.com/Armanasq/go2-nav-sim/blob/main/tasks/s06_sensors-and-perception/README.md">tasks/s06_sensors-and-perception/README.md</a></p></article></div>
+</main>
+<footer class="site"><div class="wrap">Simulation only. Source and issues on <a href="https://github.com/Armanasq/go2-nav-sim">GitHub</a>.</div></footer>
+<script type="module" src="../../static/js/site.js"></script>
+</body>
+</html>

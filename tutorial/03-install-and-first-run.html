@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Install and first run · go2-nav-sim</title>
+<meta name="description" content="Install and first run">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../static/css/site.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5' fill='%230a6a9c'/%3E%3C/svg%3E">
+
+</head>
+<body data-root="../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar"><div class="inner">
+<a class="brand" href="../index.html">go2-nav-sim</a>
+<nav aria-label="Main"><a href="../tutorial/00-overview.html" aria-current="page">Learn</a><a href="../tasks/index.html">Tasks</a><a href="../modules/index.html">Deep dives</a><a href="../reference.html">Reference</a></nav>
+<button class="theme-toggle" type="button" aria-label="Colour theme: auto">auto</button>
+</div></header>
+<main id="main">
+<div class="wrap doc"><details class="side" open><summary>Install and first run</summary><nav aria-label="Contents"><ol class="parts"><li class="open"><p class="part">Start</p><ol><li><a href="00-overview.html"><span class="n">0</span><span>What you will build</span></a></li><li><a href="01-legged-robot-foundations.html"><span class="n">1</span><span>Legged robot foundations</span></a></li><li><a href="02-prerequisites.html"><span class="n">2</span><span>Prerequisites</span></a></li><li><a href="03-install-and-first-run.html" aria-current="page"><span class="n">3</span><span>Install and first run</span></a><ul class="sections"><li><a href="#task-1-build-the-workspace">Task 1: Build the workspace</a></li><li><a href="#task-2-start-the-stack-and-check-it">Task 2: Start the stack and check it</a></li><li><a href="#task-3-run-the-first-mission">Task 3: Run the first mission</a></li><li><a href="#task-4-stop-the-stack">Task 4: Stop the stack</a></li><li><a href="#exercise">Exercise</a></li><li><a href="#further-reading">Further reading</a></li></ul></li><li><a href="04-ros2-from-scratch.html"><span class="n">4</span><span>ROS 2 from scratch</span></a></li><li><a href="../projects/p01_first-steps/index.html"><span class="n">P1</span><span>First steps</span></a></li></ol></li><li><a class="part" href="05-frames-and-tf2.html">The robot</a></li><li><a class="part" href="../projects/p02_teleop-and-safety/index.html">Move it</a></li><li><a class="part" href="08-robot-and-sensors.html">Sense and avoid</a></li><li><a class="part" href="09-state-estimation.html">Estimate and map</a></li><li><a class="part" href="../projects/p11_command-arbitration/index.html">Navigate</a></li><li><a class="part" href="../projects/p14_test-the-stack/index.html">Beyond simulation</a></li></ol></nav></details><article class="prose"><p class="where">Start · Chapter 3</p><h1>Install and first run</h1><div class="table-wrap"><table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Goal</td>
+<td>The workspace built, the full stack running with every check passed, and one mission from A to B read and scored.</td>
+</tr>
+<tr>
+<td>Time</td>
+<td>1.5 h. Chapters 2 and 3 together: 2 h.</td>
+</tr>
+<tr>
+<td>Before you start</td>
+<td><a href="02-prerequisites.html">Chapter 2</a> done: every package in its version check is installed, natively or in the dev container. The clone from <a href="00-overview.html">chapter 0</a>, task 1.1.</td>
+</tr>
+<tr>
+<td>You will learn</td>
+<td>what <code>setup.sh</code> changes in the upstream code; how <code>up.sh</code> decides the stack is ready; how to check rates in simulated time; how to read the result line of a mission and score the run against ground truth.</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="task-1-build-the-workspace">Task 1: Build the workspace</h2>
+<h3 id="11-run-setupsh">1.1 Run setup.sh</h3>
+<p>Objective: fetch the pinned upstream code, patch it and build everything.</p>
+<p>Work in the clone you made in <a href="00-overview.html">chapter 0</a>, task 1.1. If you skipped that chapter, clone first with
+<code>git clone https://github.com/Armanasq/go2-nav-sim.git</code> in the directory that should hold the repository.</p>
+<pre><code class="language-bash">cd go2-nav-sim
+scripts/setup.sh
+</code></pre>
+<pre><code>patch applied
+plugins unpacked into overlay/
+Starting &gt;&gt;&gt; champ
+...
+Finished &lt;&lt;&lt; champ_base [2min 1s]
+Starting &gt;&gt;&gt; champ_bringup
+Finished &lt;&lt;&lt; champ_bringup [3.28s]
+Starting &gt;&gt;&gt; go2_nav_sim
+Finished &lt;&lt;&lt; go2_nav_sim [1.67s]
+
+Summary: 13 packages finished [2min 48s]
+done. next:  source env.sh &amp;&amp; scripts/up.sh
+</code></pre>
+<p>The build took 2 min 51 s of wall time on a 32-thread machine that was running other simulations at the same time; the download
+of the upstream repository comes on top. <code>setup.sh</code> does three things:</p>
+<ol>
+<li>Fetches <a href="https://github.com/anujjain-dev/unitree-go2-ros2">anujjain-dev/unitree-go2-ros2</a> (Go2 description and CHAMP gait
+   controller for Humble) at commit <code>fdac259</code> into <code>src/third_party/</code> and applies <code>patches/upstream.patch</code>.</li>
+<li>Unpacks the Gazebo sensor plugins into <code>overlay/</code> if <code>/opt/ros/humble/lib/libgazebo_ros_camera.so</code> is missing. On a machine
+   that has them, the second line of the output is absent.</li>
+<li>Runs <code>colcon build --symlink-install</code>.</li>
+</ol>
+<pre><code class="language-bash">source env.sh
+ros2 pkg prefix go2_nav_sim
+</code></pre>
+<p>Check: the last command prints <code>&lt;repository&gt;/install/go2_nav_sim</code>.</p>
+<p>Common mistakes: running <code>setup.sh</code> a second time prints <code>patch already applied</code>; that is expected. A build that stops with
+<code>No module named 'em'</code> has a virtualenv on <code>PATH</code> (<a href="02-prerequisites.html">chapter 2</a>, task 3.2).</p>
+<p><img loading="lazy" alt="Flowchart of setup.sh: fetch upstream, apply the patch, install sensor plugins into overlay if missing, colcon build" src="../img/c00-03-setup-flow.png" /></p>
+<p><em><code>scripts/setup.sh</code> as a flowchart; the plugin branch runs only when <code>/opt/ros/humble/lib/libgazebo_ros_camera.so</code> is missing.</em></p>
+<h3 id="12-read-what-the-patch-changes">1.2 Read what the patch changes</h3>
+<p>Objective: know which upstream lines this stack depends on.</p>
+<pre><code class="language-bash">git -C src/third_party/unitree-go2-ros2 diff --stat
+</code></pre>
+<pre><code> champ/champ_bringup/launch/bringup.launch.py | 10 +++++++++-
+ champ/champ_gazebo/launch/gazebo.launch.py   | 14 +++-----------
+ 2 files changed, 12 insertions(+), 12 deletions(-)
+</code></pre>
+<p>Upstream targets a teleoperation demo. Three things had to change for this stack:</p>
+<ul>
+<li><code>champ_gazebo/launch/gazebo.launch.py</code> loaded controllers with <code>ros2 control load_controller</code>. That command comes from
+  <code>ros2controlcli</code>, which is often not installed, and without it the legs never receive commands. The patch uses the
+  <code>controller_manager</code> spawner instead.</li>
+<li>The same file started a <code>contact_sensor</code> node that used over 200% of a core for a feature that is switched off. Removed.</li>
+<li><code>champ_bringup/launch/bringup.launch.py</code> gets a <code>gt_odom</code> argument that disables CHAMP's leg-odometry EKF, so another source can
+  own the <code>odom</code> transform.</li>
+</ul>
+<p>Check: two files changed, both launch files.</p>
+<p><img loading="lazy" alt="Before and after the patch for each of the three changes" src="../img/c00-03-patch.png" /></p>
+<p><em>The three changes in <code>patches/upstream.patch</code>, upstream behaviour on the left.</em></p>
+<h2 id="task-2-start-the-stack-and-check-it">Task 2: Start the stack and check it</h2>
+<h3 id="21-run-upsh">2.1 Run up.sh</h3>
+<p>Objective: start simulator, estimation and navigation in order, each only after the previous one is ready.</p>
+<pre><code class="language-bash">source env.sh
+scripts/up.sh
+</code></pre>
+<pre><code>stack: ROS_DOMAIN_ID=42 GAZEBO_MASTER_URI=http://localhost:11345
+stack up
+</code></pre>
+<p>It printed <code>stack up</code> after 40 s here. <code>up.sh</code> starts three launch files and waits for each:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Launch file</th>
+<th>Provides</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>sim.launch.py</code></td>
+<td>Gazebo arena, Go2 with CHAMP, lidar, RGB-D camera, IMU, ground-truth pose</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>estimation.launch.py</code></td>
+<td><code>/scan</code>, lidar odometry, EKF, the <code>odom</code> to <code>base_footprint</code> transform</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>nav.launch.py</code></td>
+<td>Nav2, AMCL on the arena map, a passive <code>slam_toolbox</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>Check: the last line is <code>stack up</code>. The launch output is in <code>logs/up_sim.log</code>, <code>logs/up_est.log</code> and <code>logs/up_nav.log</code>.</p>
+<p>The first readiness check runs <code>gz stats -w arena -d 1</code>. Without <code>-w arena</code>, <code>gz stats</code> reads the first world the Gazebo master
+lists. An earlier version of <code>up.sh</code> left out <code>-w arena</code>; on one run the first world listed was <code>default</code>, <code>gz stats</code> printed
+nothing, and <code>up.sh</code> stopped with <code>TIMEOUT waiting for: gazebo</code> after 288 s while <code>gzserver</code> was running. Run the check yourself:</p>
+<pre><code class="language-bash">gz stats -w arena -d 2
+</code></pre>
+<pre><code>Factor[0.76] SimTime[258.62] RealTime[348.07] Paused[F]
+</code></pre>
+<p><code>Factor</code> is the real-time factor; 0.76 means one simulated second took 1.3 s. If <code>up.sh</code> still stops with
+<code>TIMEOUT waiting for: gazebo</code> while this command prints <code>Factor</code> lines, the machine is too busy to answer within the 5 s
+timeout of the check; the troubleshooting table of <a href="../projects/p01_first-steps/index.html">p01</a> has the way around it.</p>
+<p><img loading="lazy" alt="Sequence of up.sh: each launch file followed by the readiness check that must pass before the next starts" src="../img/c00-03-up-sequence.png" /></p>
+<p><em>The readiness checks in <code>scripts/up.sh</code>. Each check is retried the number of times shown, 2 s apart; only the Nav2 step is restarted on failure.</em></p>
+<h3 id="22-check-the-sensor-rates">2.2 Check the sensor rates</h3>
+<p>Objective: confirm each sensor publishes at its configured rate.</p>
+<pre><code class="language-bash">ros2 topic hz -s /lidar/points
+ros2 topic hz -s /imu/data
+ros2 topic hz -s /scan
+ros2 topic hz -s /odom
+</code></pre>
+<p>Stop each with Ctrl-C after a few lines. The last line of each:</p>
+<pre><code>average rate: 10.027
+average rate: 97.925
+average rate: 9.984
+average rate: 50.000
+</code></pre>
+<p>Check: about 10 Hz for the lidar and <code>/scan</code>, about 100 Hz for the IMU, 50 Hz for the EKF's <code>/odom</code>. The camera,
+<code>/camera/image_raw</code>, is set to 10 Hz in <code>sensors.xacro</code>; it is the first sensor to drop frames on a busy machine. With other
+simulations running on the same GPU it delivered one image every 0.29 s of simulated time on average.</p>
+<p>Common mistakes: without <code>-s</code>, <code>ros2 topic hz</code> measures in wall-clock time, so every rate is multiplied by the real-time factor.
+At a factor of about 0.58 the lidar showed 5.99 Hz instead of 10.03 Hz. Every rate and time in this course is in simulated time.</p>
+<p><img loading="lazy" alt="Left: configured and measured rate of each topic on a log axis. Right: the lidar rate measured with and without -s" src="../img/c00-03-sensor-rates.png" /></p>
+<p><em>Measured rates from the outputs above against the configured ones in <code>gazebo.xacro</code> (IMU), <code>ekf.yaml</code> and <code>sensors.xacro</code>. The camera is the one topic far below its setting.</em></p>
+<h3 id="23-check-that-the-robot-is-localised">2.3 Check that the robot is localised</h3>
+<p>Objective: see a transform from the map to the robot, which needs Gazebo, the EKF and AMCL all running.</p>
+<pre><code class="language-bash">ros2 run tf2_ros tf2_echo map base_footprint
+</code></pre>
+<pre><code>[INFO] [...] [tf2_echo]: Waiting for transform map -&gt;  base_footprint: Invalid frame ID &quot;map&quot; passed to canTransform argument target_frame - frame does not exist
+At time 57.276000000
+- Translation: [-4.504, -3.446, 0.000]
+- Rotation: in Quaternion (xyzw) [0.000, 0.000, -0.008, 1.000]
+</code></pre>
+<p>Check: the translation is close to A at (-4.5, -3.5). The first <code>Waiting for transform</code> line is normal for a second or two; if it
+repeats, AMCL has not received an initial pose.</p>
+<h3 id="24-look-at-it-in-rviz">2.4 Look at it in RViz</h3>
+<p>Objective: see the robot, the map, the costmaps and the scan in one window.</p>
+<pre><code class="language-bash">rviz2 -d src/go2_nav_sim/rviz/go2.rviz --ros-args -p use_sim_time:=true
+</code></pre>
+<p><img loading="lazy" alt="RViz with fixed frame map and Global Status Ok: the Go2 model with its TF frames and footprint circle, the lidar scan in yellow, and the costmaps around the obstacles" src="../img/c00-03-rviz-stack.png" /></p>
+<p><em>RViz with <code>src/go2_nav_sim/rviz/go2.rviz</code>, taken from the stack started in 2.1: the robot at A with its footprint, the scan, and the inflated obstacles of the costmaps.</em></p>
+<p>Check: <code>Global Status: Ok</code> and the robot model standing on the map. <a href="../projects/p01_first-steps/index.html">p01</a> explains each
+display. Gazebo itself runs without a window; to see it, launch <code>sim.launch.py headless:=False</code> yourself instead of <code>up.sh</code>.</p>
+<h2 id="task-3-run-the-first-mission">Task 3: Run the first mission</h2>
+<h3 id="31-run-run_missionsh">3.1 Run run_mission.sh</h3>
+<p>Objective: drive from A to B with Nav2 while recording a rosbag.</p>
+<pre><code class="language-bash">scripts/run_mission.sh bags/first; echo &quot;exit code $?&quot;
+</code></pre>
+<p><code>run_mission.sh</code> restarts the stack with <code>up.sh</code>, starts <code>record_bag.sh</code>, runs <code>go_to_goal.py</code> and stops the recording. It
+stops only its own recorder: <code>setsid</code> makes the recorder the leader of a new process group, and the script sends Ctrl-C (SIGINT)
+to that group and waits until the bag is closed. A recorder of another stack on the same machine keeps running. The output,
+with most progress lines left out:</p>
+<pre><code>stack: ROS_DOMAIN_ID=42 GAZEBO_MASTER_URI=http://localhost:11345
+stack up
+[INFO] [...] [basic_navigator]: goal -&gt; (4.00, 3.00, yaw 0.65)
+[INFO] [...] [basic_navigator]: Navigating to goal: 4.0 3.0...
+[INFO] [...] [basic_navigator]: distance remaining 11.31 m, recoveries 0
+...
+[INFO] [...] [basic_navigator]: distance remaining 3.97 m, recoveries 1
+...
+[INFO] [...] [basic_navigator]: distance remaining 0.57 m, recoveries 1
+RESULT SUCCEEDED  sim_time 54.2 s  ground-truth final error 0.32 m  final pos (3.68, 2.97)
+exit code 0
+</code></pre>
+<p>It took 161 s of wall time at a real-time factor of about 0.55. The robot starts on the green disc A and walks to the red disc
+B at (4.0, 3.0).</p>
+<p>Check: the last two lines are <code>RESULT SUCCEEDED ...</code> and <code>exit code 0</code>.</p>
+<h3 id="32-read-the-result-line">3.2 Read the result line</h3>
+<p>Objective: know what each field measures and who measured it.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value above</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SUCCEEDED</code></td>
+<td></td>
+<td>Nav2's result. It means Nav2's own estimate of the robot was inside <code>xy_goal_tolerance</code> (0.25 m), not that the real robot was. Other values: <code>FAILED</code>, <code>CANCELED</code>.</td>
+</tr>
+<tr>
+<td><code>sim_time</code></td>
+<td>54.2 s</td>
+<td>simulated time from sending the goal to the result</td>
+</tr>
+<tr>
+<td><code>ground-truth final error</code></td>
+<td>0.32 m</td>
+<td>distance from B to the true final position on <code>/odom_gt</code></td>
+</tr>
+<tr>
+<td><code>final pos</code></td>
+<td>(3.68, 2.97)</td>
+<td>the true final position, in map coordinates</td>
+</tr>
+</tbody>
+</table></div>
+<p>The same line is in <code>logs/mission.log</code>. Recorded runs on the test machine took 54.4, 54.8 and 83.1 s; yours will vary from run
+to run.</p>
+<p>Check: you can say whether your run stopped inside the 0.25 m tolerance according to ground truth.</p>
+<p><img loading="lazy" alt="Run w2 seen from above with Nav2 plans, ground truth, odometry and AMCL, and a close-up of the goal with its tolerance circle" src="../img/c00-03-goal-run.png" /></p>
+<p><em>A recorded run to the same goal (run w2, <code>site/data/runs/w2/run.json</code> and <code>results/run_w2.json</code>): it stopped 0.21 m from B, inside the 0.25 m tolerance.</em></p>
+<video controls muted playsinline src="../media/c00-03-goal-reached.mp4"></video>
+
+<p><em>The last 15 s of the dashboard video (<code>media/go2_a2b_dashboard.mp4</code> from 1:28): the status changes from NAVIGATING to ARRIVED, then the summary card.</em></p>
+<h3 id="33-score-the-run">3.3 Score the run</h3>
+<p>Objective: compute the odometry and AMCL errors of your run from its bag.</p>
+<pre><code class="language-bash">python3 src/go2_nav_sim/scripts/bag_metrics.py bags/first
+</code></pre>
+<pre><code>{
+  &quot;duration_s&quot;: 62.1,
+  &quot;path_m&quot;: 11.56,
+  &quot;mean_speed_ms&quot;: 0.186,
+  &quot;odom_ate_aligned_cm&quot;: 1.6,
+  &quot;odom_ate_anchored_cm&quot;: 1.8,
+  &quot;odom_final_err_cm&quot;: 4.5,
+  &quot;odom_drift_pct&quot;: 0.39,
+  &quot;odom_rpe_1m_pct&quot;: 1.94,
+  &quot;amcl_rmse_cm&quot;: 11.7,
+  &quot;amcl_max_cm&quot;: 18.1,
+  &quot;amcl_updates&quot;: 168,
+  &quot;goal_error_m&quot;: 0.32,
+  &quot;goal_tolerance_m&quot;: 0.25
+}
+</code></pre>
+<p>Check: <code>goal_error_m</code> agrees with the ground-truth final error of the result line to within 0.01 m. Both come from <code>/odom_gt</code>,
+but <code>go_to_goal.py</code> reads it when Nav2 reports the result and <code>bag_metrics.py</code> takes the last pose in the bag, which ends at
+least 4 s later. In a second run they were 0.26 m and 0.25 m.</p>
+<p>The bag was 639 MiB (<code>ros2 bag info bags/first</code>): 5.7 MiB per wall-clock second over 112 s, or 10.3 MiB per simulated second
+over the 62.1 s of <code>duration_s</code>. <a href="11-record-and-visualise.html">Chapter 11</a> explains each number and renders the dashboard video
+from the same bag.</p>
+<p><img loading="lazy" alt="One frame of the dashboard: external camera, onboard RGB, depth, lidar sweep, map with plan and trajectories, run metrics and three IMU plots" src="../img/dashboard.png" /></p>
+<p><em>One frame of the dashboard that <code>render_dashboard.py</code> makes from a bag. The run metrics panel is evaluation only.</em></p>
+<h2 id="task-4-stop-the-stack">Task 4: Stop the stack</h2>
+<h3 id="41-run-stopsh">4.1 Run stop.sh</h3>
+<p>Objective: leave no simulator running in the background.</p>
+<pre><code class="language-bash">scripts/stop.sh
+ros2 node list --no-daemon
+</code></pre>
+<p>Check: <code>ros2 node list</code> prints nothing. <code>stop.sh</code> stops only processes in your <code>ROS_DOMAIN_ID</code>. CHAMP keeps walking on the last
+<code>/cmd_vel</code> it received, so stopping the stack is also the way out when a robot walks off with no one commanding it.</p>
+<h2 id="exercise">Exercise</h2>
+<p>The run in 3.1 reported <code>SUCCEEDED</code>, yet the robot stopped 0.32 m from B, outside the 0.25 m tolerance. Use the output of 3.3 to
+explain how both can be true.</p>
+<p>Answer: Nav2 checks the tolerance against its own pose estimate, which comes from AMCL on top of the odometry. The odometry was
+good (<code>odom_ate_aligned_cm</code> 1.6), but AMCL was off by 11.7 cm RMSE and up to 18.1 cm (<code>amcl_rmse_cm</code>, <code>amcl_max_cm</code>). An AMCL
+error of about 0.1 m in the direction of B is enough to move a stop that Nav2 sees inside 0.25 m to 0.32 m from B in reality.
+Localisation, not odometry, limits how close to B the robot stops.</p>
+<p><img loading="lazy" alt="Close-up of goal B for the recorded runs w1, w2 and w3: in w3 the last AMCL pose is inside the tolerance circle and the true stop is outside" src="../img/c00-00-final-approach.png" /></p>
+<p><em>The same effect in the recorded runs (<code>site/data/runs/wN/run.json</code>): in w3 the last <code>/amcl_pose</code> was 0.23 m from B and the robot 0.34 m.</em></p>
+<h2 id="further-reading">Further reading</h2>
+<ul>
+<li>Gazebo, "Installing Gazebo with ROS": https://gazebosim.org/docs/latest/ros_installation/</li>
+<li><code>unitreerobotics/unitree_ros2</code>, <code>.devcontainer/</code>: how the Go2's own ROS 2 package sets up its build environment in a
+  container.</li>
+</ul><nav class="prevnext" aria-label="Previous and next"><a class="pn" href="02-prerequisites.html"><span>Previous</span>Prerequisites</a><a class="pn next" href="04-ros2-from-scratch.html"><span>Next</span>ROS 2 from scratch</a></nav><p class="source">Source: <a href="https://github.com/Armanasq/go2-nav-sim/blob/main/docs/03-install-and-first-run.md">docs/03-install-and-first-run.md</a></p></article></div>
+</main>
+<footer class="site"><div class="wrap">Simulation only. Source and issues on <a href="https://github.com/Armanasq/go2-nav-sim">GitHub</a>.</div></footer>
+<script type="module" src="../static/js/site.js"></script>
+</body>
+</html>

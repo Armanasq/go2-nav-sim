@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sense obstacles and stop · go2-nav-sim</title>
+<meta name="description" content="Sense obstacles and stop">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../../static/css/site.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5' fill='%230a6a9c'/%3E%3C/svg%3E">
+
+</head>
+<body data-root="../../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar"><div class="inner">
+<a class="brand" href="../../index.html">go2-nav-sim</a>
+<nav aria-label="Main"><a href="../../tutorial/00-overview.html" aria-current="page">Learn</a><a href="../../tasks/index.html">Tasks</a><a href="../../modules/index.html">Deep dives</a><a href="../../reference.html">Reference</a></nav>
+<button class="theme-toggle" type="button" aria-label="Colour theme: auto">auto</button>
+</div></header>
+<main id="main">
+<div class="wrap doc"><details class="side" open><summary>Sense obstacles and stop</summary><nav aria-label="Contents"><ol class="parts"><li><a class="part" href="../../tutorial/00-overview.html">Start</a></li><li><a class="part" href="../../tutorial/05-frames-and-tf2.html">The robot</a></li><li><a class="part" href="../p02_teleop-and-safety/index.html">Move it</a></li><li class="open"><p class="part">Sense and avoid</p><ol><li><a href="../../tutorial/08-robot-and-sensors.html"><span class="n">8</span><span>Robot and sensors</span></a></li><li><a href="../../tasks/s06_sensors-and-perception/index.html"><span class="n">S6</span><span>Sensors and perception</span></a></li><li><a href="index.html" aria-current="page"><span class="n">P5</span><span>Sense obstacles and stop</span></a><ul class="sections"><li><a href="#goal">Goal</a></li><li><a href="#what-you-will-learn">What you will learn</a></li><li><a href="#before-you-start">Before you start</a></li><li><a href="#steps">Steps</a></li><li><a href="#how-the-code-works">How the code works</a></li><li><a href="#results">Results</a></li><li><a href="#try-this">Try this</a></li><li><a href="#if-it-goes-wrong">If it goes wrong</a></li></ul></li><li><a href="../p06_avoid-obstacles/index.html"><span class="n">P6</span><span>Reactive obstacle avoidance without a map</span></a></li></ol></li><li><a class="part" href="../../tutorial/09-state-estimation.html">Estimate and map</a></li><li><a class="part" href="../p11_command-arbitration/index.html">Navigate</a></li><li><a class="part" href="../p14_test-the-stack/index.html">Beyond simulation</a></li></ol></nav></details><article class="prose"><p class="where">Sense and avoid · Project 5</p><h1>Sense obstacles and stop</h1><h2 id="goal">Goal</h2>
+<p>Read the robot's two range sensors and act on them. A node turns the 2D scan (<code>/scan</code>) into one number, the nearest obstacle in a
+sector straight ahead, and the depth image (<code>/camera/depth/image_raw</code>) into another, the depth at the image centre, and publishes
+both. A second node walks the Go2 forward and stops it 0.5 m before whatever is ahead. You then measure where the robot really
+stopped, on the simulator's ground truth, at three speeds and five runs each, and split the error into its parts: sensor bias,
+the time between scans, message latency, and the distance the gait needs to come to rest.</p>
+<h2 id="what-you-will-learn">What you will learn</h2>
+<ul>
+<li>Reading a <code>sensor_msgs/LaserScan</code>: bearings from <code>angle_min</code> and <code>angle_increment</code>, and which returns to throw away.</li>
+<li>Reading a <code>32FC1</code> depth image from its raw bytes with numpy, including the row stride (<code>step</code>).</li>
+<li>Publishing a derived measurement as a topic (<code>sensor_msgs/Range</code>) that keeps the sensor's timestamp, so its age can be measured.</li>
+<li>A stop rule that accounts for where the sensor sits on the robot, and a timeout for when the sensor goes quiet.</li>
+<li>Measuring a closed-loop behaviour against ground truth, and explaining the error with numbers rather than guesses.</li>
+<li>Why taking the minimum of noisy beams reads short, and why a depth image is a slower stop signal than a scan here.</li>
+</ul>
+<h2 id="before-you-start">Before you start</h2>
+<p>Do <a href="../p01_first-steps/index.html">project 1</a> (starting the stack, reading <code>/odom_gt</code>, why only a zero twist stops CHAMP) and
+<a href="../p02_teleop-and-safety/index.html">project 2</a> (handling Ctrl-C so a node can send its last zero, and the stopping distance
+after a zero twist, which this project measures again in a different way).</p>
+<p>Every terminal starts with:</p>
+<pre><code class="language-bash">cd go2-nav-sim
+source env.sh
+</code></pre>
+<p>and the stack must be running: <code>scripts/up.sh</code>, which prints <code>stack up</code>. This project needs only the simulator and the estimation
+launch (it reads <code>/scan</code>, which <code>pointcloud_to_laserscan</code> makes from <code>/lidar/points</code>); Nav2 can stay up, since it publishes on
+<code>/cmd_vel</code> only while it has a goal.</p>
+<p>The test obstacle is the low wood pallet at (2.5, -2.5) in the world frame, 1.2 m square and 0.45 m high
+(<code>BOXES[2]</code> in <code>src/go2_nav_sim/scripts/make_arena.py</code>). Its west face is at x = 1.9. The robot approaches it along the line
+y = -2.5, facing +x. <code>/odom_gt</code> is relative to the start marker A = (-4.5, -3.5), so world x = <code>/odom_gt</code> x - 4.5.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>File</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>obstacle.py</code></td>
+<td>the pure logic, no ROS: nearest return in a sector, centre depth, the stop rule</td>
+</tr>
+<tr>
+<td><code>test_obstacle.py</code></td>
+<td>6 unit tests for <code>obstacle.py</code></td>
+</tr>
+<tr>
+<td><code>sense.py</code></td>
+<td>node: <code>/scan</code> to <code>/front_range</code>, <code>/camera/depth/image_raw</code> to <code>/centre_depth</code></td>
+</tr>
+<tr>
+<td><code>stop_at_obstacle.py</code></td>
+<td>node: walks forward, stops when the gap reaches 0.5 m, exits</td>
+</tr>
+<tr>
+<td><code>sense_and_stop.launch.py</code></td>
+<td>starts both nodes, ends when the robot has stopped</td>
+</tr>
+<tr>
+<td><code>measure_stops.py</code></td>
+<td>repeats the stop and scores each run on <code>/odom_gt</code></td>
+</tr>
+<tr>
+<td><code>sensor_age.py</code></td>
+<td>rate and age of <code>/front_range</code> and <code>/centre_depth</code> in simulated time</td>
+</tr>
+<tr>
+<td><code>snapshot.py</code></td>
+<td>saves one scan, one depth image and the true pose to an <code>.npz</code> file</td>
+</tr>
+<tr>
+<td><code>plot.py</code></td>
+<td>the summary table and both figures</td>
+</tr>
+<tr>
+<td><code>record.py</code></td>
+<td>records a camera topic to MP4 and closes the file cleanly on Ctrl-C</td>
+</tr>
+<tr>
+<td><code>results/</code></td>
+<td>my CSVs and snapshots behind every number below; your runs go to <code>~/p05_runs</code></td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="steps">Steps</h2>
+<h3 id="1-run-the-unit-tests">1. Run the unit tests</h3>
+<pre><code class="language-bash">python3 -m pytest -q projects/p05_sense-and-stop
+</code></pre>
+<p>Expected:</p>
+<pre><code>6 passed in 0.51s
+</code></pre>
+<p>Check: the tests need no ROS graph, so they pass with the stack down.</p>
+<h3 id="2-start-the-sensing-node">2. Start the sensing node</h3>
+<pre><code class="language-bash">python3 projects/p05_sense-and-stop/sense.py
+</code></pre>
+<p>Expected, right after a fresh <code>scripts/up.sh</code> with the robot on A facing +x (the first report shows <code>nan</code> before the first
+scan arrives):</p>
+<pre><code>[INFO] [...] [sense]: /scan -&gt; /front_range (+-20 deg), /camera/depth/image_raw -&gt; /centre_depth
+[INFO] [...] [sense]: front nan m at +nan deg   centre depth nan m
+[INFO] [...] [sense]: front 4.22 m at -19.6 deg   centre depth inf m
+</code></pre>
+<p>The bearing (-19.6 deg) should match exactly; the <code>front</code> distance will not, and anything from about 4.0 to 5.0 m is
+right. The nearest return in the sector is the south wall, seen by the beam at the right edge of the sector (-19.6 deg,
+the last beam inside ±20 deg). That wall's inner face is at y = -4.9, 1.42 m to the right of the robot, so the edge beam
+meets it at</p>
+<pre><code>front = 1.42 / sin(19.6 deg - yaw)
+</code></pre>
+<p>where yaw is how far the robot stands turned to the left of +x. The yaw at which the robot settles after a start is not
+the same every time, and each degree moves the reading by about 0.2 m: 4.04 m at yaw -1 deg, 4.23 at 0, 4.45 at +1, 4.70 at
++2 and 4.97 at +3. Check yours: in a second terminal</p>
+<pre><code class="language-bash">ros2 topic echo --once /odom_gt --field pose.pose.orientation.z
+</code></pre>
+<p>prints z, and yaw ≈ 2 × z radians for a robot standing level. Mine printed -0.0013, a yaw of -0.15 deg, for which the formula
+gives 4.20 m against the 4.22 m in the log.</p>
+<p>The centre depth depends on yaw too. Straight ahead from A (y = -3.5) nothing is closer than 8 m, the depth camera's far clip,
+so up to a yaw of about +2.8 deg the centre depth is <code>inf</code>. Turned further left, the centre of the image swings onto the
+pallet: from about +3 deg it reads the corner of the pallet's south face (y = -3.1) at 6.2 to 7.2 m, and from about +3.6 deg
+its west face (x = 1.9) at about 6.0 m (these from one depth image, with the 5 × 5 patch moved sideways, 0.12 deg a pixel).
+I also turned the robot on A with short twists: at a yaw of +2.65 to +2.78 deg all 150 depth images gave <code>inf</code>, and at +3.6 deg
+all 100 gave 6.00 m. So near +3 deg expect a mix of <code>inf</code> and about 7.2 m, and a finite centre depth above that; neither is a
+fault. Leave <code>sense.py</code> running.</p>
+<p>Check, in the second terminal:</p>
+<pre><code class="language-bash">ros2 topic echo --once /front_range --field range
+</code></pre>
+<p>prints a number within a few centimetres of the <code>front</code> value in the log (mine: 4.219).</p>
+<h3 id="3-measure-how-often-the-readings-come-and-how-old-they-are">3. Measure how often the readings come and how old they are</h3>
+<pre><code class="language-bash">python3 projects/p05_sense-and-stop/sensor_age.py
+</code></pre>
+<p>Expected (my run, robot standing, other simulators running on the machine):</p>
+<pre><code>front_range: 312 messages in 31.1 s; interval mean 0.100 max 0.220 s, 0 over 0.5 s; age mean 0.056 max 0.178 s
+centre_depth: 284 messages in 30.9 s; interval mean 0.109 max 0.915 s, 7 over 0.5 s; age mean 0.171 max 0.623 s
+</code></pre>
+<p>Age is the simulated time at which the reading arrived minus the stamp of the scan or image it came from. Check: <code>front_range</code>
+arrives every 0.1 s of simulated time (the lidar runs at 10 Hz), and <code>centre_depth</code> is about three times older on arrival.</p>
+<h3 id="4-walk-to-the-start-of-the-test-lane-and-take-a-snapshot">4. Walk to the start of the test lane and take a snapshot</h3>
+<pre><code class="language-bash">python3 projects/p05_sense-and-stop/measure_stops.py --goto-start
+</code></pre>
+<p>The robot walks to a true gap of 2.0 ± 0.1 m in front of the pallet, on y = -2.5, facing +x, and stands. It stops as soon as
+it is inside that window, so your gap can be anywhere from 1.9 to 2.1 m. Expected (from a fresh start on A):</p>
+<pre><code>at the start: x=-0.467 y=-2.502 yaw=+0.7 deg, true gap 2.087 m
+</code></pre>
+<p>The gap is measured from the front of the head, 0.28 m ahead of <code>base_link</code>, where the camera sits. Then save one scan and one
+depth image and draw them:</p>
+<pre><code class="language-bash">mkdir -p ~/p05_runs
+python3 projects/p05_sense-and-stop/snapshot.py ~/p05_runs/snapshot.npz
+python3 projects/p05_sense-and-stop/plot.py --snap ~/p05_runs/snapshot.npz
+</code></pre>
+<p>With <code>--snap</code>, <code>plot.py</code> only draws the snapshot, and writes it next to the <code>.npz</code> file: <code>~/p05_runs/scan_and_depth.png</code>.
+The figure below is mine (<code>results/snapshot.npz</code>), taken at a true gap of 1.93 m, so your numbers will differ by as much as
+your gap does:</p>
+<p><img loading="lazy" alt="Left: polar plot of one /scan, straight ahead up and left to the left; the shaded sector is plus or minus 20 degrees and the dot is the nearest return, 2.19 m. Right: the depth image, the pallet face at 1.93 m in the middle, the far wall behind it and no return above it" src="figures/scan_and_depth.png" /></p>
+<p>Check: the scan's nearest return minus 0.28 m and the depth at the centre should agree within a few centimetres. Mine:
+2.19 - 0.28 = 1.91 m against 1.93 m. A later snapshot of mine, at a true gap of 2.072 m, gave 2.33 - 0.28 = 2.05 m against
+2.07 m.</p>
+<h3 id="5-stop-in-front-of-the-pallet">5. Stop in front of the pallet</h3>
+<p>Stop <code>sense.py</code> with Ctrl-C (the launch file starts its own copy). It exits without printing anything. Then:</p>
+<pre><code class="language-bash">ros2 launch projects/p05_sense-and-stop/sense_and_stop.launch.py
+</code></pre>
+<p>Expected (speed 0.3 m/s, gap 0.5 m, the defaults):</p>
+<pre><code>[python3-2] [INFO] [...] [stop_at_obstacle]: /front_range: walk at 0.3 m/s, stop at a 0.5 m gap (front 0.28 m ahead of the sensor frame, lead 0.0 m)
+[python3-2] STOP t=236.60 range=0.759 gap=0.479 age=0.064
+[INFO] [python3-2]: process has finished cleanly [pid ...]
+[INFO] [python3-1]: sending signal 'SIGINT' to process[python3-1]
+[INFO] [python3-1]: process has finished cleanly [pid ...]
+</code></pre>
+<p>In between, <code>sense.py</code> (<code>python3-1</code>) prints its report once a second, as in step 2. When <code>stop_at_obstacle.py</code> exits, the
+launch sends SIGINT to <code>sense.py</code>, which is the line before the last.</p>
+<p><code>gap</code> in the STOP line is what the sensor said; the true gap comes from ground truth. Check:</p>
+<pre><code class="language-bash">ros2 topic echo --once /odom_gt --field pose.pose.position.x
+</code></pre>
+<p>and compute 1.9 - (x - 4.5) - 0.28. I got 0.444 m in the run that printed the STOP line above, and 0.456 m in the next
+(<code>gap=0.485</code>). Earlier runs gave 0.447, 0.473 and 0.470 m, and the video run in <a href="#results">Results</a> 0.439 m. Over these six
+runs the robot ended 0.439 to 0.473 m from the pallet, 3 to 6 cm closer than asked; allow 3 to 7 cm for yours, since the
+exact number changes from run to run. The next two steps measure why.</p>
+<p>To record a video of the run as well, start the recorder in another terminal before the launch, and stop it with Ctrl-C
+afterwards:</p>
+<pre><code class="language-bash">python3 projects/p05_sense-and-stop/record.py ~/p05_runs/spectator.mp4 --topic /spectator/cam/image_raw
+</code></pre>
+<p>On Ctrl-C it closes the file and prints one line, mine <code>.../spectator.mp4: 276 frames</code> (27.6 s at 10 frames per second of
+simulated time). It is project 2's <code>record_reliable.py</code> with its own Ctrl-C handling: that recorder sometimes ends in an
+<code>ExternalShutdownException</code> traceback instead (<a href="#if-it-goes-wrong">If it goes wrong</a>).</p>
+<h3 id="6-measure-the-stop-over-several-runs">6. Measure the stop over several runs</h3>
+<p>Start <code>sense.py</code> again (step 2). Then:</p>
+<pre><code class="language-bash">python3 projects/p05_sense-and-stop/measure_stops.py --speeds 0.1,0.2,0.3 --runs 5 --out ~/p05_runs
+</code></pre>
+<p>For each run the script walks back to a 2.0 m gap, stands for 2 s, starts <code>stop_at_obstacle.py</code> with the given speed, records
+<code>/odom_gt</code>, <code>/front_range</code> and <code>/cmd_vel</code> until 2 s after it exits, and prints one line. Each run took about a minute of wall
+time on my machine for the first set in <a href="#results">Results</a>, and 24 s on average for the second (356 s for 15 runs). Expected, the first runs at 0.1 and 0.3 m/s:</p>
+<pre><code>speed_cmd=0.1 v_true=0.076 scan_age=0.033 gap_sensed=0.497 gap_true_at_trigger=0.527 gap_final=0.52 coast=0.006 t_to_still=0.46 y_end=-2.498 yaw_end_deg=2.4
+speed_cmd=0.3 v_true=0.318 scan_age=0.058 gap_sensed=0.484 gap_true_at_trigger=0.505 gap_final=0.474 coast=0.031 t_to_still=0.6 y_end=-2.467 yaw_end_deg=2.4
+</code></pre>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>v_true</code></td>
+<td>true speed over the 0.5 s before the trigger</td>
+</tr>
+<tr>
+<td><code>scan_age</code></td>
+<td>age of the reading that triggered the stop</td>
+</tr>
+<tr>
+<td><code>gap_sensed</code></td>
+<td>the gap the sensor reported at the trigger</td>
+</tr>
+<tr>
+<td><code>gap_true_at_trigger</code></td>
+<td>the true gap at the moment the node received that reading</td>
+</tr>
+<tr>
+<td><code>gap_final</code></td>
+<td>the true gap at the end of the run, robot standing</td>
+</tr>
+<tr>
+<td><code>coast</code></td>
+<td>how far the robot moved after the zero command</td>
+</tr>
+<tr>
+<td><code>t_to_still</code></td>
+<td>time from the zero to standstill, where standstill means less than 1 cm moved over the previous 0.5 s; so this time includes up to 0.5 s of that window</td>
+</tr>
+</tbody>
+</table></div>
+<p>Check: every run prints a line. A run that prints <code>no STOP line (TIMEOUT ...)</code> was stopped by the sensor timeout, not by the
+obstacle (<a href="#if-it-goes-wrong">If it goes wrong</a>).</p>
+<h3 id="7-summarise-and-plot">7. Summarise and plot</h3>
+<pre><code class="language-bash">python3 projects/p05_sense-and-stop/plot.py --dir ~/p05_runs
+</code></pre>
+<p>prints one line per speed and writes <code>~/p05_runs/stops.png</code>. Mine are in <a href="#results">Results</a>.</p>
+<h3 id="8-stop">8. Stop</h3>
+<p>Ctrl-C <code>sense.py</code>; it exits without printing anything. Both <code>stop_at_obstacle.py</code> and <code>measure_stops.py</code> end with a zero on
+<code>/cmd_vel</code>, so the robot is standing. Then <code>scripts/stop.sh</code>.</p>
+<h2 id="how-the-code-works">How the code works</h2>
+<h3 id="obstaclepy-the-nearest-return-in-a-sector"><code>obstacle.py</code>: the nearest return in a sector</h3>
+<pre><code class="language-python">def front_min(ranges, angle_min, angle_inc, half_angle, range_min, range_max):
+    r = np.asarray(ranges, dtype=float)
+    a = angle_min + angle_inc * np.arange(len(r))
+    ok = (np.abs(a) &lt;= half_angle) &amp; np.isfinite(r) &amp; (r &gt;= range_min) &amp; (r &lt;= range_max)
+    if not ok.any():
+        return math.inf, math.nan
+    i = np.flatnonzero(ok)[np.argmin(r[ok])]
+    return float(r[i]), float(a[i])
+</code></pre>
+<p>Beam i points at bearing <code>angle_min + i * angle_increment</code> in the scan's frame (<code>base_footprint</code>, x forward, y left), so
+straight ahead is bearing 0. Here the scan has 901 beams, 0.4 deg apart, and a ±20 deg sector holds 100 of them. The scan is
+published with <code>use_inf: true</code> (<code>src/go2_nav_sim/config/scan.yaml</code>): a beam that hit nothing is <code>inf</code>, which means "no
+obstacle seen", so it must be skipped, as must values outside <code>[range_min, range_max]</code>. An empty sector returns <code>inf</code>, and the
+stop rule below never fires on <code>inf</code>.</p>
+<p>For a flat face square to the robot, the beam at bearing b reads d / cos b, so the minimum over the sector is the beam closest to
+straight ahead and equals the perpendicular distance d. The minimum also picks the most negative noise of all the beams near the
+centre, which is part of the bias measured below.</p>
+<h3 id="obstaclepy-depth-at-the-image-centre-and-the-stop-rule"><code>obstacle.py</code>: depth at the image centre and the stop rule</h3>
+<pre><code class="language-python">def centre_depth(depth, half=2):
+    h, w = depth.shape
+    p = depth[h // 2 - half:h // 2 + half + 1, w // 2 - half:w // 2 + half + 1]
+    p = p[~np.isnan(p)]
+    return float(np.median(p)) if p.size else math.inf
+
+
+def should_stop(front_range, stop_gap, front_offset):
+    return front_range - front_offset &lt;= stop_gap
+</code></pre>
+<p>The median of a 5 × 5 patch, so one bad pixel does not decide. A pixel with nothing within the camera's 8 m far clip is
+<code>+inf</code>, and it stays in the median as "far": only <code>nan</code> is dropped. An earlier version dropped every non-finite pixel, so at
+the edge of an object the one to five patch pixels that hit it decided alone (on A at a yaw of +2.65 to +2.78 deg it read
+7.20 m in 1 of 150 images where this version reads <code>inf</code> in all). A <code>32FC1</code> depth pixel is the distance along the camera's optical
+axis (z in <code>camera_optical</code>), not along the ray, so for a face square to the camera it is the perpendicular distance at every pixel.</p>
+<p>The scan is measured from <code>base_footprint</code>, below <code>base_link</code>, but the front of the head is 0.28 m further forward
+(<code>urdf/go2_nav.xacro</code>: the camera at <code>xyz="0.28 0 0.03"</code>). So the gap is</p>
+<pre><code>gap = range - 0.28 m
+</code></pre>
+<p>and the robot should stop when <code>gap &lt;= 0.5</code>, i.e. at a scan range of 0.78 m. The depth camera is at the front already, so it is
+used with <code>front:=0.0</code>.</p>
+<h3 id="sensepy-from-raw-bytes-to-a-range-message"><code>sense.py</code>: from raw bytes to a <code>Range</code> message</h3>
+<pre><code class="language-python">d = np.frombuffer(m.data, np.float32).reshape(m.height, m.step // 4)[:, :m.width]
+r = centre_depth(d)
+self.pub_depth.publish(Range(header=m.header, ...range=r))
+</code></pre>
+<p><code>m.step</code> is the length of one row in bytes. It is 4 × 640 here, but a driver may pad rows, so the image is reshaped by <code>step</code>
+and cut to <code>width</code>. Both outputs reuse the input's <code>header</code>, so the stamp on <code>/front_range</code> is the time of the scan, and anyone
+downstream can compute how old the reading is. The depth subscription is reliable: a 640 × 360 float image is 0.9 MB, and project
+2 found that large best-effort messages were mostly lost on a loaded machine.</p>
+<h3 id="stop_at_obstaclepy-walk-stop-and-stop-anyway-when-the-sensor-goes-quiet"><code>stop_at_obstacle.py</code>: walk, stop, and stop anyway when the sensor goes quiet</h3>
+<pre><code class="language-python">def on_range(self, m):
+    self.t_reading = self.now()
+    if self.state == 'wait':
+        self.state = 'walk'
+    if self.state == 'walk' and should_stop(m.range, self.gap + self.lead, self.front):
+        self.send(0.0)                                         # at once, not at the next timer tick
+        ...
+
+def on_timer(self):
+    t = self.now()
+    if self.state == 'walk':
+        if t - self.t_reading &gt; self.timeout:                  # no news is not good news: stop
+            ...
+            self.send(0.0)
+        else:
+            self.send(self.speed)                              # CHAMP holds the last command; resend it anyway
+</code></pre>
+<p>Three states: <code>wait</code> until the first reading (it never walks blind), <code>walk</code>, and <code>stopped</code>, which sends zeros for 1 s and exits.
+The stop is decided in the subscription callback and sent at once, so a 10 Hz timer adds no delay. If no reading arrives for
+<code>timeout</code> seconds of simulated time (0.5 s by default, five scan periods) it stops anyway. <code>lead</code> moves the trigger earlier by a
+fixed distance, for exercise 1.</p>
+<h3 id="where-the-stopping-error-comes-from">Where the stopping error comes from</h3>
+<p>Let <code>g_s</code> be the gap the sensor reported at the trigger, <code>g_t</code> the true gap when the node received it, and <code>c</code> the coast after the
+zero. The final true gap is</p>
+<pre><code>gap_final = 0.5 + (g_s - 0.5) - (g_s - g_t) - c
+</code></pre>
+<p>Each term has a cause you can measure:</p>
+<ul>
+<li><code>g_s - 0.5</code> is at most 0 and at least about -v × 0.1 s: the robot crosses the 0.5 m line between two scans, and the stop
+  fires on the first scan past it.</li>
+<li><code>g_s - g_t</code> is the sensor's own bias plus the distance walked while the reading was in transit: bias + v × age.</li>
+<li><code>c</code> is the distance the gait needs to come to rest after the zero.</li>
+</ul>
+<p><code>measure_stops.py</code> computes the true gap from ground truth the same way the node computes the sensed one:</p>
+<pre><code class="language-python">x, y = p.x + arena.A[0], p.y + arena.A[1]              # /odom_gt is relative to A; back to the world frame
+self.gt.append((stamp(m), x, y, yaw, FACE_X - x - FRONT * math.cos(yaw)))   # last field: true gap
+</code></pre>
+<h2 id="results">Results</h2>
+<p>Measured on a shared machine with nine other Gazebo instances running (load average 81 to 145 on 32 cores, from <code>uptime</code>
+before and after the runs). <code>scripts/up.sh</code> timed out waiting for Gazebo, so I started <code>sim.launch.py</code> and
+<code>estimation.launch.py</code> by hand and Nav2 was not running. All times are simulated seconds. Five runs per speed, all approaching
+the pallet from a 2.0 m gap (<code>results/stop.csv</code> and <code>results/runs/</code>, made by step 6 with <code>--out projects/p05_sense-and-stop/results</code>).</p>
+<p>Summary from <code>python3 projects/p05_sense-and-stop/plot.py</code>:</p>
+<pre><code>speed  true v  n  final gap (m)  error mean  sensed-0.5  trigger sensed-true  coast   to still (s)  standing bias  scan age (s)
+0.1    0.077  5  0.496..0.520  +0.009      -0.006      -0.026               0.010   0.47          -0.026         0.048
+0.2    0.187  5  0.479..0.489  -0.015      -0.013      -0.017               0.020   0.58          -0.027         0.060
+0.3    0.303  5  0.446..0.474  -0.037      -0.008      -0.007               0.037   0.62          -0.027         0.067
+</code></pre>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Commanded speed</th>
+<th>True speed (mean)</th>
+<th>True final gap, 5 runs (m)</th>
+<th>Mean error</th>
+<th>Between scans <code>g_s - 0.5</code></th>
+<th>Minus <code>g_s - g_t</code></th>
+<th>Minus coast</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0.1 m/s</td>
+<td>0.077 m/s</td>
+<td>0.520, 0.506, 0.496, 0.514, 0.511</td>
+<td>+0.009 m</td>
+<td>-0.006</td>
+<td>+0.026</td>
+<td>-0.010</td>
+</tr>
+<tr>
+<td>0.2 m/s</td>
+<td>0.187 m/s</td>
+<td>0.479, 0.486, 0.482, 0.488, 0.489</td>
+<td>-0.015 m</td>
+<td>-0.013</td>
+<td>+0.017</td>
+<td>-0.020</td>
+</tr>
+<tr>
+<td>0.3 m/s</td>
+<td>0.303 m/s</td>
+<td>0.474, 0.474, 0.446, 0.463, 0.457</td>
+<td>-0.037 m</td>
+<td>-0.008</td>
+<td>+0.007</td>
+<td>-0.037</td>
+</tr>
+</tbody>
+</table></div>
+<p>The last three columns add up to the mean error within 1 mm. Read from the table:</p>
+<ul>
+<li>The scan reads short. Standing still at the end of each run, <code>/front_range - 0.28</code> was 0.026 to 0.027 m less than the true gap
+  ("standing bias"), at every speed. Exercise 3 splits that into two parts.</li>
+<li><code>g_s - g_t</code> follows bias + v × age: -0.027 + 0.077 × 0.048 = -0.023, -0.027 + 0.187 × 0.060 = -0.016 and
+  -0.027 + 0.303 × 0.067 = -0.007 m, against -0.026, -0.017 and -0.007 measured. In this set the latency term cancelled
+  most of the bias at 0.3 m/s, because the scans happened to arrive older at the higher speeds (0.048, 0.060 and 0.067 s).
+  Nothing in the code makes the age grow with speed. It changed between my two sets (0.036 to 0.046 s in the second, which
+  ran under a lower load), and the second set below shows a weaker trend. With ages that do not grow with speed there is no
+  trend at all, so treat it as a property of this one set. What carries over is the model: check bias + v × age against
+  your own table.</li>
+<li>The coast grows with speed: 0.010, 0.020 and 0.037 m, about 0.12 s × v at all three speeds. At 0.3 m/s, project 2 measured
+  0.035 to 0.041 m after a zero twist, the same gait behaviour.</li>
+<li>At 0.1 m/s commanded, the true speed was 0.064 to 0.088 m/s: CHAMP walks slower than commanded at this speed.</li>
+</ul>
+<p>So at 0.1 m/s the scan bias dominates and the robot ends 0.9 cm further from the pallet than asked, and at 0.3 m/s the coast
+dominates and it ends 3.7 cm closer. The spread within a speed is up to 2.8 cm (0.446 to 0.474 m at 0.3 m/s).</p>
+<p>A second set of 15 runs, made later with the code as it is now (<code>results/rerun/</code>, step 6 with <code>--out</code> there; 356 s of wall
+time, load average 41 to 74), summarised by <code>plot.py --dir projects/p05_sense-and-stop/results/rerun</code>:</p>
+<pre><code>speed  true v  n  final gap (m)  error mean  sensed-0.5  trigger sensed-true  coast   to still (s)  standing bias  scan age (s)
+0.1    0.074  5  0.499..0.521  +0.013      -0.003      -0.026               0.010   0.49          -0.026         0.036
+0.2    0.187  5  0.468..0.493  -0.015      -0.012      -0.023               0.025   0.59          -0.027         0.044
+0.3    0.303  5  0.438..0.479  -0.041      -0.015      -0.014               0.040   0.62          -0.028         0.046
+</code></pre>
+<p>The standing bias, the coast and the mean error repeat to within 5 mm. The trigger term moved
+with the scan age: bias + v × age gives -0.023, -0.019 and -0.014 m against -0.026, -0.023 and -0.014 measured. Expect your
+table to look like one of these two and to differ from both by a centimetre or so, more in the trigger column than in the others.</p>
+<p><img loading="lazy" alt="Left: the true paths of all 15 runs and where the front of the head ended. Middle: one run per speed, true gap as a line and the sensed gap as dots, against time from the stop command. Right: the final true gap of each run against commanded speed, with the 0.5 m target dashed" src="figures/stops.png" /></p>
+<p>In the middle panel the sensed dots sit about 2.5 cm below the true line once the robot stands, which is the standing bias.</p>
+<video controls muted playsinline src="media/stop_0.3.mp4"></video>
+
+<p>The video is the step 5 launch at 0.3 m/s from a 1.93 m gap, spectator camera on the left and chase camera on the right, both
+recorded with <code>record_reliable.py</code> (161 and 167 frames, simulated time) and joined with
+<code>ffmpeg -i spectator.mp4 -i chase.mp4 -filter_complex "[0:v]scale=640:360[a];[1:v]scale=640:360[b];[a][b]hstack=inputs=2:shortest=1" -c:v libx264 -crf 26 -pix_fmt yuv420p stop_0.3.mp4</code>
+(16.1 s, 250 kB). That run ended at a true gap of 0.439 m (from <code>/odom_gt</code> afterwards); the run in step 5 ended at 0.444 m.</p>
+<h2 id="try-this">Try this</h2>
+<ol>
+<li>Cancel the mean overshoot at 0.3 m/s with <code>lead</code>. Calibrate it on your own runs: take the <code>error mean</code> of the 0.3 line
+   that step 7 printed for you, and trigger that much earlier. My first set gave -0.037 m, so:</li>
+</ol>
+<p><code>bash
+   python3 projects/p05_sense-and-stop/measure_stops.py --speeds 0.3 --runs 3 --tag ex1 --out ~/p05_runs -- -p lead:=0.037</code></p>
+<p>(with your own number in place of 0.037), then <code>plot.py --dir ~/p05_runs --tag ex1</code>. Do not expect the mean error to land
+   on zero. Three runs are few, the final gap of single runs at 0.3 m/s spread over 2.8 to 4.1 cm in my two sets, and the scan
+   age, which sets the trigger term, changes with machine load from one run to the next.</p>
+<p>Answer: with <code>lead:=0.037</code> from the first set I measured final gaps of 0.485, 0.501 and 0.483 m, mean error -0.010 m
+   (<code>results/exercises/ex1.csv</code>), so the mean moved by 2.7 cm. With <code>lead:=0.041</code> from the second set's -0.041 m I measured
+   0.495, 0.480 and 0.503 m, mean error -0.007 m (<code>results/rerun/ex1.csv</code>), a shift of 3.4 cm. Both times the lead removed
+   most of the mean error. The three runs spread over 1.8 and 2.3 cm: a constant offset moves every run by the same
+   amount and leaves the run-to-run spread as it was. A lead calibrated against a baseline measured under different load, or against too few runs,
+   can move the mean much less than the number you put in. If yours moved by less than half of the lead, rerun step 6 at
+   0.3 m/s and compare the <code>scan age</code> and <code>coast</code> columns with the baseline. A lead fitted at one speed is wrong at the
+   others: at 0.1 m/s the error was +0.009 and +0.013 m, the other sign.</p>
+<ol start="2">
+<li>Stop on the depth camera instead of the scan:</li>
+</ol>
+<p><code>bash
+   python3 projects/p05_sense-and-stop/measure_stops.py --speeds 0.3 --runs 3 --tag ex2 --out ~/p05_runs -- -p topic:=/centre_depth -p front:=0.0</code></p>
+<p>What happens, and why?</p>
+<p>Answer: in my three runs, two stopped on the timeout, not on the pallet:
+   <code>no STOP line (TIMEOUT t=940.90: no reading for 0.53 s, stopping); true gap at the end 0.948 m</code> and the same at 0.471 m. The
+   third triggered on the pallet and ended at 0.368 m, 13 cm too close (<code>results/exercises/ex2.csv</code>). With
+   <code>-p timeout:=1.5</code> added, all three triggered on the pallet and ended at 0.408, 0.338 and 0.318 m, with reading ages of 0.107,
+   0.318 and 0.437 s (<code>results/exercises/ex2t.csv</code>). Step 3 shows the cause: the depth readings arrive 0.171 s old on average
+   (0.623 s at worst) and with gaps of up to 0.915 s, against 0.056 s and 0.220 s for the scan. At 0.3 m/s an age of 0.437 s is
+   0.13 m walked before the node even sees the reading; <code>g_s - g_t</code> in those runs was +0.036, +0.107 and +0.143 m. I did not measure where the depth
+   path loses the time; each image is 0.9 MB, against about 3.6 kB for a scan. Raising the timeout to make the depth stop work also means the
+   robot walks blind for longer when the stream stalls. The 0.5 s default stopped the robot safely, if early.</p>
+<ol start="3">
+<li>Split the scan's standing bias into a part that every beam shares and a part that comes from taking the minimum. Use my
+   snapshot taken with the robot standing after a stop (<code>results/snapshot_stopped.npz</code>, made by <code>snapshot.py</code>):</li>
+</ol>
+<p><code>python
+   import math, numpy as np
+   z = np.load('projects/p05_sense-and-stop/results/snapshot_stopped.npz')
+   r = z['ranges'].astype(float); a = z['angle_min'] + z['angle_inc'] * np.arange(len(r))
+   true = 1.9 - (z['pose'][0] - 4.5)                     # pallet face minus base x, world frame
+   s = (np.abs(a) &lt;= math.radians(20)) &amp; np.isfinite(r)
+   d = r[s] * np.cos(a[s])                               # each beam's distance to the face along x
+   print(f'true {true:.3f}  beam mean {d.mean():.3f} (std {d.std():.4f}, {s.sum()} beams)  nearest range {r[s].min():.3f}')</code></p>
+<p>Answer: <code>true 0.734  beam mean 0.720 (std 0.0066, 100 beams)  nearest range 0.711</code>. Of the -0.023 m in this snapshot,
+   -0.014 m is in the average of all beams and -0.009 m comes from taking the minimum of noisy beams. The lidar has Gaussian
+   range noise with σ = 0.01 m (<code>urdf/sensors.xacro</code>); the beams in the scan spread by 0.0066 m, so the minimum sat 1.4 of
+   those below the mean. The minimum of n Gaussian samples sits below their mean by about 1.7 σ for n = 13 and 2.5 σ for
+   n = 100 (checked with <code>rng.standard_normal((20000, n)).min(1).mean()</code>). Only the beams near
+   bearing 0 compete for the minimum, because the others read d / cos b. I did not trace the 0.014 m that all beams share. A
+   median or a low percentile of the central beams instead of the minimum would remove the second part, at the price of
+   missing a thin obstacle that only one or two beams hit.</p>
+<h2 id="if-it-goes-wrong">If it goes wrong</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Cause</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>scripts/up.sh</code> prints <code>TIMEOUT waiting for: gazebo</code> although <code>ros2 topic list</code> shows <code>/imu/data</code> and the camera topics</td>
+<td><code>up.sh</code> waits for <code>gz stats</code>, which did not answer within its time limit while the machine had a load average above 100</td>
+<td>Check <code>ros2 topic echo --once /imu/data</code>. If it prints, start the rest by hand: <code>ros2 launch go2_nav_sim estimation.launch.py</code> (this project does not need Nav2)</td>
+</tr>
+<tr>
+<td><code>measure_stops.py</code> prints <code>no STOP line (TIMEOUT ...)</code></td>
+<td>The node did not get a reading for <code>timeout</code> seconds and stopped the robot on its own. It happened only with <code>/centre_depth</code> (exercise 2), whose readings arrived up to 0.915 s apart</td>
+<td>Check <code>sensor_age.py</code>. Use the scan, or raise <code>-p timeout:=...</code> knowing the robot then walks blind for longer</td>
+</tr>
+<tr>
+<td>Ctrl-C on project 2's <code>record_reliable.py</code> (or <code>projects/common/record_cam.py</code>) prints an <code>ExternalShutdownException</code> traceback and no <code>N frames</code> line</td>
+<td>rclpy's own Ctrl-C handler shuts ROS down under the running <code>spin()</code>, so the recorder's <code>except KeyboardInterrupt</code> sometimes does not see it. Whether it does depends on timing</td>
+<td>ffmpeg gets the Ctrl-C too and finishes the file on its own, so the MP4 can still be complete: check with <code>ffprobe -v error -count_frames -select_streams v -show_entries stream=nb_read_frames -of csv=p=0 FILE.mp4</code>. Use <code>record.py</code> from this project, which sets a flag on Ctrl-C and leaves the loop</td>
+</tr>
+<tr>
+<td><code>ros2 topic hz /front_range --no-daemon</code> fails with <code>unrecognized arguments: --no-daemon</code></td>
+<td><code>ros2 topic hz</code> does not take that flag; <code>ros2 topic list</code> and <code>echo</code> do</td>
+<td>Drop it</td>
+</tr>
+<tr>
+<td>The depth half of <code>scan_and_depth.png</code> is one flat colour</td>
+<td>The snapshot was taken at the stop pose, where the pallet fills the whole image (centre depth 0.45 m)</td>
+<td>Take it at the start of the lane, after <code>--goto-start</code> (step 4)</td>
+</tr>
+<tr>
+<td><code>ros2 launch</code> starts two <code>sense.py</code></td>
+<td><code>sense.py</code> from step 2 is still running; the launch starts its own. Both publish on <code>/front_range</code></td>
+<td>Ctrl-C the first one before step 5</td>
+</tr>
+</tbody>
+</table></div><nav class="prevnext" aria-label="Previous and next"><a class="pn" href="../../tasks/s06_sensors-and-perception/index.html"><span>Previous</span>Sensors and perception</a><a class="pn next" href="../p06_avoid-obstacles/index.html"><span>Next</span>Reactive obstacle avoidance without a map</a></nav><p class="source">Source: <a href="https://github.com/Armanasq/go2-nav-sim/blob/main/projects/p05_sense-and-stop/README.md">projects/p05_sense-and-stop/README.md</a></p></article></div>
+</main>
+<footer class="site"><div class="wrap">Simulation only. Source and issues on <a href="https://github.com/Armanasq/go2-nav-sim">GitHub</a>.</div></footer>
+<script type="module" src="../../static/js/site.js"></script>
+</body>
+</html>

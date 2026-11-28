@@ -1,0 +1,759 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Your own go-to-pose controller · go2-nav-sim</title>
+<meta name="description" content="Your own go-to-pose controller">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../../static/css/site.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5' fill='%230a6a9c'/%3E%3C/svg%3E">
+
+</head>
+<body data-root="../../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar"><div class="inner">
+<a class="brand" href="../../index.html">go2-nav-sim</a>
+<nav aria-label="Main"><a href="../../tutorial/00-overview.html" aria-current="page">Learn</a><a href="../../tasks/index.html">Tasks</a><a href="../../modules/index.html">Deep dives</a><a href="../../reference.html">Reference</a></nav>
+<button class="theme-toggle" type="button" aria-label="Colour theme: auto">auto</button>
+</div></header>
+<main id="main">
+<div class="wrap doc"><details class="side" open><summary>Your own go-to-pose controller</summary><nav aria-label="Contents"><ol class="parts"><li><a class="part" href="../../tutorial/00-overview.html">Start</a></li><li><a class="part" href="../../tutorial/05-frames-and-tf2.html">The robot</a></li><li class="open"><p class="part">Move it</p><ol><li><a href="../p02_teleop-and-safety/index.html"><span class="n">P2</span><span>Teleoperation with a safety layer</span></a></li><li><a href="../p03_move-in-shapes/index.html"><span class="n">P3</span><span>Move in shapes</span></a></li><li><a href="index.html" aria-current="page"><span class="n">P4</span><span>Your own go-to-pose controller</span></a><ul class="sections"><li><a href="#goal">Goal</a></li><li><a href="#what-you-will-learn">What you will learn</a></li><li><a href="#before-you-start">Before you start</a></li><li><a href="#steps">Steps</a></li><li><a href="#how-the-code-works">How the code works</a></li><li><a href="#results">Results</a></li><li><a href="#try-this">Try this</a></li><li><a href="#if-it-goes-wrong">If it goes wrong</a></li></ul></li><li><a href="../../tasks/s08_feedback-movement/index.html"><span class="n">S8</span><span>Feedback movement</span></a></li></ol></li><li><a class="part" href="../../tutorial/08-robot-and-sensors.html">Sense and avoid</a></li><li><a class="part" href="../../tutorial/09-state-estimation.html">Estimate and map</a></li><li><a class="part" href="../p11_command-arbitration/index.html">Navigate</a></li><li><a class="part" href="../p14_test-the-stack/index.html">Beyond simulation</a></li></ol></nav></details><article class="prose"><p class="where">Move it · Project 4</p><h1>Your own go-to-pose controller</h1><h2 id="goal">Goal</h2>
+<p>Write a node that walks the Go2 to a pose (a position and a heading) using only <code>/odom</code>, with the polar-coordinate controller
+from the mobile-robotics textbooks. You send it to five poses in open space, measure how far from each it stops, both as
+<code>/odom</code> sees it and as the simulator's ground truth sees it, and plot the paths. Then you raise the gains, watch the robot
+hunt around the goal instead of arriving, and measure why it does.</p>
+<h2 id="what-you-will-learn">What you will learn</h2>
+<ul>
+<li>Describing the robot relative to a goal pose with three numbers: distance ρ (rho), bearing α (alpha) and goal angle β (beta).</li>
+<li>Turning those into a velocity command v = k_ρ ρ, w = k_α α + k_β β, and checking the gains against a stability condition.</li>
+<li>Saturating a command to the robot's limits without bending the path it would have taken.</li>
+<li>Handling what the textbook model leaves out: goals behind the robot, a minimum walking speed, and the final heading.</li>
+<li>Telling controller error from estimation error by scoring the same run on <code>/odom</code> and on <code>/odom_gt</code>.</li>
+<li>Why gains that are stable on paper, and in an ideal simulation, make a legged robot hunt.</li>
+</ul>
+<h2 id="before-you-start">Before you start</h2>
+<p>You need <a href="../p01_first-steps/index.html">project 1</a> (starting the stack, <code>/cmd_vel</code>, reading a pose from
+<code>nav_msgs/Odometry</code>) and <a href="../p03_move-in-shapes/index.html">project 3</a> (closing the loop on <code>/odom</code>, <code>wrap</code>, a timer on
+simulated time, <code>/odom</code> drift while the robot stands). The video step reuses project 3's <code>record.py</code>.</p>
+<p>Every terminal starts with:</p>
+<pre><code class="language-bash">cd go2-nav-sim
+source env.sh
+</code></pre>
+<p>Start the stack:</p>
+<pre><code class="language-bash">scripts/up.sh
+# stack up
+</code></pre>
+<p>Run each experiment right after <code>scripts/up.sh</code>, so the robot starts on marker A facing +x and <code>/odom</code> has not drifted.
+The five goals are given relative to the start pose and lie within 4.0 m ahead and 1.0 m to the left of it. From A that is
+open floor: the nearest obstacle, the pallet centred at (-1.5, -1.5), has its corner 0.84 m from goal 2. That holds on
+the path the robot takes when every goal ends <code>done</code>. A goal that ends in <code>timeout</code> leaves the robot where it stopped,
+possibly turned far from the goal heading, and the path to the next goal starts there and can cross the pallet (Try
+this 3 explains how a reader's robot ended up against it).</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>File</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>polar.py</code></td>
+<td>the controller: <code>polar()</code>, <code>saturate()</code>, <code>strong_stability()</code> and the <code>GoToPose</code> state machine; no ROS in it</td>
+</tr>
+<tr>
+<td><code>go_to_pose.py</code></td>
+<td>the node: runs the goals in turn on <code>/odom</code>, publishes <code>/cmd_vel</code>, prints the errors, logs every 20 Hz tick to <code>results/NAME.csv</code> (<code>--name</code>, default <code>my_run</code>)</td>
+</tr>
+<tr>
+<td><code>analyze.py</code></td>
+<td>scores the logs per goal, prints the tables, draws <code>figures/trajectories.png</code> and <code>figures/gains.png</code> from my logs, or <code>figures/my_trajectories.png</code> and <code>figures/my_gains.png</code> from yours with <code>--mine</code></td>
+</tr>
+<tr>
+<td><code>test_polar.py</code></td>
+<td>unit tests: the controller driving an ideal unicycle</td>
+</tr>
+<tr>
+<td><code>results/</code></td>
+<td>my 11 logs (<code>run</code>, <code>repeat</code>, <code>repeat2</code>, <code>on_odom_gt</code>, <code>on_odom_gt_2</code>, <code>high_gains</code>, <code>k_alpha_20</code>, <code>k_alpha_20_2</code>, <code>k_alpha_20_3</code>, <code>no_vmin</code>, <code>no_vmin_2</code>) and <code>analyze_output.txt</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>The node is one process, so there is no launch file.</p>
+<p>Your logs go to <code>results/my_*.csv</code> and your figures to <code>figures/my_*.png</code>, so the tables and figures in this README keep
+matching the files they came from. Every command below already uses a <code>my_</code> name. A <code>--name</code> without <code>my_</code> (for example
+<code>--name run</code>) overwrites my log of that name.</p>
+<h2 id="steps">Steps</h2>
+<h3 id="1-run-the-unit-tests">1. Run the unit tests</h3>
+<pre><code class="language-bash">python3 -m pytest -q projects/p04_go-to-pose
+# 5 passed
+</code></pre>
+<p>The tests drive <code>GoToPose</code> on an ideal unicycle (it does exactly what it is commanded, 20 times a second). They check the
+polar coordinates on one hand-worked case, that <code>saturate()</code> keeps the ratio w/v, that the default gains pass the stability
+test, that goals ahead, to the side and behind are all reached within 5 cm and 3 degrees without exceeding 0.3 m/s or
+0.5 rad/s, and that a goal behind the robot is reached walking backward.</p>
+<p>Check: <code>5 passed</code>.</p>
+<h3 id="2-walk-to-the-five-goals">2. Walk to the five goals</h3>
+<pre><code class="language-bash">scripts/up.sh
+python3 projects/p04_go-to-pose/go_to_pose.py
+</code></pre>
+<p>The node waits for <code>/odom</code> and <code>/odom_gt</code>, takes the pose at that moment as the start, and walks to these goals, given as
+(x forward, y left, heading in degrees) relative to the start:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Goal</th>
+<th>1</th>
+<th>2</th>
+<th>3</th>
+<th>4</th>
+<th>5</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pose</td>
+<td>(2.0, 0.0, 0)</td>
+<td>(4.0, 0.8, 90)</td>
+<td>(2.5, 0.3, 180)</td>
+<td>(0.5, 1.0, 90)</td>
+<td>(0.0, 0.0, 0)</td>
+</tr>
+</tbody>
+</table></div>
+<p>They make it go straight, curve left onto a heading, back up to a point behind it, cross back, and back up to the start
+(goals 3 and 5 lie behind the robot when they are set, so it walks to them backward). After each goal it stands for 1.5 s
+and prints the error. My run:</p>
+<pre><code>[INFO] [...] [go_to_pose]: gains k_rho=0.5 k_alpha=1.5 k_beta=-0.5, strongly stable: True
+[INFO] [...] [go_to_pose]: start at odom (...)
+[INFO] [...] [go_to_pose]: goal 1 (2.0, 0.0, 0): done after 10.2 s; error on odom 0.052 m +0.9 deg, true 0.046 m -0.5 deg
+[INFO] [...] [go_to_pose]: goal 2 (4.0, 0.8, 90): done after 12.9 s; error on odom 0.095 m -0.9 deg, true 0.087 m -3.4 deg
+[INFO] [...] [go_to_pose]: goal 3 (2.5, 0.3, 180): done after 12.8 s; error on odom 0.022 m -2.1 deg, true 0.023 m -6.0 deg
+[INFO] [...] [go_to_pose]: goal 4 (0.5, 1.0, 90): done after 12.7 s; error on odom 0.092 m +1.4 deg, true 0.179 m -5.4 deg
+[INFO] [...] [go_to_pose]: goal 5 (0.0, 0.0, 0): done after 6.2 s; error on odom 0.060 m +2.8 deg, true 0.081 m -5.4 deg
+log: .../projects/p04_go-to-pose/results/run.csv
+</code></pre>
+<p>I logged mine with <code>--name run</code>; yours goes to <code>results/my_run.csv</code>. "error on odom" is what the controller believes;
+"true" compares <code>/odom_gt</code> with the same goal placed at the true start pose.</p>
+<p>To stop the robot early, press Ctrl-C in the node's terminal. The node sends zero velocity before it exits, prints
+<code>interrupted: sending zero velocity</code> and the <code>log:</code> line, and the robot stands still. I interrupted this step at 7.0 s,
+while the robot walked at 0.105 m/s: in the next 35 s its true position moved 0.02 m. If the robot ever keeps walking
+after the node has gone (CHAMP repeats the last command it received), send zero from any terminal:</p>
+<pre><code class="language-bash">ros2 topic pub -t 5 /cmd_vel geometry_msgs/msg/Twist {}
+</code></pre>
+<p>Check: five <code>done</code> lines (not <code>timeout</code>), each goal in about 5 to 14 s of simulated time (5.7 to 13.2 s in my runs and
+a reader's).</p>
+<h3 id="3-score-the-run-and-draw-it">3. Score the run and draw it</h3>
+<pre><code class="language-bash">python3 projects/p04_go-to-pose/analyze.py --mine
+</code></pre>
+<p>It prints one table per log of yours, two measurements used in <a href="#how-the-code-works">How the code works</a>, and writes
+<code>figures/my_trajectories.png</code>. <code>figures/my_gains.png</code> needs your logs from steps 4 and 5 as well; until then the script
+prints <code>skipped figures/my_gains.png</code>. <code>analyze.py</code> without <code>--mine</code> scores my logs and redraws the figures in this README.
+The first lines with my log:</p>
+<pre><code>run
+| Goal | Time, s | Outcome | /odom error at end of drive, m | /odom error, m | deg | True error, m | deg | True path, m | Turn reversals |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | 10.2 | done | 0.050 | 0.052 | +0.9 | 0.046 | -0.5 | 2.11 | 5 |
+...
+</code></pre>
+<p>Columns:</p>
+<ul>
+<li>Time: from the first logged row of the goal to the first <code>done</code> row. The node's own time counts from the tick before,
+  so it can differ by 0.1 s (12.9 against 12.8 s for goal 2).</li>
+<li><code>/odom</code> error at end of drive: the distance on <code>/odom</code> when the controller switched from walking to turning on the spot.</li>
+<li><code>/odom</code> error and True error: when the node printed them, 1.5 s after <code>done</code>.</li>
+<li>True path: length of the <code>/odom_gt</code> path for that goal.</li>
+<li>Turn reversals: how often the commanded w changed sign, counting only commands above 0.25 rad/s.</li>
+</ul>
+<p>Check: five rows with outcome <code>done</code>, and <code>figures/my_trajectories.png</code>.</p>
+<h3 id="4-try-the-textbook-gains">4. Try the textbook gains</h3>
+<pre><code class="language-bash">scripts/up.sh
+python3 projects/p04_go-to-pose/go_to_pose.py --name my_high_gains --gains 3 8 -1.5
+</code></pre>
+<p>k = (3, 8, -1.5) is the example in Siegwart et al. (reference in <code>polar.py</code>). My run:</p>
+<pre><code>[INFO] [...] [go_to_pose]: gains k_rho=3.0 k_alpha=8.0 k_beta=-1.5, strongly stable: True
+[INFO] [...] [go_to_pose]: goal 1 (2.0, 0.0, 0): done after 7.0 s; error on odom 0.045 m -5.0 deg, true 0.032 m -4.3 deg
+[INFO] [...] [go_to_pose]: goal 2 (4.0, 0.8, 90): done after 9.4 s; error on odom 0.080 m -3.3 deg, true 0.073 m -2.8 deg
+[INFO] [...] [go_to_pose]: goal 3 (2.5, 0.3, 180): done after 12.0 s; error on odom 0.092 m -3.0 deg, true 0.110 m -4.5 deg
+[INFO] [...] [go_to_pose]: goal 4 (0.5, 1.0, 90): done after 10.2 s; error on odom 0.111 m +2.8 deg, true 0.201 m -6.4 deg
+[INFO] [...] [go_to_pose]: goal 5 (0.0, 0.0, 0): done after 5.7 s; error on odom 0.089 m +0.9 deg, true 0.118 m -9.7 deg
+</code></pre>
+<p>Check: all five <code>done</code>, faster than step 2 (44.0 s against 54.6 s in my runs).</p>
+<h3 id="5-measure-a-gain-that-is-too-high">5. Measure a gain that is too high</h3>
+<p>Keep k_ρ and k_β, raise k_α from 1.5 to 20. This run takes 2.5 to 8 minutes, because each of the five goals can hunt
+until the 90 s timeout. Keep the Gazebo window in view while it runs. If the robot walks off the open floor between
+marker A and the pallet, press Ctrl-C: the node sends zero velocity and the robot stops (step 2).</p>
+<pre><code class="language-bash">scripts/up.sh
+python3 projects/p04_go-to-pose/go_to_pose.py --name my_k_alpha_20 --gains 0.5 20 -0.5
+</code></pre>
+<p>The outcome changes from run to run. In two of my three runs (<code>k_alpha_20</code>, <code>k_alpha_20_2</code>) all five goals ended
+<code>done</code>, in 155.0 and 155.7 s in total. The third (<code>k_alpha_20_3</code>) took 281.1 s, and goals 2 and 4 ended in <code>timeout</code>:</p>
+<pre><code>[INFO] [...] [go_to_pose]: gains k_rho=0.5 k_alpha=20.0 k_beta=-0.5, strongly stable: True
+[INFO] [...] [go_to_pose]: goal 1 (2.0, 0.0, 0): done after 43.4 s; error on odom 0.075 m -2.5 deg, true 0.095 m -6.9 deg
+[INFO] [...] [go_to_pose]: goal 2 (4.0, 0.8, 90): timeout after 90.1 s; error on odom 0.144 m -85.2 deg, true 0.143 m -85.6 deg
+[INFO] [...] [go_to_pose]: goal 3 (2.5, 0.3, 180): done after 13.4 s; error on odom 0.182 m -1.2 deg, true 0.163 m -2.4 deg
+[INFO] [...] [go_to_pose]: goal 4 (0.5, 1.0, 90): timeout after 90.1 s; error on odom 0.081 m +69.4 deg, true 0.083 m +47.2 deg
+[INFO] [...] [go_to_pose]: goal 5 (0.0, 0.0, 0): done after 44.5 s; error on odom 0.167 m -2.8 deg, true 0.290 m +37.5 deg
+</code></pre>
+<p>The stability test still says <code>True</code>, yet in this run the goals took 13 to 90 s instead of about 5 to 14, and two were never
+reached. Near each goal the robot turns left and right in place while barely moving forward. A <code>timeout</code> in this step is
+part of the result: the hunt lasted longer than 90 s.</p>
+<p>Minutes of turning in place also spoil the <code>/odom</code> heading. <code>/odom</code> takes x and y from the lidar odometry and the
+heading from integrating the IMU's yaw rate (<code>src/go2_nav_sim/config/ekf.yaml</code>), and that integral drifts while the robot turns. In
+<code>k_alpha_20_3</code> the <code>/odom</code> heading had drifted 41 degrees from the true heading by goal 5, which is why goal 5 reports
+-2.8 degrees on <code>/odom</code> and +37.5 degrees true (with the default gains the drift over a whole run was 10, 10 and 11
+degrees in <code>repeat</code>, <code>repeat2</code> and <code>run</code>). Once the gap is large, the controller steers by a heading that points the
+wrong way and walks away from the goal; a reader's run walked about 10 m backward across the arena on goal 5 this way.
+The node stops this: when <code>/odom</code> puts the robot 0.5 m further from the goal than when the goal was set, it ends the
+goal with <code>abort</code>, prints a warning and skips the remaining goals. Restart the stack after an <code>abort</code>.</p>
+<p>Score your runs:</p>
+<pre><code class="language-bash">python3 projects/p04_go-to-pose/analyze.py --mine
+</code></pre>
+<p>Check: in the <code>my_k_alpha_20</code> table, Turn reversals is in the hundreds (448, 477 and 802 in my three runs, against 14 for
+<code>run</code>), and the line <code>my_k_alpha_20, goal 2: within 0.3 m after ...</code> shows tens of seconds spent within 0.3 m of the
+goal (56.2 s in <code>k_alpha_20</code>, 78.8 s in <code>k_alpha_20_3</code>, but 11.3 s in <code>k_alpha_20_2</code>, where goal 1 hunted for 65.9 s
+instead). <code>figures/my_gains.png</code> is drawn once you also have <code>my_high_gains</code> from step 4.</p>
+<h3 id="6-record-a-video">6. Record a video</h3>
+<p>Restart the stack in the first terminal:</p>
+<pre><code class="language-bash">scripts/up.sh
+</code></pre>
+<p>In a second terminal, start the recorder:</p>
+<pre><code class="language-bash">python3 projects/p03_move-in-shapes/record.py /tmp/p04_raw.mp4 --topic /spectator/cam/image_raw
+</code></pre>
+<p>Back in the first terminal, run step 2 again. When it prints <code>log: ...</code>, stop the recorder with Ctrl-C. My recording ran
+68.3 s (683 frames at 10 per second of simulated time). Crop the corner of the arena the robot uses and play it at three
+times the speed:</p>
+<pre><code class="language-bash">ffmpeg -i /tmp/p04_raw.mp4 -vf &quot;crop=480:270:110:170,scale=960:540,setpts=PTS/3&quot; -r 20 -c:v libx264 -crf 26 -pix_fmt yuv420p -an /tmp/five_goals.mp4
+ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1 /tmp/five_goals.mp4
+# duration=22.850000
+</code></pre>
+<p>Check: the duration is about a third of the recording.</p>
+<h3 id="7-stop-everything">7. Stop everything</h3>
+<pre><code class="language-bash">scripts/stop.sh
+</code></pre>
+<h2 id="how-the-code-works">How the code works</h2>
+<h3 id="polar-coordinates">Polar coordinates</h3>
+<p><code>polar.py</code> describes the robot relative to the goal with three numbers:</p>
+<pre><code class="language-python">def polar(x, y, yaw, gx, gy, gyaw):
+    &quot;&quot;&quot;Robot pose (x, y, yaw) and goal pose (gx, gy, gyaw) in one frame -&gt; (rho, alpha, beta).&quot;&quot;&quot;
+    rho = math.hypot(gx - x, gy - y)
+    bearing = math.atan2(gy - y, gx - x)
+    return rho, wrap(bearing - yaw), wrap(gyaw - bearing)
+</code></pre>
+<ul>
+<li>ρ is the distance to the goal position.</li>
+<li>α is how far the goal lies off the robot's nose: the bearing of the line robot → goal minus the robot's heading.</li>
+<li>β is how far the goal heading is from that line.</li>
+</ul>
+<p>The robot is on the goal pose when ρ = 0 and its heading equals the goal heading. <code>wrap</code> keeps both angles in (-π, π],
+as in project 3.</p>
+<h3 id="the-control-law-and-its-gains">The control law and its gains</h3>
+<pre><code>v = k_ρ ρ
+w = k_α α + k_β β
+</code></pre>
+<p>v closes the distance. k_α α turns the nose toward the goal. k_β β (with k_β &lt; 0) turns it away from the straight line, so
+the robot swings out and arrives along the goal heading instead of only at the goal point. Linearised around the goal, the
+closed loop is stable when k_ρ &gt; 0, k_β &lt; 0 and k_α - k_ρ &gt; 0. <code>strong_stability()</code> tests the stricter condition from the
+same book, under which the robot also never reverses its direction of travel on the way:</p>
+<pre><code class="language-python">def strong_stability(k_rho, k_alpha, k_beta):
+    return k_rho &gt; 0 and k_beta &lt; 0 and k_alpha + 5 / 3 * k_beta - 2 / math.pi * k_rho &gt; 0
+</code></pre>
+<p>For the default gains (0.5, 1.5, -0.5): 1.5 - 0.83 - 0.32 = 0.35 &gt; 0. How I chose them:</p>
+<ul>
+<li>k_ρ = 0.5 s⁻¹: v = 0.5 ρ reaches the 0.3 m/s limit for ρ &gt; 0.6 m, so the robot walks at full speed until the last 0.6 m
+  and then slows with a 1/k_ρ = 2 s time constant.</li>
+<li>k_α = 1.5 s⁻¹: a bearing error of 19 degrees asks for the full 0.5 rad/s. The trunk's heading sways with every step
+  (next section); 1.5 times that sway is about 0.06 rad/s of noise on w.</li>
+<li>k_β = -0.5 s⁻¹: with k_ρ = 0.5 and k_α = 1.5 the strong condition holds for k_β &gt; -0.71, and -0.5 leaves a margin of
+  0.35. Try this 2 shows what β does.</li>
+</ul>
+<h3 id="saturation-that-keeps-the-path">Saturation that keeps the path</h3>
+<p>The robot accepts at most 0.3 m/s and 0.5 rad/s. Clipping each one alone changes the ratio w/v, which is the curvature of
+the path. <code>saturate()</code> scales both by the same factor:</p>
+<pre><code class="language-python">def saturate(v, w, v_max=V_MAX, w_max=W_MAX):
+    s = max(1.0, abs(v) / v_max, abs(w) / w_max)
+    return v / s, w / s
+</code></pre>
+<p>The robot then walks the same curve, slower. This has a consequence for high gains: whenever w is saturated, v shrinks with
+it. That is what stalls the robot in step 5.</p>
+<h3 id="what-the-textbook-leaves-out">What the textbook leaves out</h3>
+<p><code>GoToPose.step()</code> wraps the law in a small state machine, <code>drive</code> → <code>align</code> → <code>done</code>:</p>
+<pre><code class="language-python">if self.phase == 'drive':
+    rho, alpha, _ = polar(x, y, yaw, gx, gy, gyaw)
+    if self.direction is None:            # chosen once per goal: forward if the goal is in front, else backward
+        self.direction = 1 if abs(alpha) &lt;= math.pi / 2 else -1
+    if rho &lt; self.pos_tol:
+        self.phase = 'align'
+    else:
+        flip = 0.0 if self.direction &gt; 0 else math.pi    # walking backward = forward with the heading flipped
+        rho, alpha, beta = polar(x, y, yaw + flip, gx, gy, gyaw + flip)
+        v, w = self.direction * self.k[0] * rho, self.k[1] * alpha + self.k[2] * beta
+        up = max(1.0, self.v_min / abs(v))   # CHAMP barely walks below 0.1 m/s: scale up, same ratio w/v
+        v, w = saturate(v * up, w * up)
+        return v, w, 'drive'
+if self.phase == 'align':
+    err = wrap(gyaw - yaw)
+    if abs(err) &lt; self.yaw_tol:
+        self.phase = 'done'
+    else:
+        w = max(-W_MAX, min(W_MAX, 1.5 * err))
+        return 0.0, math.copysign(max(abs(w), self.w_min), err), 'align'
+</code></pre>
+<ul>
+<li>Goal behind. The law assumes the goal lies ahead (|α| ≤ 90 degrees). For a goal behind, the controller walks backward:
+  it computes the coordinates with the robot's heading and the goal heading turned by 180 degrees, and negates v. The
+  direction is chosen once per goal, so it cannot flip back and forth on the way. Goals 3 and 5 are reached this way: in
+  <code>results/run.csv</code> their <code>v_cmd</code> goes down to -0.300.</li>
+<li>Speed floor. v = k_ρ ρ falls below 0.1 m/s at ρ = 0.2 m. The gait makes little progress at such speeds:
+  <a href="#try-this">Try this</a> 3 removes the floor, and a goal then either stands 0.06 to 0.12 m short until the 90 s timeout
+  (goal 1 of <code>no_vmin</code>) or creeps the last centimetres and ends <code>done</code> late (goal 1 of <code>no_vmin_2</code>). So v and w
+  are scaled up together until v is 0.1 m/s. <code>saturate()</code> runs after that, so a saturated w can still pull v below 0.1
+  (the lowest forward <code>v_cmd</code> in <code>run</code> was 0.027 m/s).</li>
+<li>Final heading. The robot reaches the 5 cm circle before its heading has come round: at the end of the drive phase the
+  heading in <code>run</code> was off by +10, -23, -29, +49 and +47 degrees for goals 1 to 5 (ideal unicycle, Try this 2: -6 degrees).
+  The <code>align</code> phase turns the rest on the spot with w = 1.5 · err, at least 0.1 rad/s, until the error is under 3 degrees.</li>
+</ul>
+<h3 id="the-node">The node</h3>
+<p><code>go_to_pose.py</code> runs everything from one 20 Hz timer on simulated time, as in project 3. Each tick it steps the controller on
+the latest <code>/odom</code> pose, publishes the command, logs the row, and after 1.5 s in <code>done</code> prints the errors and starts the next
+goal:</p>
+<pre><code class="language-python">v, w, phase = self.ctl.step(*self.odom)
+if phase == 'drive' and errors(self.odom, self.target)[0] &gt; self.d0 + LEASH:
+    phase = 'abort'
+elif phase not in ('done', 'abort') and t - self.t_goal &gt; TIMEOUT:
+    phase = 'timeout'
+if phase in ('timeout', 'abort'):
+    v, w = 0.0, 0.0
+    self.ctl.phase = phase
+tw = Twist(); tw.linear.x, tw.angular.z = float(v), float(w)
+self.pub.publish(tw)
+self.log.writerow([...])
+if phase in ('done', 'timeout', 'abort'):
+    self.t_done = self.t_done or t
+    if t - self.t_done &gt;= SETTLE:
+        self.report(t, phase)
+</code></pre>
+<p>The goals are placed once, at the start, by rotating them with the start heading a0 and shifting them to the start position:
+x' = x0 + x cos a0 - y sin a0, y' = y0 + x sin a0 + y cos a0 (<code>place()</code>). This is done twice, with the <code>/odom</code> start pose for
+the controller and with the <code>/odom_gt</code> start pose for scoring. <code>/odom_gt</code> is never used for control.</p>
+<p><code>stop()</code> publishes five zero twists, because CHAMP keeps walking on the last command. <code>main()</code> calls it in a <code>finally</code>
+block, so it runs on a normal end, on Ctrl-C, on <code>kill -TERM</code> and on an exception:</p>
+<pre><code class="language-python">rclpy.init(signal_handler_options=SignalHandlerOptions.NO)
+signal.signal(signal.SIGTERM, signal.default_int_handler)
+node = Runner(args)
+try:
+    while not node.done:
+        rclpy.spin_once(node, timeout_sec=0.1)
+except KeyboardInterrupt:
+    node.get_logger().warn('interrupted: sending zero velocity')
+finally:
+    node.stop()
+</code></pre>
+<p>The first line matters. By default <code>rclpy.init()</code> installs its own Ctrl-C handler, which shuts the ROS context down
+before Python raises <code>KeyboardInterrupt</code>. <code>stop()</code> then fails with <code>RCLError: Failed to publish: publisher's context is
+invalid</code>, no zero twist goes out, and the robot keeps walking. A reader hit exactly this with the first version of the
+node: the robot walked on for about 35 s until they published zero by hand. With <code>SignalHandlerOptions.NO</code> Ctrl-C is a
+plain <code>KeyboardInterrupt</code>, the context is still valid in <code>stop()</code>, and the second line makes <code>kill -TERM</code> behave the
+same way.</p>
+<p><code>d0</code> is the <code>/odom</code> distance to the goal when the goal was set, and <code>LEASH</code> is 0.5 m. In my 11 logs in <code>results/</code>, with
+all the gains in this project, the distance never grew by more than 0.03 m above <code>d0</code>, so the leash only trips when the
+robot walks away from the goal. It does not catch a robot that pushes against an obstacle: its distance to the goal
+stays about where it was (If it goes wrong). After <code>abort</code>, <code>report()</code> skips the remaining goals, because the controller would steer
+to them on the same <code>/odom</code> heading that has just failed.</p>
+<h3 id="why-k_-20-hunts">Why k_α = 20 hunts</h3>
+<p>On paper k = (0.5, 20, -0.5) is fine: <code>strong_stability</code> returns <code>True</code> (20 - 0.83 - 0.32 &gt; 0), and on the ideal unicycle it
+reaches every test goal:</p>
+<pre><code class="language-bash">python3 -c &quot;
+import sys; sys.path.insert(0, 'projects/p04_go-to-pose'); import polar, test_polar
+print(polar.strong_stability(0.5, 20, -0.5), [test_polar.simulate(g, gains=(0.5, 20, -0.5))[0].phase for g in [(2, 0, 0), (2, 1, 1.57), (-1.5, 0.5, 0)]])&quot;
+# True ['done', 'done', 'done']
+</code></pre>
+<p>The legged robot differs from that model in one way that matters here: its trunk does not point steadily along its path.
+<code>analyze.py</code> measures the sway while walking straight to goal 1 (1 to 5 s, slow heading change removed):</p>
+<pre><code>run: /odom heading sway walking straight (1-5 s): peak to peak 9.0 deg, std 2.3 deg
+run: true heading sway walking straight (1-5 s): peak to peak 6.9 deg, std 2.2 deg
+</code></pre>
+<p>α is computed from that heading, so the controller passes the sway straight into w: 2.3 degrees (0.040 rad) times
+k_α = 1.5 is 0.06 rad/s, times k_α = 20 is 0.80 rad/s, above the 0.5 rad/s limit. Near the goal it gets worse, because α
+is the bearing to a point that is only centimetres away: with the goal 0.1 m ahead, a 2 cm sideways step of the trunk
+changes α by atan(0.02 / 0.1) = 11 degrees. With k_α = 20 the command flips between +0.5 and -0.5 rad/s, and <code>saturate()</code>
+cuts v by the same factor:</p>
+<pre><code>run, goal 2: within 0.3 m after 8.0 s, then 3.7 s of drive with median v 0.10 m/s and |w| at the 0.5 rad/s limit 16% of the time
+k_alpha_20, goal 2: within 0.3 m after 11.9 s, then 56.2 s of drive with median v 0.02 m/s and |w| at the 0.5 rad/s limit 89% of the time
+</code></pre>
+<p>The default gains show the same effect, smaller: in the last 0.1 m to goal 2 the command swung to ±0.5 rad/s for about a
+second before the drive phase ended (right panel of the second figure). The cure there is the 5 cm tolerance, not a lower
+gain.</p>
+<h2 id="results">Results</h2>
+<p>All runs on one machine with other simulations running, each right after a fresh <code>scripts/up.sh</code>. Produced by
+<code>python3 projects/p04_go-to-pose/analyze.py</code>; the full output is in <code>results/analyze_output.txt</code>, the logs in <code>results/*.csv</code>.</p>
+<p><img loading="lazy" alt="Five goals with the default gains: ground truth grey, /odom blue, goal poses as black arrows, arena obstacles in light grey, marker A as a green disc" src="figures/trajectories.png" /></p>
+<p>Ground truth is grey, <code>/odom</code> blue (drawn from the true start pose, so the gap between the two is the estimate's drift),
+goal poses black arrows, the point where the error was taken a grey dot, marker A (the start) a green disc of 0.4 m
+radius. The paths separate on the way to goal 4 and back
+to the start: at goal 4, <code>/odom</code> put the robot 0.092 m from the goal, the truth was 0.179 m.</p>
+<video controls muted playsinline src="media/five_goals.mp4"></video>
+
+<p>The same run from the spectator camera, cropped and played at three times the speed (22.9 s).</p>
+<p>Per goal, default gains (<code>run</code>):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Goal</th>
+<th>Time, s</th>
+<th>/odom error at end of drive, m</th>
+<th>/odom error, m</th>
+<th>/odom heading error, deg</th>
+<th>True error, m</th>
+<th>True heading error, deg</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 (2.0, 0.0, 0)</td>
+<td>10.2</td>
+<td>0.050</td>
+<td>0.052</td>
+<td>+0.9</td>
+<td>0.046</td>
+<td>-0.5</td>
+</tr>
+<tr>
+<td>2 (4.0, 0.8, 90)</td>
+<td>12.8</td>
+<td>0.043</td>
+<td>0.095</td>
+<td>-0.9</td>
+<td>0.087</td>
+<td>-3.4</td>
+</tr>
+<tr>
+<td>3 (2.5, 0.3, 180)</td>
+<td>12.8</td>
+<td>0.047</td>
+<td>0.022</td>
+<td>-2.1</td>
+<td>0.023</td>
+<td>-6.0</td>
+</tr>
+<tr>
+<td>4 (0.5, 1.0, 90)</td>
+<td>12.6</td>
+<td>0.042</td>
+<td>0.092</td>
+<td>+1.4</td>
+<td>0.179</td>
+<td>-5.4</td>
+</tr>
+<tr>
+<td>5 (0.0, 0.0, 0)</td>
+<td>6.1</td>
+<td>0.037</td>
+<td>0.060</td>
+<td>+2.8</td>
+<td>0.081</td>
+<td>-5.4</td>
+</tr>
+</tbody>
+</table></div>
+<p>All runs, per run (mean over the goals, heading as mean of the absolute error):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Run</th>
+<th>Command</th>
+<th>Goals done</th>
+<th>Total time, s</th>
+<th>/odom error at end of drive, m</th>
+<th>/odom error, m</th>
+<th>True error, m</th>
+<th>True heading error, deg</th>
+<th>True path, m</th>
+<th>Turn reversals</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>run</code></td>
+<td><code>go_to_pose.py --name run</code></td>
+<td>5 of 5</td>
+<td>54.6</td>
+<td>0.044</td>
+<td>0.064</td>
+<td>0.083</td>
+<td>4.1</td>
+<td>10.73</td>
+<td>14</td>
+</tr>
+<tr>
+<td><code>repeat</code></td>
+<td><code>go_to_pose.py --name repeat</code></td>
+<td>5 of 5</td>
+<td>53.8</td>
+<td>0.045</td>
+<td>0.045</td>
+<td>0.039</td>
+<td>3.7</td>
+<td>10.62</td>
+<td>18</td>
+</tr>
+<tr>
+<td><code>repeat2</code></td>
+<td><code>go_to_pose.py --name repeat2</code></td>
+<td>5 of 5</td>
+<td>52.8</td>
+<td>0.047</td>
+<td>0.044</td>
+<td>0.043</td>
+<td>3.7</td>
+<td>10.61</td>
+<td>16</td>
+</tr>
+<tr>
+<td><code>on_odom_gt</code></td>
+<td><code>... --name on_odom_gt --ros-args -r odom:=odom_gt</code></td>
+<td>5 of 5</td>
+<td>52.1</td>
+<td>0.048</td>
+<td>0.044</td>
+<td>0.044</td>
+<td>1.9</td>
+<td>10.65</td>
+<td>10</td>
+</tr>
+<tr>
+<td><code>on_odom_gt_2</code></td>
+<td>same, <code>--name on_odom_gt_2</code></td>
+<td>5 of 5</td>
+<td>52.1</td>
+<td>0.047</td>
+<td>0.031</td>
+<td>0.031</td>
+<td>1.5</td>
+<td>10.64</td>
+<td>15</td>
+</tr>
+<tr>
+<td><code>high_gains</code></td>
+<td><code>... --gains 3 8 -1.5</code></td>
+<td>5 of 5</td>
+<td>44.0</td>
+<td>0.042</td>
+<td>0.083</td>
+<td>0.107</td>
+<td>5.6</td>
+<td>10.28</td>
+<td>9</td>
+</tr>
+<tr>
+<td><code>k_alpha_20</code></td>
+<td><code>... --gains 0.5 20 -0.5</code></td>
+<td>5 of 5</td>
+<td>155.0</td>
+<td>0.045</td>
+<td>0.107</td>
+<td>0.116</td>
+<td>5.9</td>
+<td>14.70</td>
+<td>448</td>
+</tr>
+<tr>
+<td><code>k_alpha_20_2</code></td>
+<td>same, <code>--name k_alpha_20_2</code></td>
+<td>5 of 5</td>
+<td>155.7</td>
+<td>0.045</td>
+<td>0.097</td>
+<td>0.101</td>
+<td>16.3</td>
+<td>14.52</td>
+<td>477</td>
+</tr>
+<tr>
+<td><code>k_alpha_20_3</code></td>
+<td>same, <code>--name k_alpha_20_3</code></td>
+<td>3 of 5</td>
+<td>281.1</td>
+<td>0.081</td>
+<td>0.130</td>
+<td>0.155</td>
+<td>35.9</td>
+<td>21.61</td>
+<td>802</td>
+</tr>
+<tr>
+<td><code>no_vmin</code></td>
+<td><code>... --v-min 0 --goals 1 2</code></td>
+<td>0 of 2</td>
+<td>180.0</td>
+<td>0.100</td>
+<td>0.094</td>
+<td>0.056</td>
+<td>53.2</td>
+<td>10.44</td>
+<td>42</td>
+</tr>
+<tr>
+<td><code>no_vmin_2</code></td>
+<td>same, <code>--name no_vmin_2</code></td>
+<td>1 of 2</td>
+<td>104.3</td>
+<td>0.073</td>
+<td>0.082</td>
+<td>0.072</td>
+<td>16.7</td>
+<td>7.59</td>
+<td>43</td>
+</tr>
+</tbody>
+</table></div>
+<p>For a goal that ended in <code>timeout</code>, "error at end of drive" is the error at the timeout.</p>
+<p>What the numbers say:</p>
+<ul>
+<li>The controller does what it is asked on <code>/odom</code>: every drive phase ended within the 5 cm tolerance (0.037 to 0.050 m).</li>
+<li>The error grows after that, during the turn on the spot, which was 10 to 49 degrees long (How the code works, final
+  heading). Goal 2: 0.043 m at the end of the drive, 0.095 m after <code>align</code> turned the robot 23 degrees onto the goal heading.
+  Project 3 found the same: the gait turns about a point that is not the trunk origin.</li>
+<li>The true heading error changes from run to run. In my three runs with the default gains (<code>run</code>, <code>repeat</code>, <code>repeat2</code>)
+  all 15 true heading errors were negative (-0.5 to -6.9 degrees, mean of the absolute error 4.1, 3.7 and 3.7 degrees)
+  while <code>/odom</code> reported -2.6 to +2.8 degrees: the <code>/odom</code> heading drifts during the run. A reader's two runs gave 8.1
+  and 3.1 degrees, with one error of +2.6, so expect a spread of a few degrees around these numbers. Steering on ground
+  truth gave 1.9 and 1.5 degrees in two runs (<code>on_odom_gt</code>, <code>on_odom_gt_2</code>) with errors of both signs, about half of
+  the <code>/odom</code> runs. The position error does not improve in proportion (mean 0.044 and 0.031 m, against 0.039 to 0.083
+  m), because the turn on the spot still moves the trunk.</li>
+<li>The textbook gains are 10.6 s faster over the five goals, because v = 3ρ stays at the 0.3 m/s limit until ρ &lt; 0.1 m. They
+  end with larger errors (0.107 m true against 0.083 and 0.039 m). With saturation on both, the gains mainly decide where
+  the robot starts to slow down.</li>
+<li>k_α = 20 took 155.0, 155.7 and 281.1 s in my three runs, against 52.8 to 54.6 s with the default gains, and walked
+  3.8 to 10.9 m further (14.70, 14.52 and 21.61 m against 10.73 m), almost all of it stamping near the goals. A hunt
+  ends when the sway happens to carry the trunk inside the 5 cm tolerance, or at the 90 s timeout: the same goal 1 took
+  32.1, 80.4 and 43.4 s in the three runs, and goals 2 and 4 of <code>k_alpha_20_3</code> timed out. The true heading error grows
+  with the hunting (mean 5.9, 16.3 and 35.9 degrees), because the <code>/odom</code> heading drifts while the robot turns (step 5).</li>
+<li>Two runs with the same gains (<code>run</code>, <code>repeat</code>) differ by 0.044 m in mean true error and 0.8 s in total time, so single
+  differences of a few centimetres between the other rows are not meaningful.</li>
+</ul>
+<p><img loading="lazy" alt="Left: the textbook gains (3, 8, -1.5). Middle: the last 0.5 m to goal 2, k_alpha 20 in red, 1.5 in grey. Right: the commanded turn rate on the way to goal 2" src="figures/gains.png" /></p>
+<h2 id="try-this">Try this</h2>
+<ol>
+<li>Close the loop on ground truth. Remap the topic the node reads, so it steers on the simulator's true pose:</li>
+</ol>
+<p><code>bash
+   scripts/up.sh
+   python3 projects/p04_go-to-pose/go_to_pose.py --name my_on_odom_gt --ros-args -r odom:=odom_gt
+   python3 projects/p04_go-to-pose/analyze.py my_on_odom_gt</code></p>
+<p>Both subscriptions now read <code>/odom_gt</code>, so "error on odom" and "true" print the same numbers. Expected outcome: the true
+   heading errors shrink to a few degrees of either sign (mine: -0.7, -3.0, -2.7, +1.8, +1.5) instead of all being
+   negative, and the position errors do not shrink, because the turn on the spot still moves the trunk (goal 4: 0.050 m at
+   the end of the drive, 0.080 m after the turn).</p>
+<ol start="2">
+<li>Find out what k_β does, without the robot. This runs the controller on the ideal unicycle to the goal (2, 1, 90 degrees)
+   and prints the heading error at the moment the drive phase ends, before <code>align</code> fixes it:</li>
+</ol>
+<p><code>bash
+   python3 - &lt;&lt;'EOF'
+   import sys, math; sys.path.insert(0, 'projects/p04_go-to-pose'); import polar
+   for k in [(0.5, 1.5, -0.5), (0.5, 1.5, 0.0), (0.5, 1.5, 0.5), (3, 8, -1.5)]:
+       ctl, x, y, yaw, t = polar.GoToPose((2, 1, math.pi / 2), k), 0.0, 0.0, 0.0, 0.0
+       while ctl.phase == 'drive':
+           v, w, _ = ctl.step(x, y, yaw)
+           x, y, yaw, t = x + v * math.cos(yaw) * 0.05, y + v * math.sin(yaw) * 0.05, yaw + w * 0.05, t + 0.05
+       print(k, polar.strong_stability(*k), f'drive ended after {t:.1f} s, heading error {math.degrees(polar.wrap(yaw - math.pi / 2)):+.0f} deg')
+   EOF</code></p>
+<p>Before running it, predict which line arrives closest to 90 degrees. Answer:</p>
+<p><code>(0.5, 1.5, -0.5) True drive ended after 9.9 s, heading error -6 deg
+   (0.5, 1.5, 0.0) False drive ended after 9.3 s, heading error -49 deg
+   (0.5, 1.5, 0.5) False drive ended after 17.4 s, heading error -141 deg
+   (3, 8, -1.5) True drive ended after 7.8 s, heading error -16 deg</code></p>
+<p>Without β (k_β = 0) the law is "aim at the point" and arrives 49 degrees off; with the wrong sign it arrives facing
+   almost backward, after a detour. Every one of these still reaches <code>done</code>, because <code>align</code> turns the rest on the spot.
+   On the Go2 that turn costs position (Results), so a good k_β is worth having.</p>
+<ol start="3">
+<li>Remove the speed floor. Run goal 1 with <code>--v-min 0</code>:</li>
+</ol>
+<p><code>bash
+   scripts/up.sh
+   python3 projects/p04_go-to-pose/go_to_pose.py --name my_no_vmin --v-min 0 --goals 1</code></p>
+<p>Watch the robot in Gazebo while it runs, and press Ctrl-C if it heads for an obstacle (step 2).</p>
+<p>Expected outcome: goal 1 either stalls 6 to 12 cm short until the 90 s <code>timeout</code>, or creeps the last centimetres at
+   0.02 to 0.10 m/s and ends <code>done</code> late. Which one happens changes from run to run. My run of this command:</p>
+<p><code>[INFO] [...] [go_to_pose]: goal 1 (2.0, 0.0, 0): done after 17.7 s; error on odom 0.058 m +2.2 deg, true 0.065 m +3.9 deg</code></p>
+<p>The robot was 0.20 m short at 7.5 s, crept to 0.08 m short by 14 s with <code>v_cmd</code> 0.04 m/s, stayed 0.07 m short for 3 s
+   and then ended <code>done</code> (<code>awk -F, '$2==1' projects/p04_go-to-pose/results/my_no_vmin.csv</code> shows <code>v_cmd</code> and <code>x</code>). The two
+   logs in <code>results/</code> come from an earlier version of this step that ran goals 1 and 2. In <code>no_vmin</code>, goal 1 got to
+   about 0.1 m short within 12 s and then stayed 0.06 to 0.12 m short for the remaining 79 s, with v = k_ρ ρ = 0.04 to
+   0.05 m/s, stepping without moving forward, until the 90 s timeout ended it. In <code>no_vmin_2</code>, goal 1 crept from 0.20 m
+   to 0.05 m short in 7 s at 0.03 to 0.10 m/s and ended <code>done after 14.3 s</code>. Either way the floor-free goal takes 14 to
+   90 s, against 9 to 13 s with the floor.</p>
+<p>Why only goal 1: goal 2 starts wherever goal 1 left the robot. After a <code>timeout</code> that can be far off the goal
+   heading. A reader's goal 1 timed out with the robot facing about -75 degrees, which put goal 2 behind it. The robot
+   then walked backward on an arc to the north, into the pallet, and kept backing at -0.3 m/s against it, 0.21 to 0.37 m
+   from its corner, until goal 2 timed out 90 s later. The 0.5 m leash did not trip, because pushing against the pallet
+   does not take the robot further from the goal.</p>
+<h2 id="if-it-goes-wrong">If it goes wrong</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Cause</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>scripts/up.sh</code> prints <code>TIMEOUT waiting for: gazebo</code>, and <code>go_to_pose.py</code> then prints its <code>gains ...</code> line and nothing more</td>
+<td>Gazebo did not come up within its wait. It happened to me once in nine starts, with a load average of about 100 on a 32-core machine. The node waits silently for <code>/odom</code> and <code>/odom_gt</code></td>
+<td>Stop the node with Ctrl-C, run <code>scripts/up.sh</code> again, and check <code>ros2 topic echo --once /odom</code> before starting the node</td>
+</tr>
+<tr>
+<td>A goal prints <code>abort</code> and a warning <code>walking away from the goal on /odom</code>, and the remaining goals are skipped</td>
+<td><code>/odom</code> put the robot 0.5 m further from the goal than when the goal was set. The <code>/odom</code> heading has drifted away from the true heading (it is integrated from the IMU's yaw rate), so the controller steers the wrong way. Long turning in place at k_α = 20 causes this (step 5)</td>
+<td>Run <code>scripts/up.sh</code> again, which resets <code>/odom</code>, before the next run. If the robot is heading for a wall before the node notices, press Ctrl-C in the node's terminal; it sends zero velocity before it exits</td>
+</tr>
+<tr>
+<td>The robot turns left and right in place near a goal, and the goal takes tens of seconds</td>
+<td>k_α too high: the trunk's heading sway is multiplied into w, w saturates, and <code>saturate()</code> cuts v with it (step 5)</td>
+<td>Keep k_α · (heading sway) well below the 0.5 rad/s limit: with 2.3 degrees of sway, k_α = 1.5 gives 0.06 rad/s</td>
+</tr>
+<tr>
+<td>The robot walks into an obstacle and keeps pushing against it, and no <code>abort</code> comes</td>
+<td>The leash only measures how far <code>/odom</code> puts the robot from the goal, and pushing against an obstacle does not change that much; the lidar odometry also jumps while the trunk is against a box. It happens when a goal starts from where a timed-out goal left the robot (Try this 3)</td>
+<td>Press Ctrl-C in the node's terminal, or run <code>ros2 topic pub -t 5 /cmd_vel geometry_msgs/msg/Twist {}</code>, then <code>scripts/up.sh</code> before the next run</td>
+</tr>
+<tr>
+<td>The robot stops 5 to 10 cm short and the goal ends in <code>timeout</code></td>
+<td>v = k_ρ ρ below the speed at which the gait makes progress</td>
+<td>Keep the 0.1 m/s floor (<code>--v-min</code>, default 0.1); Try this 3</td>
+</tr>
+<tr>
+<td>"error on odom" is 0.08 to 0.11 m although the tolerance is 5 cm</td>
+<td>The turn on the spot in <code>align</code> moved the trunk: goal 2 of <code>run</code>, 0.043 m at the end of the drive, 0.095 m after the turn</td>
+<td>Expected with this gait. Compare the <code>/odom error at end of drive</code> column in <code>analyze.py</code> with the final one to see it</td>
+</tr>
+<tr>
+<td>The true heading error is several degrees, always of the same sign, while "error on odom" is within 3 degrees</td>
+<td><code>/odom</code> heading drift; the controller cannot correct what it cannot see</td>
+<td>Restart before each run (project 3); confirm with Try this 1</td>
+</tr>
+<tr>
+<td><code>analyze.py</code> showed <code>Time</code> 0.0 s for goals 2 to 5</td>
+<td>In my first version the node switched to the next goal before writing the row, so the first row of each goal still carried the previous goal's <code>done</code></td>
+<td><code>tick()</code> now writes the row first and calls <code>report()</code> after it</td>
+</tr>
+<tr>
+<td>The goals come out rotated or shifted against the arena</td>
+<td>The goals are relative to where the robot stands when the node starts</td>
+<td>Run right after <code>scripts/up.sh</code>, so the start is marker A facing +x</td>
+</tr>
+<tr>
+<td>Ctrl-C on the recorder prints a traceback ending in <code>ExternalShutdownException</code></td>
+<td>rclpy's own signal handler shuts the context down first</td>
+<td>Harmless: my recording stopped this way was complete (679 frames, 67.9 s). <code>kill -TERM &lt;pid&gt;</code> exits cleanly and prints the frame count</td>
+</tr>
+</tbody>
+</table></div><nav class="prevnext" aria-label="Previous and next"><a class="pn" href="../p03_move-in-shapes/index.html"><span>Previous</span>Move in shapes: open loop vs closed loop</a><a class="pn next" href="../../tasks/s08_feedback-movement/index.html"><span>Next</span>Feedback movement</a></nav><p class="source">Source: <a href="https://github.com/Armanasq/go2-nav-sim/blob/main/projects/p04_go-to-pose/README.md">projects/p04_go-to-pose/README.md</a></p></article></div>
+</main>
+<footer class="site"><div class="wrap">Simulation only. Source and issues on <a href="https://github.com/Armanasq/go2-nav-sim">GitHub</a>.</div></footer>
+<script type="module" src="../../static/js/site.js"></script>
+</body>
+</html>

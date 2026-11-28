@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sensors: IMU, joint encoder and foot contact models, Allan variance, calibration and time offset · go2-nav-sim</title>
+<meta name="description" content="Sensors: IMU, joint encoder and foot contact models, Allan variance, calibration and time offset">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../../static/css/site.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5' fill='%230a6a9c'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"><script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script><script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.querySelector('main'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false})"></script>
+</head>
+<body data-root="../../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar"><div class="inner">
+<a class="brand" href="../../index.html">go2-nav-sim</a>
+<nav aria-label="Main"><a href="../../tutorial/00-overview.html">Learn</a><a href="../../tasks/index.html">Tasks</a><a href="../../modules/index.html" aria-current="page">Deep dives</a><a href="../../reference.html">Reference</a></nav>
+<button class="theme-toggle" type="button" aria-label="Colour theme: auto">auto</button>
+</div></header>
+<main id="main">
+<div class="wrap doc"><details class="side" open><summary>Sensors</summary><nav aria-label="Contents"><ol class="parts"><li class="open"><a class="part" href="../index.html">All deep dives</a><ol><li><a href="../m00_math/index.html"><span class="n">00</span><span>Mathematical foundations</span></a></li><li><a href="../m01_anatomy/index.html"><span class="n">01</span><span>Robot anatomy</span></a></li><li><a href="../m02_description/index.html"><span class="n">02</span><span>Robot description</span></a></li><li><a href="../m03_simulation/index.html"><span class="n">03</span><span>Simulation</span></a></li><li><a href="../m04_kinematics/index.html"><span class="n">04</span><span>Kinematics (single leg)</span></a></li><li><a href="../m06_sensors/index.html" aria-current="page"><span class="n">06</span><span>Sensors</span></a><ul class="sections"><li><a href="#objective">Objective</a></li><li><a href="#prerequisites">Prerequisites</a></li><li><a href="#theory">Theory</a></li><li><a href="#implementation">Implementation</a></li><li><a href="#experiment">Experiment</a></li><li><a href="#validation">Validation</a></li><li><a href="#failure-analysis">Failure analysis</a></li><li><a href="#references">References</a></li></ul></li><li><a href="../m11_state_estimation/index.html"><span class="n">11</span><span>State estimation</span></a></li><li><a href="../m12_perception/index.html"><span class="n">12</span><span>Perception</span></a></li></ol></li></ol></nav></details><article class="prose"><p class="where">Deep dive · module 06</p><h1>Sensors: IMU, joint encoder and foot contact models, Allan variance, calibration and time offset</h1><h2 id="objective">Objective</h2>
+<p>A state estimator for the Go2 reads a gyro, an accelerometer, twelve joint encoders and some measure of foot contact. This module
+builds models of those sensors on top of MuJoCo's noise-free sensors, then measures what the models predict: how the Allan
+variance of a static record recovers the noise parameters, how well a static gyro bias and an accelerometer calibration can be
+estimated, how a time offset between two IMUs is found by cross-correlation, and how often a thresholded contact force is wrong
+during a gait.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Level</th>
+<th>Content</th>
+<th>Applied on the Go2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Fundamental</td>
+<td>gyro, accelerometer, encoder and touch sensors in a derived MJCF; white noise, bias random walk, quantisation, saturation, scale and misalignment; encoder quantisation and finite-difference velocity</td>
+<td>MuJoCo's sensors checked against the kinematics of a rig-driven base motion; encoders during an open-loop trot</td>
+</tr>
+<tr>
+<td>Intermediate</td>
+<td>Allan variance from first principles, fitted to $N$, $K$, $Q$; static gyro bias and its optimal averaging time; six-parameter-per-axis accelerometer calibration from known orientations</td>
+<td>4 h static records; a 30 s MuJoCo stand; 18 poses of a welded calibration rig</td>
+</tr>
+<tr>
+<td>Advanced</td>
+<td>orientation-free accelerometer calibration; time offset between two IMUs by cross-correlation with sub-sample interpolation; contact detection with threshold and hysteresis</td>
+<td>base IMU against a second IMU on the lidar mount of the Gazebo URDF; 8 s open-loop trot</td>
+</tr>
+</tbody>
+</table></div>
+<p>After this module a reader can write a discrete IMU noise model from datasheet densities, read $N$ and $K$ off an Allan plot,
+choose how long to average a static bias, calibrate an accelerometer with or without a rig, and say when a cross-correlation
+time offset or a contact threshold can be trusted.</p>
+<p><img loading="lazy" alt="Sensor models of this module" src="figures/sensor_model_diagram.png" /></p>
+<h2 id="prerequisites">Prerequisites</h2>
+<ul>
+<li><a href="../m00_math/index.html">00 · Mathematical foundations</a>: the SO(3) logarithm (<code>rotations.log_so3</code>) and the Levenberg-Marquardt
+  solver (<code>optim.levenberg_marquardt</code>), both reused here.</li>
+<li><a href="../m02_description/index.html">02 · Robot description</a>: the Gazebo URDF and its parser. The second IMU is placed at
+  <code>lidar_link</code> as parsed from that URDF, and the Gazebo IMU noise settings are read from it.</li>
+<li>Probability: mean, variance, independent Gaussian and uniform variables, Brownian motion as the integral of white noise.
+  Rigid-body kinematics: angular velocity, the derivative of a rotating vector.</li>
+</ul>
+<h2 id="theory">Theory</h2>
+<p>Notation: $R$ rotates base-frame vectors into the world frame, $\omega$ is the base angular velocity in the base frame,
+$\alpha = \dot\omega$, $g = (0, 0, -9.81)$ m/s² is gravity in the world frame, $\Delta t$ is a sample period, and $h = 2$ ms the
+physics step. A continuous white noise of density $N$ has $E[n(t)n(s)] = N^2\delta(t-s)$.</p>
+<h3 id="fundamental-level">Fundamental level</h3>
+<h4 id="what-an-imu-measures">What an IMU measures</h4>
+<p>A gyro at a point of a rigid body measures $\omega$ in its own frame; every point of the body has the same $\omega$. An
+accelerometer measures specific force, the acceleration minus gravity, in its own frame:</p>
+<p>$$f = R^\top(\ddot p - g).$$</p>
+<p>At rest $\ddot p = 0$ and $f = R^\top(0, 0, 9.81)$: a level accelerometer reads $+g$ upward. Two IMUs on the same body at
+$p_A$ and $p_B = p_A + R r$, $r$ constant in the base frame, see different specific forces. Differentiating twice with
+$\dot R = R[\omega]$:</p>
+<p>$$\dot p_B = \dot p_A + R(\omega\times r),\qquad \ddot p_B = \ddot p_A + R\big(\alpha\times r + \omega\times(\omega\times r)\big)
+\quad\Rightarrow\quad f_B = f_A + \alpha\times r + \omega\times(\omega\times r).$$</p>
+<p>On the Go2 the Menagerie MJCF puts its <code>imu</code> site at $(-0.02557, 0, 0.04232)$ m in the base frame (<code>go2.xml</code>), while the Gazebo URDF
+puts <code>imu_link</code> at the trunk origin (<code>go2_gazebo.urdf</code>, <code>imu_joint</code>): 4.94 cm apart. At 1 rad/s the centripetal term alone is
+$\omega^2\lvert r\rvert = 0.049$ m/s², three times the per-sample accelerometer noise configured below.</p>
+<h4 id="mujocos-sensors-and-its-integrator">MuJoCo's sensors and its integrator</h4>
+<p>MuJoCo's <code>gyro</code>, <code>accelerometer</code>, <code>framequat</code>, <code>jointpos</code>, <code>jointvel</code> and <code>touch</code> sensors return noise-free values at the current
+state. The checks below rely on how the default (Euler) integrator steps the state $(p_k, v_k)$ with the acceleration $a_k$
+computed at that state:</p>
+<p>$$v_{k+1} = v_k + h\,a_k,\qquad p_{k+1} = p_k + h\,v_{k+1}\quad\Rightarrow\quad p_{k+1} - 2p_k + p_{k-1} = h(v_{k+1} - v_k) = h^2 a_k ,$$</p>
+<p>$$R_{k} = R_{k-1}\,\mathrm{Exp}(h\,\omega_{k})\quad\Rightarrow\quad \omega_k = \mathrm{Log}(R_{k-1}^\top R_k)/h .$$</p>
+<p>The rotation identity is exact, so the gyro must agree with it to rounding. The position identity is exact for the base origin;
+for the IMU site, which also moves by rotation, it holds to first order in $h$.</p>
+<h4 id="discrete-noise-from-continuous-densities">Discrete noise from continuous densities</h4>
+<p>A sensor sampled every $\Delta t$ averages the continuous white noise over the sample. The average of $n(t)$ over $\Delta t$ has
+variance $\frac{1}{\Delta t^2}\int_0^{\Delta t}\!\!\int_0^{\Delta t} N^2\delta(t-s)\,ds\,dt = N^2/\Delta t$, so the discrete model is</p>
+<p>$$y_k = Q\big(\mathrm{sat}(M x_k + b_k + n_k)\big),\qquad n_k \sim \mathcal N(0, N^2/\Delta t),\qquad
+b_{k+1} = b_k + K\sqrt{\Delta t}\,w_k,\quad w_k \sim \mathcal N(0, 1),$$</p>
+<p>with $x_k$ the truth, $M$ scale factor and misalignment, $b$ a bias that random-walks with density $K$ ($\mathrm{Var}\,b(t) = K^2 t$),
+$\mathrm{sat}$ the range limit and $Q$ a uniform quantiser of step $q$. When the noise spans several steps the quantisation error
+is close to uniform on $[-q/2, q/2]$, with variance</p>
+<p>$$\frac1q\int_{-q/2}^{q/2} e^2\,de = \frac{q^2}{12}.$$</p>
+<p>Per sample it adds to the white noise, so the effective density is $N_{\mathrm{eff}}^2 = N^2 + q^2\Delta t/12$.</p>
+<p>Configured values (chosen for this module, of the order of a consumer MEMS IMU; not a Go2 datasheet), at 250 Hz:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th></th>
+<th>white $N$</th>
+<th>bias walk $K$</th>
+<th>step $q$</th>
+<th>per-sample sd $N/\sqrt{\Delta t}$</th>
+<th>$N_{\mathrm{eff}}$</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>gyro</td>
+<td>$1.0\cdot10^{-4}$ rad/s/√Hz</td>
+<td>$2.0\cdot10^{-5}$ rad/s²/√Hz</td>
+<td>2000 °/s / 32768 = $1.07\cdot10^{-3}$ rad/s</td>
+<td>$1.58\cdot10^{-3}$ rad/s</td>
+<td>$1.019\cdot10^{-4}$</td>
+</tr>
+<tr>
+<td>accelerometer</td>
+<td>$1.0\cdot10^{-3}$ m/s²/√Hz</td>
+<td>$1.0\cdot10^{-4}$ m/s³/√Hz</td>
+<td>16 g / 32768 = $4.79\cdot10^{-3}$ m/s²</td>
+<td>$1.58\cdot10^{-2}$ m/s²</td>
+<td>$1.004\cdot10^{-3}$</td>
+</tr>
+</tbody>
+</table></div>
+<p>The accelerometer also has $M = \mathrm{diag}(1.010, 0.992, 1.004)(I + E)$ with off-diagonal misalignments $E$ up to $4\cdot10^{-3}$
+and a bias $b_0 = (0.05, -0.03, 0.08)$ m/s². For comparison, the Gazebo IMU of this repository (<code>go2_gazebo.urdf</code>,
+<code>imu_sensor</code>) has 100 Hz, a per-sample gyro sd of $2\cdot10^{-4}$ rad/s and no bias model: $N = 2\cdot10^{-4}\sqrt{0.01} = 2\cdot10^{-5}$
+rad/s/√Hz, five times lower than the gyro above, and $K = 0$.</p>
+<h4 id="joint-encoder">Joint encoder</h4>
+<p>An encoder of step $\delta$ reports $\hat\theta_k = \delta\,\mathrm{round}(\theta_k/\delta)$ with error $e_k$ of variance $\delta^2/12$. The
+backward-difference velocity $(\hat\theta_k - \hat\theta_{k-1})/\Delta t$ carries the error $(e_k - e_{k-1})/\Delta t$. If successive errors
+are independent, its distribution is the triangle on $\pm\delta/\Delta t$ and</p>
+<p>$$\mathrm{Var} = \frac{2\,\delta^2/12}{\Delta t^2}\quad\Rightarrow\quad \mathrm{rms} = \frac{\delta}{\sqrt6\,\Delta t}.$$</p>
+<p>With 14 bits per joint revolution, $\delta = 2\pi/2^{14} = 3.83\cdot10^{-4}$ rad, and at 500 Hz the velocity noise is 0.0783 rad/s rms,
+while the angle error is only $1.11\cdot10^{-4}$ rad rms. Independence fails when a joint moves less than $\delta$ per sample.</p>
+<h3 id="intermediate-level">Intermediate level</h3>
+<h4 id="allan-variance">Allan variance</h4>
+<p>Integrate the rate, $\theta(t) = \int_0^t y$, and form averages over clusters of length $\tau = m\Delta t$:
+$\bar y_j = (\theta_{(j+1)m} - \theta_{jm})/\tau$. The Allan variance is half the mean squared difference of successive averages,</p>
+<p>$$\sigma^2(\tau) = \tfrac12 E\big[(\bar y_{j+1} - \bar y_j)^2\big] = \frac{1}{2\tau^2} E\big[(\theta_{k+2m} - 2\theta_{k+m} + \theta_k)^2\big].$$</p>
+<p>The overlapping estimator averages the right-hand side over every start $k$, not only multiples of $m$. A constant added to $y$
+adds a linear term to $\theta$, which the second difference removes, so the code subtracts the mean before integrating.</p>
+<p>White noise: each average has variance $N^2/\tau$ and two averages are independent, so $\sigma^2 = N^2/\tau$, a line of slope $-1/2$ in
+Allan deviation; it reads $N$ at $\tau = 1$ s.</p>
+<p>Bias random walk: $\bar y_{j+1} - \bar y_j = \frac1\tau\int_0^\tau \big(b(s+\tau) - b(s)\big)ds$. Two increments of $b$ over windows of
+length $\tau$ starting at $s$ and $s'$ have covariance $K^2(\tau - \lvert s - s'\rvert)$, and</p>
+<p>$$\mathrm{Var}(\bar y_{j+1} - \bar y_j) = \frac{K^2}{\tau^2}\int_0^\tau\!\!\int_0^\tau (\tau - \lvert s - s'\rvert)\,ds\,ds' = \frac{K^2}{\tau^2}\cdot\frac{2\tau^3}{3}
+\quad\Rightarrow\quad \sigma^2 = \frac{K^2\tau}{3},$$</p>
+<p>slope $+1/2$, reading $K$ at $\tau = 3$ s. Angle quantisation (an integrated signal quantised, as an encoder differentiated to a rate)
+gives $\bar y_{j+1} - \bar y_j = (e_{k+2m} - 2e_{k+m} + e_k)/\tau$ with $\mathrm{Var}\,e = Q^2 = \delta^2/12$, so $\sigma^2 = 6Q^2/(2\tau^2) = 3Q^2/\tau^2$.
+Per-sample rate quantisation, as in the IMU model, is white and goes into $N_{\mathrm{eff}}$, not $Q$. The fitted model is</p>
+<p>$$\sigma^2(\tau) = \frac{3Q^2}{\tau^2} + \frac{N^2}{\tau} + \frac{K^2\tau}{3},$$</p>
+<p>linear in $(3Q^2, N^2, K^2/3)$. Each row is divided by the measured $\sigma^2(\tau)$ so every octave of $\tau$ weighs the same.</p>
+<p>The minimum of the white plus random-walk curve is at $\tau = \sqrt3 N/K$: 8.8 s for the gyro and 17.4 s for the accelerometer.</p>
+<h4 id="static-gyro-bias">Static gyro bias</h4>
+<p>Averaging the gyro over $[0, T]$ while still estimates the bias. Relative to the bias at the end of the window, where it will be
+used, the error is $\bar n + \frac1T\int_0^T (b(t) - b(T))\,dt$. With $b(T) - b(t) = \int_t^T K\,dW$, the integral equals
+$\int_0^T s\,K\,dW(s)$, of variance $K^2T^3/3$. Hence</p>
+<p>$$\mathrm{sd}(\hat b - b(T)) = \sqrt{\frac{N_{\mathrm{eff}}^2}{T} + \frac{K^2 T}{3}},\qquad T^\star = \frac{\sqrt3\,N_{\mathrm{eff}}}{K}.$$</p>
+<p>Worked on the gyro: $T^\star = \sqrt3\cdot1.019\cdot10^{-4}/2\cdot10^{-5} = 8.8$ s, with an error sd of $4.9\cdot10^{-5}$ rad/s at $T = 10$ s.
+Averaging longer makes it worse: at 200 s the sd is $1.6\cdot10^{-4}$ rad/s.</p>
+<h4 id="accelerometer-calibration-with-known-orientations">Accelerometer calibration with known orientations</h4>
+<p>At static pose $i$ the true specific force is $f_i = R_i^\top(0, 0, g)$ and the averaged reading is $y_i = M f_i + b$. Transposed and
+stacked, this is linear in the 12 unknowns:</p>
+<p>$$\begin{bmatrix} f_i^\top &amp; 1\end{bmatrix}\begin{bmatrix} M^\top \\ b^\top\end{bmatrix} = y_i^\top,\qquad i = 1\dots n,$$</p>
+<p>solved by least squares. It needs at least four poses whose $f_i$ are not coplanar. The rig here holds 18 poses: gravity along
+$\pm x, \pm y, \pm z$ of the base and along the 12 edge diagonals.</p>
+<h3 id="advanced-level">Advanced level</h3>
+<h4 id="orientation-free-accelerometer-calibration">Orientation-free accelerometer calibration</h4>
+<p>Without a rig, only $\lvert f_i\rvert = g$ is known. Any rotation $Q$ leaves the norm unchanged, so from magnitudes only the
+upper-triangular factor $U$ of $M^{-1} = QU$ (QR decomposition) is observable: 6 entries plus 3 biases. The residual and its
+Jacobian, with $z_i = y_i - b$ and $w_i = U z_i$:</p>
+<p>$$r_i = \lvert w_i\rvert - g,\qquad \frac{\partial r_i}{\partial U_{jk}} = \frac{w_{ij}\,z_{ik}}{\lvert w_i\rvert}\ (j \le k),\qquad
+\frac{\partial r_i}{\partial b} = -\frac{w_i^\top U}{\lvert w_i\rvert}.$$</p>
+<p>Nine unknowns need at least nine poses in general position; module 00's Levenberg-Marquardt solves it from $U = I$, $b = 0$.</p>
+<h4 id="time-offset-by-cross-correlation">Time offset by cross-correlation</h4>
+<p>If sensor B reports at time $t$ what A sees at $t - d$, $b(t) = a(t - d)$, then $c(k) = \sum_n a_n b_{n+k}$ peaks at $k = d/\Delta t$. A
+parabola $c(k_0 + x) \approx c_0 + \beta x + \gamma x^2$ through the peak and its two neighbours gives $\beta = (c_+ - c_-)/2$,
+$\gamma = (c_+ - 2c_0 + c_-)/2$ and the sub-sample peak</p>
+<p>$$x^\star = -\frac{\beta}{2\gamma} = \frac{c_- - c_+}{2(c_- - 2c_0 + c_+)},\qquad \hat d = (k_0 + x^\star)\,\Delta t .$$</p>
+<p>Two gyros on one rigid body see the same $\omega$, each in its own frame; the norm $\lvert\omega\rvert$ does not depend on the mounting
+rotation, so it is the signal correlated here. If the motion is periodic with period $P$, then $c(k) = c(k + P/\Delta t)$, and an
+offset larger than $P/2$ cannot be told from one shifted by $P$.</p>
+<h4 id="contact-from-force">Contact from force</h4>
+<p>A foot force sensor reads $\tilde F = F + \epsilon$, $\epsilon \sim \mathcal N(0, \sigma_F^2)$. The detector reports contact when
+$\tilde F &gt; F_{\mathrm{th}}$; with hysteresis it switches on above $F_{\mathrm{on}}$ and off below $F_{\mathrm{off}} &lt; F_{\mathrm{on}}$. In swing, $F = 0$
+and a false contact occurs with probability $1 - \Phi(F_{\mathrm{th}}/\sigma_F)$. Worked: at $F_{\mathrm{th}} = 6$ N, $\sigma_F = 3$ N this is
+2.3% of swing samples; the trot below spends 27.6% of foot-samples in swing (<code>contact_truth_duty</code>), so 0.63% of all samples. The
+measured false-contact rate is 0.64%. Missed contacts come from the force ramp at touch-down and lift-off, where $F &lt; F_{\mathrm{th}}$
+while the foot already touches. The truth is geometric: the foot sphere overlaps the floor (MuJoCo contact distance &lt; 0).</p>
+<h2 id="implementation">Implementation</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Equation</th>
+<th>Function</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>derived model</td>
+<td><code>sensors.build_model()</code></td>
+<td><code>MjSpec</code> from <code>scene.xml</code>; adds <code>imu_lidar</code> at <code>lidar_link</code> of the Gazebo URDF (<code>lidar_mount()</code>, via module 02's <code>parse_urdf</code>), gyro/accelerometer/framequat at both sites, <code>jointpos</code>/<code>jointvel</code> for 12 joints, a touch site of radius 1.2 × foot radius per foot, and a mocap body <code>rig</code> with an inactive weld to the base (time constant 4 ms)</td>
+</tr>
+<tr>
+<td>discrete noise model</td>
+<td><code>Inertial.corrupt()</code></td>
+<td>order: $M$, bias walk, white noise, saturation, quantisation; vectorised over time</td>
+</tr>
+<tr>
+<td>encoder</td>
+<td><code>encoder()</code></td>
+<td>mid-tread quantiser, backward difference</td>
+</tr>
+<tr>
+<td>Allan variance</td>
+<td><code>allan()</code>, <code>allan_nonoverlap()</code>, <code>log_taus()</code></td>
+<td>cumulative sum after removing the mean; non-overlapping version kept as an independent check</td>
+</tr>
+<tr>
+<td>$\sigma^2(\tau)$ fit</td>
+<td><code>allan_fit()</code></td>
+<td>weighted least squares with an active set that drops a negative coefficient</td>
+</tr>
+<tr>
+<td>$\mathrm{sd}(\hat b)$</td>
+<td><code>bias_sd()</code></td>
+<td></td>
+</tr>
+<tr>
+<td>known-orientation calibration</td>
+<td><code>calib_known()</code></td>
+<td><code>lstsq</code> on the $n \times 4$ system</td>
+</tr>
+<tr>
+<td>orientation-free calibration</td>
+<td><code>calib_unknown()</code>, <code>triangular_factor()</code></td>
+<td>analytic Jacobian, module 00's <code>levenberg_marquardt</code></td>
+</tr>
+<tr>
+<td>cross-correlation, parabola</td>
+<td><code>xcorr()</code>, <code>xcorr_offset()</code></td>
+<td>normalised over the overlap at each lag</td>
+</tr>
+<tr>
+<td>contact detector</td>
+<td><code>detect_contact()</code>, <code>toggles()</code></td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<p><code>sensors.py</code> calls MuJoCo only to build and compile the model. <code>validate.py</code> runs the simulations: after every physics step it
+calls <code>mj_forward</code> so that sensor data, site poses and <code>qpos</code> refer to the same time, which the finite-difference checks need.</p>
+<p>Design choices:
+- Noise is added in Python to MuJoCo's noise-free sensors, so one simulation can be corrupted many times with different seeds and
+  the truth stays available.
+- The IMU runs at 250 Hz (every second physics step), encoders and force sensors at 500 Hz.
+- The calibration rig is a weld to a mocap body. With the default weld time constant (20 ms) the base sagged 0.09° under gravity in a
+  prototype run (not in <code>results.json</code>); at 4 ms the sag is 0.0075° (<code>rig_sag_deg_max</code>), which puts at most $1.3\cdot10^{-3}$ m/s² of error into the rig's
+  reference specific force (<code>rig_truth_vs_ref_max</code>).
+- The trot is open loop: joint PD ($k_p = 60$, $k_d = 2$) to the standing pose plus $\sin^2$ swing bumps of 0.3 rad (thigh) and
+  −0.6 rad (calf), diagonal pairs alternating, period 0.5 s. After 8 s the base is at 0.232 m height and tilted 4.6°
+  (<code>trot_final_base_z</code>, <code>trot_final_tilt_deg</code>).</p>
+<h2 id="experiment">Experiment</h2>
+<pre><code class="language-bash">.venv-modules/bin/python modules/m06_sensors/validate.py            # results.json, figures/, media/; 96 s wall on this shared machine
+.venv-modules/bin/python modules/m06_sensors/validate.py --no-media # same numbers, no rendering
+.venv-modules/bin/python -m pytest -q modules/m06_sensors           # 15 tests, 10 s
+</code></pre>
+<p>Seeds are fixed in <code>validate.py</code> (<code>default_rng(1)</code> to <code>default_rng(8)</code>, 100 to 149 for the scatter check). The runs, in order:</p>
+<ol>
+<li>Rig motion: the base welded to the rig, which follows sinusoids in position (3 to 5 cm) and rotation (0.2 to 0.4 rad) that ramp
+   in over 0.5 s, logged for 3 s.</li>
+<li>Static stand: <code>sim.stand</code> with 3 s settling, then 30 s logged; then 60 s more and 10 s logged to see whether the base has stopped.</li>
+<li>Noise statistics: $10^6$ white samples, 2000 bias walks of 100 s, $10^6$ quantised uniform values.</li>
+<li>Allan variance: 4 h at 250 Hz per sensor, the noise model applied to the mean static truth of run 2. Simulating 4 h step by
+   step would take 7.2 M physics steps, which this shared machine was not used for; the 30 s of simulated stand show that the truth
+   is constant except for the creep discussed in Failure analysis. Also 1 h of white noise alone, and 1 h of the Gazebo IMU setting.</li>
+<li>Gyro bias: 400 synthetic records of 200 s (one axis each) for $T$ from 0.5 to 200 s; then the 30 s MuJoCo stand corrupted once.</li>
+<li>Calibration rig: 18 poses, each 0.4 s of min-jerk slerp and 0.8 s of hold; the accelerometer is averaged over the last 0.6 s of
+   each hold. The bias walk runs through the whole 21.6 s session.</li>
+<li>Trot: 1 s standing, then 8 s of trot, logged at 500 Hz. Used for the encoders, the time offset and contact detection. The
+   lidar IMU's gyro is delayed by 3 physics steps (6 ms, 1.5 IMU samples); both gyros get independent noise.</li>
+</ol>
+<h2 id="validation">Validation</h2>
+<p>Thresholds were fixed in <code>validate.ACCEPT</code> before the first full run; <code>test_sensors.py</code> asserts the same ones and pins the three
+missed rows to their measured state (see Failure analysis).</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Measured</th>
+<th>Acceptance</th>
+<th>Source (<code>results.json</code>)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MuJoCo gyro vs free-joint $\omega$, max abs, rig motion</td>
+<td>4.2e-15 rad/s</td>
+<td>&lt; 1e-12</td>
+<td><code>gyro_vs_base_omega_max</code></td>
+</tr>
+<tr>
+<td><code>framequat</code> vs normalised base quaternion, max abs</td>
+<td>1.0e-15</td>
+<td>&lt; 1e-12</td>
+<td><code>quat_vs_base_quat_max</code></td>
+</tr>
+<tr>
+<td><code>jointpos</code> vs <code>qpos</code>, max abs</td>
+<td>0</td>
+<td>&lt; 1e-12</td>
+<td><code>jointpos_vs_qpos_max</code></td>
+</tr>
+<tr>
+<td><code>jointvel</code> vs <code>qvel</code>, max abs</td>
+<td>0</td>
+<td>&lt; 1e-12</td>
+<td><code>jointvel_vs_qvel_max</code></td>
+</tr>
+<tr>
+<td><code>touch</code> vs <code>sim.foot_forces</code> normal force, trot, max abs</td>
+<td>0 N</td>
+<td>&lt; 1e-6 N</td>
+<td><code>touch_vs_foot_forces_max_N</code></td>
+</tr>
+<tr>
+<td>gyro vs $\mathrm{Log}(R_{k-1}^\top R_k)/h$, relative rms</td>
+<td>2.4e-14</td>
+<td>&lt; 1e-2</td>
+<td><code>gyro_vs_rotation_fd_rel_rms</code></td>
+</tr>
+<tr>
+<td>accelerometer vs $R^\top(\ddot p - g)$ by second difference, relative rms</td>
+<td>8.3e-5</td>
+<td>&lt; 1e-2</td>
+<td><code>acc_vs_position_fd_rel_rms</code></td>
+</tr>
+<tr>
+<td>lidar IMU vs base IMU + $\alpha\times r + \omega\times(\omega\times r)$, relative rms</td>
+<td>1.1e-4</td>
+<td>&lt; 1e-2</td>
+<td><code>lever_arm_rel_rms</code></td>
+</tr>
+<tr>
+<td>static stand: $\lvert\bar f\rvert - g$</td>
+<td>1.4e-5 m/s²</td>
+<td>&lt; 1e-3</td>
+<td><code>static_acc_norm_minus_g</code></td>
+</tr>
+<tr>
+<td>white noise sample sd vs $N/\sqrt{\Delta t}$, max relative error, 3 axes</td>
+<td>1.7e-3</td>
+<td>&lt; 0.01</td>
+<td><code>white_sd_rel_err</code></td>
+</tr>
+<tr>
+<td>bias walk variance at 100 s vs $K^2 T$, 2000 runs</td>
+<td>0.026</td>
+<td>&lt; 0.10</td>
+<td><code>bias_rw_var_rel_err</code></td>
+</tr>
+<tr>
+<td>quantisation error rms vs $q/\sqrt{12}$</td>
+<td>2.1e-4</td>
+<td>&lt; 0.02</td>
+<td><code>quant_err_rms_rel_err</code></td>
+</tr>
+<tr>
+<td>encoder angle error rms vs $\delta/\sqrt{12}$, trot</td>
+<td>0.017</td>
+<td>&lt; 0.05</td>
+<td><code>encoder_angle_err_rms_rel_err</code></td>
+</tr>
+<tr>
+<td>encoder velocity quantisation error rms vs $\delta/(\sqrt6\Delta t)$</td>
+<td>0.054 (0.0741 vs 0.0783 rad/s)</td>
+<td>&lt; 0.10</td>
+<td><code>encoder_vel_quant_rms_rel_err</code></td>
+</tr>
+<tr>
+<td>overlapping Allan sum at $k = jm$ vs cluster-mean estimator, max relative</td>
+<td>2.2e-13</td>
+<td>&lt; 1e-12</td>
+<td><code>allan_overlap_subset_identity</code></td>
+</tr>
+<tr>
+<td>white noise $\sigma^2$ vs $N^2/\tau$, every $\tau$ with ≥ 100 clusters, max relative</td>
+<td><strong>0.054 (missed)</strong></td>
+<td>&lt; 0.05</td>
+<td><code>allan_white_rel_err_max</code></td>
+</tr>
+<tr>
+<td>fitted gyro $N$ vs $N_{\mathrm{eff}}$</td>
+<td>1.0e-3</td>
+<td>&lt; 0.03</td>
+<td><code>allan_gyro_N_rel_err</code></td>
+</tr>
+<tr>
+<td>fitted gyro $K$ vs configured</td>
+<td>5.2e-3</td>
+<td>&lt; 0.25</td>
+<td><code>allan_gyro_K_rel_err</code></td>
+</tr>
+<tr>
+<td>fitted accelerometer $N$ vs $N_{\mathrm{eff}}$</td>
+<td>1.1e-3</td>
+<td>&lt; 0.03</td>
+<td><code>allan_acc_N_rel_err</code></td>
+</tr>
+<tr>
+<td>fitted accelerometer $K$ vs configured</td>
+<td>0.078</td>
+<td>&lt; 0.25</td>
+<td><code>allan_acc_K_rel_err</code></td>
+</tr>
+<tr>
+<td>fitted $N$ of the Gazebo IMU setting vs $\sigma\sqrt{\Delta t}$</td>
+<td>0.014</td>
+<td>&lt; 0.03</td>
+<td><code>allan_gazebo_N_rel_err</code></td>
+</tr>
+<tr>
+<td>static bias error sd, Monte Carlo / predicted, max deviation over 9 values of $T$</td>
+<td>0.072</td>
+<td>&lt; 0.15</td>
+<td><code>gyro_bias_mc_sd_ratio_max_dev</code></td>
+</tr>
+<tr>
+<td>30 s MuJoCo stand: bias error / predicted sd, max over axes</td>
+<td><strong>3.87 (missed)</strong></td>
+<td>&lt; 3</td>
+<td><code>gyro_bias_mujoco_err_in_sd</code></td>
+</tr>
+<tr>
+<td>known-orientation calibration: $M$ error, max entry</td>
+<td>1.1e-4</td>
+<td>&lt; 1e-3</td>
+<td><code>calib_known_M_err_max</code></td>
+</tr>
+<tr>
+<td>known-orientation calibration: $b$ error, max</td>
+<td>8.9e-4 m/s²</td>
+<td>&lt; 3e-3</td>
+<td><code>calib_known_b_err_max</code></td>
+</tr>
+<tr>
+<td>orientation-free: $U$ error vs triangular factor of $M^{-1}$, max entry</td>
+<td>2.1e-4</td>
+<td>&lt; 2e-3</td>
+<td><code>calib_unknown_U_err_max</code></td>
+</tr>
+<tr>
+<td>orientation-free: $b$ error, max</td>
+<td>6.8e-4 m/s²</td>
+<td>&lt; 5e-3</td>
+<td><code>calib_unknown_b_err_max</code></td>
+</tr>
+<tr>
+<td>orientation-free: LM converged (gradient test, 5 iterations)</td>
+<td>1</td>
+<td>1</td>
+<td><code>calib_unknown_converged</code></td>
+</tr>
+<tr>
+<td>own unnormalised correlation vs <code>scipy.signal.correlate</code>, max relative</td>
+<td>0</td>
+<td>&lt; 1e-10</td>
+<td><code>xcorr_vs_scipy_rel</code></td>
+</tr>
+<tr>
+<td>time offset 6 ms during the trot, abs error</td>
+<td>7.8e-4 ms</td>
+<td>&lt; 1 ms</td>
+<td><code>time_offset_err_ms</code></td>
+</tr>
+<tr>
+<td>time offset sweep 0 to 20 ms in 2 ms steps, max abs error</td>
+<td>0.011 ms</td>
+<td>&lt; 1 ms</td>
+<td><code>time_offset_sweep_max_err_ms</code></td>
+</tr>
+<tr>
+<td>250 ms offset, record with the stand-to-trot start, abs error</td>
+<td>6.3e-3 ms</td>
+<td>&lt; 1 ms</td>
+<td><code>time_offset_with_transient_err_ms</code></td>
+</tr>
+<tr>
+<td>contact: lowest error rate over thresholds 0 to 60 N, 4 feet × 8 s</td>
+<td><strong>6.7% at 6 N (missed)</strong></td>
+<td>&lt; 5%</td>
+<td><code>contact_best_error_rate</code></td>
+</tr>
+<tr>
+<td>contact with hysteresis (on 12 N, off 3 N): detected / true transitions</td>
+<td>1.00 (127 / 127)</td>
+<td>≤ 1.1</td>
+<td><code>contact_hysteresis_toggle_ratio</code></td>
+</tr>
+<tr>
+<td>both MP4 files under 6 MB</td>
+<td>1 (1.33 MB, 1.06 MB)</td>
+<td>1</td>
+<td><code>media_mp4_under_6MB</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>32 of 35 checks pass.</p>
+<h3 id="mujocos-sensors-against-the-kinematics">MuJoCo's sensors against the kinematics</h3>
+<p><img loading="lazy" alt="MuJoCo sensors against finite differences and the lever-arm formula" src="figures/mujoco_sensor_checks.png" /></p>
+<p>The gyro equals $\mathrm{Log}(R_{k-1}^\top R_k)/h$ to $2.4\cdot10^{-14}$, as the Euler step predicts. The accelerometer equals the
+second difference of the site position to $8.3\cdot10^{-5}$ relative; the residual is the first-order term of the site's rotation
+about the base origin. Between the base IMU and the lidar IMU, $r = (0.0256, 0, 0.0577)$ m, the specific forces differ by 0.30 m/s²
+rms during the rig motion (<code>lever_arm_acc_diff_rms</code>), and the lever-arm formula reproduces that difference to $1.1\cdot10^{-4}$.
+On the standing robot the accelerometer mean is $(0.139, 0.000, 9.809)$ m/s² (<code>static_acc_truth_mean</code>): its norm is $g$ to
+$1.4\cdot10^{-5}$ m/s² and the base is tilted 0.81° about $y$.</p>
+<h3 id="noise-models-and-encoders">Noise models and encoders</h3>
+<p><img loading="lazy" alt="Bias random walk, quantisation error, encoder velocity error" src="figures/noise_models.png" /></p>
+<p>The ±2 sd envelope of 200 bias walks follows $\pm 2K\sqrt t$. The quantiser error is flat on $\pm q/2$. The encoder velocity error
+during the trot follows the triangle except for a peak at zero, discussed in Failure analysis.</p>
+<h3 id="allan-variance_1">Allan variance</h3>
+<p><img loading="lazy" alt="Allan deviation of the gyro and accelerometer, 4 h static" src="figures/allan_deviation.png" /></p>
+<p>The fit returns $N = 1.020\cdot10^{-4}$ rad/s/√Hz and $K = 1.99\cdot10^{-5}$ rad/s²/√Hz for the gyro, against $N_{\mathrm{eff}} = 1.019\cdot10^{-4}$
+and $K = 2.0\cdot10^{-5}$; for the accelerometer $N = 1.003\cdot10^{-3}$ and $K = 1.08\cdot10^{-4}$, against $1.004\cdot10^{-3}$ and
+$1.0\cdot10^{-4}$. Compared with the unquantised $N$, the gyro fit is 2.0% high (<code>allan_gyro_N_rel_err_vs_unquantised</code>): the
+quantisation term $q^2\Delta t/12$ has to be included before an Allan fit is compared with a datasheet density. The gyro fit puts
+$Q = 0$, as expected for per-sample quantisation. The Gazebo setting has no bias walk: its Allan deviation falls with slope $-1/2$ at every
+$\tau$, and the fit finds $K = 0$, $N = 1.97\cdot10^{-5}$ rad/s/√Hz.</p>
+<h3 id="static-gyro-bias_1">Static gyro bias</h3>
+<p><img loading="lazy" alt="Bias error against averaging time, and the creeping stand" src="figures/gyro_bias_averaging.png" /></p>
+<p>The Monte Carlo sd follows $\sqrt{N_{\mathrm{eff}}^2/T + K^2T/3}$ within 7.2% over $T$ = 0.5 to 200 s, with the minimum near $T^\star = 8.8$ s.
+On the MuJoCo stand the estimate misses by 3.9 predicted sd; the right panel shows why.</p>
+<h3 id="accelerometer-calibration">Accelerometer calibration</h3>
+<p><img loading="lazy" alt="Magnitude error per rig pose, raw and calibrated" src="figures/accel_calibration.png" /></p>
+<p>Raw readings miss $g$ by up to 0.160 m/s² (<code>calib_norm_err_raw_max</code>). After the known-orientation calibration the largest
+magnitude error is $2.7\cdot10^{-3}$ m/s² and the largest direction error 0.021°; after the orientation-free calibration the
+magnitude error is $2.0\cdot10^{-3}$ m/s². The known-orientation $M$ is within $1.1\cdot10^{-4}$ of the configured one per entry. The
+calibration rig video shows the 18 poses: <a href="media/calibration_rig.mp4">calibration_rig.mp4</a>.</p>
+<p><img loading="lazy" alt="Calibration rig, last pose" src="media/calibration_rig.png" /></p>
+<h3 id="time-offset">Time offset</h3>
+<p><img loading="lazy" alt="Cross-correlation of the two gyros, offset sweep, periodic failure" src="figures/time_offset.png" /></p>
+<p>On the trot the 6 ms offset (1.5 samples) is recovered as 5.9992 ms, and every offset from 0 to 20 ms within 0.011 ms. The
+parabola is accurate here because the correlation peak of $\lvert\omega\rvert$ spans several 4 ms samples (left panel).</p>
+<h3 id="contact-detection">Contact detection</h3>
+<p><img loading="lazy" alt="Force, true and detected contact for FL; error rate against threshold" src="figures/contact_sensing.png" /></p>
+<p>The plain threshold is best at 6 N with 6.7% wrong samples: 0.64% false contacts and 6.1% missed contacts. Without noise the same
+threshold rule still gets 1.7% wrong (<code>contact_ideal_best</code>). A plain threshold at 6 N switches 4.35 times as often as the truth
+(<code>contact_plain_toggle_ratio</code>), because the noise crosses it repeatedly near touch-down and lift-off. Hysteresis with on 12 N, off
+3 N (on = th + 2σ_F, off = max(th − 2σ_F, th/2) with th the best plain threshold, rule fixed before the run) removes the chatter, 127 detected for 127 true transitions, and gives
+6.6% wrong samples. The trot video shows MuJoCo's contact points and forces:
+<a href="media/trot_contacts.mp4">trot_contacts.mp4</a>.</p>
+<p><img loading="lazy" alt="Open-loop trot with contact forces" src="media/trot_contacts.png" /></p>
+<h2 id="failure-analysis">Failure analysis</h2>
+<h3 id="the-standing-robot-is-not-still">The standing robot is not still</h3>
+<p>Shown in the right panel of the static gyro bias figure. After <code>sim.stand</code> with 3 s of settling, the base pitches at
+$-2.9\cdot10^{-4}$ rad/s over the first 10 s of the record and $-1.7\cdot10^{-4}$ rad/s over the last 10 s
+(<code>static_pitch_rate_first_10s</code>, <code>_last_10s</code>). Over the 30 s the base sinks 3.5 mm and pitches −0.39° (<code>static_base_z_change_mm</code>,
+<code>static_pitch_change_deg</code>), and the feet slide up to 3.0 mm in the next 60 s (<code>static_foot_xy_drift_60s_mm</code>). The mean true rate
+over the window is 3.4 predicted sd of the bias estimate (<code>gyro_bias_mujoco_truth_mean_in_sd</code>), so the "bias" estimated from that
+window contains real rotation, and the error reaches 3.9 sd (criterion <code>gyro_bias_mujoco_err_in_sd</code> missed). From 93 to 103 s the
+rate is down to $-1.6\cdot10^{-5}$ rad/s, 0.24 sd (<code>static_pitch_rate_t93_103s</code>). Check the truth, or the accelerometer, for
+stillness before using a window for bias estimation; on this model that means waiting about 90 s after standing up. The cause of the
+creep (soft contact, foot sliding, joint friction loss) was not separated.</p>
+<h3 id="periodic-motion-hides-a-large-time-offset">Periodic motion hides a large time offset</h3>
+<p>Shown in the right panel of the time offset figure. With a 250 ms offset and a ±0.6 s search window on
+the steady trot, the correlation has peaks every 0.25 s (half the trot period, since the two diagonal pairs produce the same
+$\lvert\omega\rvert$) and the second-highest is 0.999996 of the highest (<code>time_offset_periodic_peak_ratio</code>). The estimate is 500 ms,
+wrong by one half-period. Including the stand-to-trot start breaks the periodicity: the estimate is 249.994 ms, but the margin is
+small, with the next peak at 0.94 of the true one. The search window must be shorter than half the period of the motion, or the
+record must contain aperiodic motion.</p>
+<h3 id="contact-error-rate-above-5">Contact error rate above 5%</h3>
+<p>Shown in the contact figure. The missed contacts sit on the force ramps: the median true force of a missed
+contact sample is 1.35 N and 90% are below 4.9 N (<code>contact_fn_force_quantiles_N</code>); with hysteresis 61% of the wrong samples lie
+within 10 ms of a true transition. A threshold below the ramp lets the noise through (14.3% wrong at 0.5 N), so with σ_F = 3 N no
+single threshold reaches 5%. Even a noise-free force sensor disagrees with geometric contact on 1.7% of samples, since MuJoCo's soft
+contact can push at small positive distance and carries near-zero force just after the overlap starts. A 5% criterion
+needs a quieter sensor or a contact model that also uses foot kinematics.</p>
+<h3 id="allan-white-noise-criterion-set-tighter-than-the-estimators-own-scatter">Allan white-noise criterion set tighter than the estimator's own scatter</h3>
+<p>On 1 h of white noise the largest relative error over
+the 30 values of $\tau$ with at least 100 clusters is 5.44%, at $\tau$ = 11.12 s (<code>allan_white_rel_err_max</code>,
+<code>allan_white_tau_at_max_err_s</code>). Repeating that $\tau$ with 50 more seeds (100 to 149) gives a relative sd of 3.26%
+(<code>allan_white_rel_err_sd_at_max_err_50_seeds</code>). The measured error is 1.7 sd of the estimator's scatter at that $\tau$ and
+the 5% threshold is 1.5 sd, while the criterion takes the maximum over all 30 values of $\tau$; a 5% bound is tighter than the
+estimator can meet reliably with 100 clusters. The threshold was left at 5%. How often the maximum over the 30 crosses 5% across
+seeds was not measured. The test in <code>test_sensors.py</code> that uses $\tau$ with at least 1000
+clusters stays under 5%.</p>
+<h3 id="rounding-in-the-cumulative-sum">Rounding in the cumulative sum</h3>
+<p>The first full run integrated the gyro with its 4 mrad/s bias: $\theta$ grows to about 3 rad
+over 800 s while the second differences are about $10^{-4}$ rad, and the identity check gave $3.7\cdot10^{-12}$ relative, above its
+$10^{-12}$ threshold. Subtracting the mean before the sum (which leaves $\sigma^2$ unchanged) brought it to $2.2\cdot10^{-13}$.</p>
+<h3 id="too-few-poses-for-the-orientation-free-calibration">Too few poses for the orientation-free calibration</h3>
+<p>With only the 6 axis-aligned poses there are 6 equations for 9 unknowns. LM
+still stops on its gradient test (<code>calib_unknown_6pose_status</code>: <code>grad</code>), at a $U$ that is off by $7.5\cdot10^{-3}$
+(<code>calib_unknown_6pose_U_err_max</code>), 36 times the 18-pose error. The solver's status alone does not say that the problem is underdetermined;
+counting poses against unknowns does.</p>
+<h3 id="encoder-velocity-below-the-independence-prediction">Encoder velocity below the independence prediction</h3>
+<p>The velocity quantisation error is 0.0741 rad/s rms against 0.0783 predicted
+(5.4% low). The histogram has a peak at zero: when a joint moves less than one step between samples, successive errors are
+correlated and their difference is small. Hips move at 0.27 rad/s rms in this trot, against 1.21 rad/s rms over all joints
+(<code>encoder_hip_speed_rms</code>, <code>encoder_vel_signal_rms</code>), and have the lowest error (0.0720 rad/s against 0.0751 for thighs and calves).</p>
+<h3 id="limits-of-the-time-offset-result">Limits of the time-offset result</h3>
+<p>Both IMUs read the same simulated $\omega$, with no difference in filtering, bandwidth or
+mounting compliance between them, and the offset is a whole number of physics steps. The 0.011 ms accuracy is therefore a best case;
+it shows the interpolation works, not what two real sensors would give.</p>
+<h2 id="references">References</h2>
+<ul>
+<li>D. W. Allan, "Statistics of atomic frequency standards", <em>Proceedings of the IEEE</em> 54(2), pp. 221-230, 1966: the two-sample
+  variance used in Theory.</li>
+<li>IEEE Std 952-1997, <em>IEEE Standard Specification Format Guide and Test Procedure for Single-Axis Interferometric Fiber Optic Gyros</em>,
+  Annex C: Allan variance noise terms (quantisation $3Q^2/\tau^2$, angle random walk $N^2/\tau$, rate random walk $K^2\tau/3$) and
+  reading $N$ at $\tau$ = 1 s and $K$ at $\tau$ = 3 s.</li>
+<li>N. El-Sheimy, H. Hou, X. Niu, "Analysis and modeling of inertial sensors using Allan variance", <em>IEEE Transactions on
+  Instrumentation and Measurement</em> 57(1), 2008: the same terms applied to MEMS IMUs; section numbers not checked.</li>
+<li>B. Widrow, I. Kollár, <em>Quantization Noise</em>, Cambridge University Press, 2008: the uniform model of quantisation error and its
+  variance $q^2/12$.</li>
+<li>D. Tedaldi, A. Pretto, E. Menegatti, "A robust and easy to implement method for IMU calibration without external equipments",
+  IEEE ICRA, 2014: accelerometer calibration from the constraint $\lvert f\rvert = g$ over static poses, with a triangular
+  misalignment model; section numbers not checked.</li>
+<li>MuJoCo documentation: XML reference, <code>sensor</code> elements (<code>gyro</code>, <code>accelerometer</code>, <code>framequat</code>, <code>jointpos</code>, <code>jointvel</code>, <code>touch</code>);
+  Computation chapter, numerical integration (Euler).</li>
+<li>Modules <a href="../m00_math/index.html">00</a> (SO(3) logarithm, Levenberg-Marquardt) and <a href="../m02_description/index.html">02</a> (Gazebo URDF,
+  sensor links).</li>
+</ul><p class="source">Source: <a href="https://github.com/Armanasq/go2-nav-sim/blob/main/modules/m06_sensors/README.md">modules/m06_sensors/README.md</a></p></article></div>
+</main>
+<footer class="site"><div class="wrap">Simulation only. Source and issues on <a href="https://github.com/Armanasq/go2-nav-sim">GitHub</a>.</div></footer>
+<script type="module" src="../../static/js/site.js"></script>
+</body>
+</html>

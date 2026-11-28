@@ -1,0 +1,1033 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mathematical foundations: rotations, Lie-group perturbations and nonlinear least squares · go2-nav-sim</title>
+<meta name="description" content="Mathematical foundations: rotations, Lie-group perturbations and nonlinear least squares">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../../static/css/site.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5' fill='%230a6a9c'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"><script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script><script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.querySelector('main'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false})"></script>
+</head>
+<body data-root="../../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar"><div class="inner">
+<a class="brand" href="../../index.html">go2-nav-sim</a>
+<nav aria-label="Main"><a href="../../tutorial/00-overview.html">Learn</a><a href="../../tasks/index.html">Tasks</a><a href="../../modules/index.html" aria-current="page">Deep dives</a><a href="../../reference.html">Reference</a></nav>
+<button class="theme-toggle" type="button" aria-label="Colour theme: auto">auto</button>
+</div></header>
+<main id="main">
+<div class="wrap doc"><details class="side" open><summary>Mathematical foundations</summary><nav aria-label="Contents"><ol class="parts"><li class="open"><a class="part" href="../index.html">All deep dives</a><ol><li><a href="../m00_math/index.html" aria-current="page"><span class="n">00</span><span>Mathematical foundations</span></a><ul class="sections"><li><a href="#objective">Objective</a></li><li><a href="#prerequisites">Prerequisites</a></li><li><a href="#theory">Theory</a></li><li><a href="#implementation">Implementation</a></li><li><a href="#experiment">Experiment</a></li><li><a href="#validation">Validation</a></li><li><a href="#failure-analysis">Failure analysis</a></li><li><a href="#references">References</a></li></ul></li><li><a href="../m01_anatomy/index.html"><span class="n">01</span><span>Robot anatomy</span></a></li><li><a href="../m02_description/index.html"><span class="n">02</span><span>Robot description</span></a></li><li><a href="../m03_simulation/index.html"><span class="n">03</span><span>Simulation</span></a></li><li><a href="../m04_kinematics/index.html"><span class="n">04</span><span>Kinematics (single leg)</span></a></li><li><a href="../m06_sensors/index.html"><span class="n">06</span><span>Sensors</span></a></li><li><a href="../m11_state_estimation/index.html"><span class="n">11</span><span>State estimation</span></a></li><li><a href="../m12_perception/index.html"><span class="n">12</span><span>Perception</span></a></li></ol></li></ol></nav></details><article class="prose"><p class="where">Deep dive · module 00</p><h1>Mathematical foundations: rotations, Lie-group perturbations and nonlinear least squares</h1><h2 id="objective">Objective</h2>
+<p>Derive and implement the rotation, transform and optimisation tools the rest of the stack uses, then check each one against an
+established library. The module has three levels:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Level</th>
+<th>Content</th>
+<th>Applied on the Go2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Fundamental</td>
+<td>Rodrigues' formula, quaternions, roll-pitch-yaw angles, SE(2) and SE(3) composition and inverse</td>
+<td>camera optical frame</td>
+</tr>
+<tr>
+<td>Intermediate</td>
+<td>SO(3) exponential and logarithm, Euler-angle rates from the body gyro</td>
+<td>yaw lost per turn when only the gyro z axis is integrated; height error from an uncorrected tilt</td>
+</tr>
+<tr>
+<td>Advanced</td>
+<td>right and left Jacobians of SO(3); Gauss-Newton and Levenberg-Marquardt written from scratch, on a manifold</td>
+<td>gyro bias during a turn; SE(2) scan registration; kinematic calibration of the FL leg (encoder zero offsets and link lengths)</td>
+</tr>
+</tbody>
+</table></div>
+<p>After this module a reader can write the update $X \leftarrow X\,\mathrm{Exp}(h)$ for a state on SO(3) or SE(2), derive the Jacobian of
+a residual with respect to $h$, solve the problem with Gauss-Newton or Levenberg-Marquardt, and tell from the covariance whether the
+data determine the parameters at all.</p>
+<p><img loading="lazy" alt="Right perturbation and the Levenberg-Marquardt iteration" src="figures/perturbation_and_lm_diagram.png" /></p>
+<h2 id="prerequisites">Prerequisites</h2>
+<p>Linear algebra: matrix products, orthogonal matrices, the cross product, solving a symmetric positive definite system. Calculus:
+Taylor series, the chain rule. Python with NumPy; scipy, Pinocchio and MuJoCo are used only for checking. Module
+<a href="../m04_kinematics/index.html">04 · Kinematics</a> covers the leg chain in detail; the calibration here re-derives only the part it needs.</p>
+<h2 id="theory">Theory</h2>
+<p>Notation: $[a]$ is the skew matrix with $[a]v = a \times v$; $c_\alpha = \cos\alpha$, $s_\alpha = \sin\alpha$. Frames are
+right-handed. Roll-pitch-yaw $(\phi, \theta, \psi)$ means $R = R_z(\psi) R_y(\theta) R_x(\phi)$, the URDF and Pinocchio convention.
+$\mathrm{Exp}$ maps a rotation vector to a matrix and $\mathrm{Log}$ maps back.</p>
+<h3 id="fundamental-level">Fundamental level</h3>
+<h4 id="rodrigues-formula">Rodrigues' formula</h4>
+<p>Rotate $v$ by $\theta$ about the unit axis $a$. Split $v$ into the part along the axis, which does not move, and the part
+perpendicular to it, which turns by $\theta$ in the plane spanned by $v_\perp$ and $a \times v$:</p>
+<p>$$v = v_\parallel + v_\perp,\qquad v_\parallel = (a \cdot v)\,a,\qquad v' = v_\parallel + \cos\theta\, v_\perp + \sin\theta\,(a \times v).$$</p>
+<p>With $[a]v = a \times v$ and $[a]^2 v = a (a\cdot v) - v = -v_\perp$, substitute $v_\perp = -[a]^2 v$ and $v_\parallel = v + [a]^2 v$:</p>
+<p>$$v' = v + [a]^2 v - \cos\theta\,[a]^2 v + \sin\theta\,[a] v \quad\Rightarrow\quad R = I + \sin\theta\,[a] + (1-\cos\theta)\,[a]^2 .$$</p>
+<h4 id="quaternion-to-matrix-and-back">Quaternion to matrix and back</h4>
+<p>A unit quaternion $q = (w, \mathbf v)$ with $w = \cos\frac\theta2$, $\mathbf v = \sin\frac\theta2\, a$ encodes the same rotation.
+Use $\sin\theta = 2\sin\frac\theta2\cos\frac\theta2$ and $1-\cos\theta = 2\sin^2\frac\theta2$ in Rodrigues' formula:</p>
+<p>$$\sin\theta\,[a] = 2w[\mathbf v],\qquad (1-\cos\theta)[a]^2 = 2[\mathbf v]^2 \quad\Rightarrow\quad R = I + 2w[\mathbf v] + 2[\mathbf v]^2 .$$</p>
+<p>Expanding with $[\mathbf v]^2 = \mathbf v\mathbf v^\top - \lVert\mathbf v\rVert^2 I$ gives the familiar entries, for example
+$R_{00} = 1 - 2(y^2+z^2)$ and $R_{01} = 2(xy - wz)$. For the inverse, read off the trace, the skew part and the symmetric part:</p>
+<p>$$\operatorname{tr} R = 3 - 4\lVert\mathbf v\rVert^2 = 4w^2 - 1,\qquad R - R^\top = 4w[\mathbf v],\qquad R_{ii} = 2v_i^2 + 2w^2 - 1,\qquad R_{ij} + R_{ji} = 4 v_i v_j .$$</p>
+<p>So $4w^2 = 1 + \operatorname{tr}R$ and $4v_i^2 = 1 + 2R_{ii} - \operatorname{tr}R$. Shepperd's method takes the largest of these four,
+which is at least 1 since they sum to 4, and gets the other three components by dividing a skew or symmetric entry by it.
+Dividing only by $w$ fails at $\theta = \pi$, where $w = 0$.</p>
+<h4 id="roll-pitch-yaw-from-the-matrix">Roll, pitch, yaw from the matrix</h4>
+<p>Multiplying out $R_z(\psi)R_y(\theta)R_x(\phi)$:</p>
+<p>$$R = \begin{bmatrix} c_\psi c_\theta &amp; c_\psi s_\theta s_\phi - s_\psi c_\phi &amp; c_\psi s_\theta c_\phi + s_\psi s_\phi \\
+s_\psi c_\theta &amp; s_\psi s_\theta s_\phi + c_\psi c_\phi &amp; s_\psi s_\theta c_\phi - c_\psi s_\phi \\
+-s_\theta &amp; c_\theta s_\phi &amp; c_\theta c_\phi \end{bmatrix}.$$</p>
+<p>The bottom row and first column give the angles when $c_\theta \neq 0$:</p>
+<p>$$\theta = \operatorname{atan2}\!\big(-R_{20},\ \sqrt{R_{00}^2 + R_{10}^2}\big),\qquad \phi = \operatorname{atan2}(R_{21}, R_{22}),\qquad \psi = \operatorname{atan2}(R_{10}, R_{00}).$$</p>
+<p>At $\theta = \pm\pi/2$ (gimbal lock) the first column and bottom row reduce to $(0, 0, \mp 1)$ and the remaining entries depend on one
+angle combination only. For $\theta = +\pi/2$: $R_{01} = \sin(\phi-\psi)$, $R_{11} = \cos(\phi-\psi)$. For $\theta = -\pi/2$:
+$R_{01} = -\sin(\phi+\psi)$, $R_{11} = \cos(\phi+\psi)$. Only $\phi \mp \psi$ is observable; the code sets $\psi = 0$ and
+returns $\phi = \operatorname{atan2}(-R_{20}R_{01},\ R_{11})$, which covers both signs.</p>
+<h4 id="se2-and-se3">SE(2) and SE(3)</h4>
+<p>A rigid transform $T = \begin{bmatrix} R &amp; t \\ 0 &amp; 1\end{bmatrix}$ maps $p \mapsto Rp + t$. Composition and inverse follow from
+applying the maps in turn and solving $p' = Rp + t$ for $p$:</p>
+<p>$$T_a T_b = \begin{bmatrix} R_a R_b &amp; R_a t_b + t_a \\ 0 &amp; 1 \end{bmatrix},\qquad T^{-1} = \begin{bmatrix} R^\top &amp; -R^\top t \\ 0 &amp; 1\end{bmatrix}.$$</p>
+<p>In SE(2), with poses $(x, y, \theta)$ and $R(\theta)$ the planar rotation, this is
+$(x_a + c_a x_b - s_a y_b,\ y_a + s_a x_b + c_a y_b,\ \theta_a + \theta_b)$ and
+$(x,y,\theta)^{-1} = (-c\,x - s\,y,\ s\,x - c\,y,\ -\theta)$.</p>
+<h4 id="compose-a-chain-by-hand">Compose a chain by hand</h4>
+<p>The chain <code>odom</code> to <code>base_footprint</code> to <code>base_link</code> to <code>lidar_link</code> from a tutorial session (chapter 5, task 2.4): a
+<code>/lidar/points</code> message stamped 934.896 s, and the three transforms that <code>lookup_transform</code> returned at that stamp.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Transform</th>
+<th>Translation (m)</th>
+<th>Yaw</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>base_link</code> to <code>lidar_link</code></td>
+<td>(0, 0, 0.1)</td>
+<td>0</td>
+</tr>
+<tr>
+<td><code>base_footprint</code> to <code>base_link</code></td>
+<td>(0, 0, 0.426)</td>
+<td>0</td>
+</tr>
+<tr>
+<td><code>odom</code> to <code>base_footprint</code></td>
+<td>(−0.5398, 0.2516, 0)</td>
+<td>7.83° (cos 0.9907, sin 0.1362)</td>
+</tr>
+</tbody>
+</table></div>
+<p>The first two only add height. A point at $p_\text{lidar} = (1.2545, −0.0044, 0.0219)$ is at $(1.2545, −0.0044, 0.5479)$ in
+<code>base_footprint</code>, and the SE(2) composition above gives it in <code>odom</code>:</p>
+<p>$$x = 0.9907 \times 1.2545 - 0.1362 \times (-0.0044) - 0.5398 = 0.7036, \qquad y = 0.1362 \times 1.2545 + 0.9907 \times (-0.0044) + 0.2516 = 0.4181,$$</p>
+<p>with $z = 0.5479$. <code>lookup_transform('odom', 'lidar_link', stamp)</code> applied to the same point gave (0.7035, 0.4181, 0.5479),
+2.2e-16 m from the composition done in full precision; the 0.7036 above differs in the fourth decimal because the table is
+rounded.</p>
+<p><img loading="lazy" alt="The lidar point carried down a chain of four frames with its coordinates in each, and a top view of the odom and base_footprint frames with the point" src="../../img/c04-compose-chain.png" /></p>
+<p><em>Each arrow is one transform, the coordinates beside each frame are the point in that frame. Right: the same step in top view, <code>base_footprint</code> turned 7.83° in <code>odom</code>.</em></p>
+<h4 id="camera-optical-frame">Camera optical frame</h4>
+<p>The camera link frame is x forward, y left, z up; the optical frame used by image projection is z forward, x right, y down.
+A URDF joint with <code>rpy="-pi/2 0 -pi/2"</code> gives $R = R_z(-\pi/2)\,R_y(0)\,R_x(-\pi/2)$:</p>
+<p>$$R_x(-\tfrac\pi2) = \begin{bmatrix} 1&amp;0&amp;0\\0&amp;0&amp;1\\0&amp;-1&amp;0\end{bmatrix},\quad
+R_z(-\tfrac\pi2) = \begin{bmatrix} 0&amp;1&amp;0\\-1&amp;0&amp;0\\0&amp;0&amp;1\end{bmatrix},\quad
+R = R_z R_x = \begin{bmatrix} 0&amp;0&amp;1\\-1&amp;0&amp;0\\0&amp;-1&amp;0\end{bmatrix}.$$</p>
+<p>The columns of $R$ are the optical axes written in the link frame: $x_\text{optical} = -y_\text{link}$,
+$y_\text{optical} = -z_\text{link}$, $z_\text{optical} = x_\text{link}$.</p>
+<h3 id="intermediate-level">Intermediate level</h3>
+<h4 id="exponential-and-logarithm-of-so3">Exponential and logarithm of SO(3)</h4>
+<p>For a rotation vector $\omega = \theta a$, $\exp[\omega] = \sum_k [\omega]^k / k!$. Because $[a]^3 = -[a]$, the odd powers collapse
+onto $[a]$ and the even ones onto $[a]^2$:</p>
+<p>$$\exp[\omega] = I + \Big(\theta - \tfrac{\theta^3}{3!} + \dots\Big)[a] + \Big(\tfrac{\theta^2}{2!} - \tfrac{\theta^4}{4!} + \dots\Big)[a]^2 = I + \sin\theta\,[a] + (1-\cos\theta)[a]^2,$$</p>
+<p>which is Rodrigues' formula again. For the logarithm take the trace and the skew part of that expression,
+$\operatorname{tr}R = 1 + 2\cos\theta$ and $\operatorname{vee}(R - R^\top) = 2\sin\theta\, a$, so</p>
+<p>$$\theta = \operatorname{atan2}\big(\lVert \operatorname{vee}(R-R^\top)\rVert,\ \operatorname{tr}R - 1\big),\qquad \omega = \frac{\theta}{2\sin\theta}\operatorname{vee}(R - R^\top).$$</p>
+<p>Near $\theta = \pi$ the skew part vanishes and the division loses digits. The symmetric part still holds the axis,
+$\tfrac12(R + R^\top) = \cos\theta\, I + (1-\cos\theta)\, a a^\top$, so for $\theta &gt; \pi/2$ the code takes the largest column of
+$a a^\top = (\operatorname{sym}R - \cos\theta I)/(1-\cos\theta)$ and the sign from the skew part.</p>
+<h4 id="yaw-rate-from-the-body-gyro">Yaw rate from the body gyro</h4>
+<p>The IMU measures $\omega$ in the body frame, $[\omega] = R^\top \dot R$. Differentiate $R = R_zR_yR_x$ and use
+$R_z^\top\dot R_z = \dot\psi[e_z]$ (likewise for $y$, $x$) and $Q^\top[u]Q = [Q^\top u]$:</p>
+<p>$$\omega = \dot\psi\, R_x^\top R_y^\top e_z + \dot\theta\, R_x^\top e_y + \dot\phi\, e_x
+\quad\Rightarrow\quad \omega_x = \dot\phi - s_\theta\dot\psi,\quad \omega_y = c_\phi\dot\theta + s_\phi c_\theta\dot\psi,\quad \omega_z = -s_\phi\dot\theta + c_\phi c_\theta\dot\psi .$$</p>
+<p>Multiply the second by $s_\phi$, the third by $c_\phi$ and add: the $\dot\theta$ terms cancel, so</p>
+<p>$$\dot\psi = \frac{s_\phi\,\omega_y + c_\phi\,\omega_z}{c_\theta},\qquad \dot\theta = c_\phi\omega_y - s_\phi\omega_z,\qquad \dot\phi = \omega_x + s_\theta\dot\psi .$$</p>
+<p>Integrating the gyro z axis alone as yaw makes the error rate $\dot\psi - \omega_z = (1 - c_\phi c_\theta)\dot\psi + s_\phi\dot\theta$.
+During a turn at constant tilt the second term is zero and the yaw estimate is short by the fraction $1 - c_\phi c_\theta$.
+Walking at 0.2 m/s in simulation the trunk rolled between −2.1° and 3.6° and pitched between −2.0° and 1.9° (tutorial, walking
+chapter, "How the trunk moves"). At 3.6° roll, $1 - \cos 3.6° = 1.97\times10^{-3}$: 0.710° of yaw lost per full turn; with 2.0°
+pitch added, 0.929° per turn.</p>
+<h4 id="height-error-from-an-uncorrected-tilt">Height error from an uncorrected tilt</h4>
+<p>In this stack trunk roll and pitch never reach TF: <code>base_footprint</code> to <code>base_link</code> is a constant (tutorial, chapter 5,
+task 1.5). Take a point at range $d$ in the direction of the tilt, forward for a pitch $\theta$ and sideways for a roll
+$\theta$. The transform assumes the trunk level, so the point lands at height $d\sin\theta$ off its true value. A tilt about one
+axis does not move points that lie along that axis: a roll leaves a point straight ahead at its height. At 3 m:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Tilt</th>
+<th>Source</th>
+<th>$\lvert\Delta z\rvert = 3\ \text{m} \times \sin\lvert\theta\rvert$</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>roll 3.6°</td>
+<td>largest roll of the walk in chapter 7</td>
+<td>0.1884 m</td>
+</tr>
+<tr>
+<td>pitch −2.95°</td>
+<td><code>bags/v3</code></td>
+<td>0.1544 m</td>
+</tr>
+</tbody>
+</table></div>
+<p><img loading="lazy" alt="Left: sketch of a tilted ray and the height error d sin theta. Right: height error against distance for 3.6, 2.95 and 1.63 degrees" src="../../img/c04-tilt-error.png" /></p>
+<p><em>$\Delta z = d \sin\theta$ for the roll of the chapter 7 walk and two pitches from <code>bags/v3</code>, with the 0.188 m and 0.154 m values at 3 m marked.</em></p>
+<h3 id="advanced-level">Advanced level</h3>
+<h4 id="perturbations-on-a-lie-group">Perturbations on a Lie group</h4>
+<p>An estimator never adds a correction to a rotation matrix; the sum leaves SO(3). It composes a small rotation instead. With the
+correction $h \in \mathbb R^3$ expressed in the body frame (the right perturbation):</p>
+<p>$$R \oplus h = R\,\mathrm{Exp}(h),\qquad h = \mathrm{Log}(R_0^\top R) \text{ is the difference } R \ominus R_0 .$$</p>
+<p>A residual $r(R)$ then has the Jacobian $J = \partial r(R\,\mathrm{Exp}(h))/\partial h$ at $h = 0$, a plain $m\times 3$ matrix, and
+every solver below works on $h$. SE(2) uses the same construction with $h = (\rho_x, \rho_y, \varphi)$ and
+$\mathrm{Exp}(h) = (V(\varphi)\rho,\ \varphi)$, where $V(\varphi) = \frac1\varphi\begin{bmatrix} s_\varphi &amp; -(1-c_\varphi) \\ 1-c_\varphi &amp; s_\varphi\end{bmatrix}$
+comes from integrating the translation while the frame turns at constant rate.</p>
+<h4 id="right-and-left-jacobians-of-so3">Right and left Jacobians of SO(3)</h4>
+<p>Adding $\delta$ to a rotation vector $w$ is not the same as composing $\mathrm{Exp}(\delta)$. To first order the two differ by a
+linear map, the right Jacobian $J_r$, or the left Jacobian $J_l$ if the correction is applied on the left:</p>
+<p>$$\mathrm{Exp}(w + \delta) \approx \mathrm{Exp}(w)\,\mathrm{Exp}(J_r(w)\,\delta) \approx \mathrm{Exp}(J_l(w)\,\delta)\,\mathrm{Exp}(w).$$</p>
+<p>Derivation of $J_r$. For matrices $A$, $B$ the derivative of the exponential is
+$\frac{d}{d\epsilon}e^{A+\epsilon B}\big|_0 = \int_0^1 e^{sA} B e^{(1-s)A} ds$. Multiply on the left by $e^{-A}$ and substitute $u = 1-s$:</p>
+<p>$$e^{-A}\tfrac{d}{d\epsilon}e^{A+\epsilon B} = \int_0^1 e^{-uA} B\, e^{uA}\, du .$$</p>
+<p>With $A = [w]$, $B = [\delta]$ and $Q^\top[\delta]Q = [Q^\top\delta]$, the integrand is $[\mathrm{Exp}(-uw)\,\delta]$, so</p>
+<p>$$J_r(w) = \int_0^1 \mathrm{Exp}(-u w)\, du = \int_0^1 \big(I - \sin(u\theta)[a] + (1-\cos(u\theta))[a]^2\big)du
+= I - \frac{1-\cos\theta}{\theta}[a] + \Big(1 - \frac{\sin\theta}{\theta}\Big)[a]^2 ,$$</p>
+<p>with $\theta = \lVert w\rVert$, $a = w/\theta$. In terms of $[w] = \theta[a]$:</p>
+<p>$$J_r(w) = I - \frac{1-\cos\theta}{\theta^2}[w] + \frac{\theta - \sin\theta}{\theta^3}[w]^2,\qquad J_l(w) = J_r(-w) = J_r(w)^\top .$$</p>
+<p>The two are related through the rotation itself. From $\mathrm{Exp}(J_l\delta)\,R = R\,\mathrm{Exp}(J_r\delta)$ and
+$R\,\mathrm{Exp}(v)R^\top = \mathrm{Exp}(Rv)$ follows $J_l(w) = R\,J_r(w)$ with $R = \mathrm{Exp}(w)$. Both leave the axis unchanged,
+$J_r(w)\,w = w$, because $[w]w = 0$.</p>
+<p>The logarithm needs the inverse: $\mathrm{Log}(\mathrm{Exp}(w)\,\mathrm{Exp}(\delta)) \approx w + J_r^{-1}(w)\,\delta$. Write
+$J_r = I + \alpha[a] + \beta[a]^2$ and look for $J_r^{-1} = I + \gamma[a] + \eta[a]^2$. Multiplying out with $[a]^3 = -[a]$,
+$[a]^4 = -[a]^2$ and setting the $[a]$ and $[a]^2$ coefficients to zero gives two scalar equations whose solution is
+$\gamma = \theta/2$, $\eta = 1 - \frac\theta2\frac{1+\cos\theta}{\sin\theta}$. Since $\frac{1+\cos\theta}{\sin\theta} = \cot\frac\theta2$:</p>
+<p>$$J_r^{-1}(w) = I + \tfrac12[w] + \Big(\frac{1}{\theta^2} - \frac{\cot(\theta/2)}{2\theta}\Big)[w]^2,\qquad J_l^{-1}(w) = J_r^{-1}(-w).$$</p>
+<p>The $\cot(\theta/2)$ form stays finite at $\theta = \pi$, where $(1+\cos\theta)/\sin\theta$ is 0/0. Below $\theta = 10^{-5}$ rad the
+code switches to the series $J_r \approx I - \frac12[w] + \frac16[w]^2$ and $J_r^{-1} \approx I + \frac12[w] + \frac1{12}[w]^2$ (the full
+series are $\sum_k (-[w])^k/(k+1)!$ and $\sum_k B_k(-[w])^k/k!$ with the Bernoulli numbers $B_k$), and writes $1 - \cos\theta$ as
+$2\sin^2(\theta/2)$ so that the closed form does not cancel just above the switch.</p>
+<p>Worked example on the Go2. The trunk yaws 90° at 1 rad/s ($T = \pi/2$ s) and the gyro x axis has a bias $b = 0.01$ rad/s. The
+integrated orientation is $\mathrm{Exp}((\omega + b)T)$ instead of $\mathrm{Exp}(\omega T)$, so the error in the final body frame is
+$J_r(\omega T)\,bT$. For $w = \theta e_z$: $J_r e_x = (\frac{\sin\theta}{\theta},\ -\frac{1-\cos\theta}{\theta},\ 0)$, which at
+$\theta = \pi/2$ is $(2/\pi, -2/\pi, 0)$. The error is $(0.0100, -0.0100, 0)$ rad, 0.810° split equally between roll and pitch,
+instead of the 0.900° about x alone that $\mathrm{Exp}(\omega T)\mathrm{Exp}(bT)$ predicts: the bias axis turns with the body during
+the yaw. The exact value from <code>validate.py</code> (<code>bias_turn_example</code>) is (0.0100000, -0.0100000, 0.0000285) rad.</p>
+<h4 id="gauss-newton">Gauss-Newton</h4>
+<p>Nonlinear least squares minimises $F(x) = \frac12\lVert r(x)\rVert^2$ over $m$ residuals and $n$ parameters. Linearise the
+residual around the current estimate, $r(x \oplus h) \approx r + Jh$, and minimise the model
+$L(h) = \frac12\lVert r + Jh\rVert^2$. Setting $\partial L/\partial h = J^\top(r + Jh) = 0$ gives the normal equations</p>
+<p>$$J^\top J\, h = -J^\top r = -g,\qquad x \leftarrow x \oplus h .$$</p>
+<p>$g = J^\top r$ is the gradient of $F$. The Hessian of $F$ is $J^\top J + \sum_i r_i \nabla^2 r_i$; Gauss-Newton keeps only the first
+term. When the residuals at the optimum are zero (or small and nearly linear), the dropped term vanishes and convergence is
+quadratic, the number of correct digits roughly doubling per iteration. There is no step control: a step can overshoot, and
+$J^\top J$ must be invertible.</p>
+<h4 id="levenberg-marquardt">Levenberg-Marquardt</h4>
+<p>LM adds a damping term, $(J^\top J + \mu I)\,h = -g$. For $\mu \to 0$ this is the Gauss-Newton step; for large $\mu$ it is
+$h \approx -g/\mu$, a short gradient-descent step. The damping is adapted by comparing the actual decrease with the decrease the
+linear model predicts. Using $J^\top J h = -g - \mu h$:</p>
+<p>$$L(0) - L(h) = -h^\top g - \tfrac12 h^\top J^\top J h = -h^\top g + \tfrac12 h^\top (g + \mu h) = \tfrac12 h^\top(\mu h - g),\qquad
+\varrho = \frac{F(x) - F(x\oplus h)}{L(0) - L(h)} .$$</p>
+<p>If $\varrho &gt; 0$ the step is accepted and $\mu \leftarrow \mu\max(\frac13,\ 1-(2\varrho-1)^3)$, $\nu \leftarrow 2$; otherwise it is
+rejected and $\mu \leftarrow \nu\mu$, $\nu \leftarrow 2\nu$. The start value is $\mu_0 = 10^{-3}\max_i (J^\top J)_{ii}$. This is the
+update of Madsen, Nielsen and Tingleff (2004, ch. 3). Iterations stop when $\lVert g\rVert_\infty \le 10^{-10}$ or the step is
+below $10^{-12}$ relative to $\lVert x\rVert$.</p>
+<h4 id="se2-point-set-registration">SE(2) point-set registration</h4>
+<p>A scan gives points $p_i$ in the sensor frame, matched to map points $q_i$. Find the pose $T = (R, t)$ minimising
+$\sum_i\lVert R p_i + t - q_i\rVert^2$. For the right perturbation $T\,\mathrm{Exp}(h)$, to first order
+$R\,\mathrm{Exp}(\varphi) \approx R(I + \varphi J_2)$ with $J_2 = \begin{bmatrix}0&amp;-1\\1&amp;0\end{bmatrix}$ and $V(\varphi)\rho \approx \rho$, so</p>
+<p>$$r_i(T\,\mathrm{Exp}(h)) \approx R p_i + t - q_i + R\rho + \varphi R J_2 p_i \quad\Rightarrow\quad J_i = \begin{bmatrix} R &amp; R J_2 p_i \end{bmatrix} \in \mathbb R^{2\times 3}.$$</p>
+<p>This problem also has a closed form (Arun et al. 1987; Umeyama 1991, here in the plane). With centred points
+$a_i = p_i - \bar p$, $b_i = q_i - \bar q$, the optimal translation is $t = \bar q - R\bar p$ and the rotation maximises
+$\sum_i b_i^\top R a_i = \cos\theta \sum_i a_i\cdot b_i + \sin\theta\sum_i a_i \times b_i$, so</p>
+<p>$$\theta^\ast = \operatorname{atan2}\Big(\sum_i a_i\times b_i,\ \sum_i a_i\cdot b_i\Big),\qquad F(\theta) = \text{const} - A\cos(\theta - \theta^\ast).$$</p>
+<p>The second expression explains the slowest start (Failure analysis). At $\theta = \theta^\ast + \pi$ the gradient is zero and $F$ has its
+maximum. With $B = \sum_i \lVert a_i\rVert^2 \approx A$ for low noise, the Gauss-Newton step in $\theta$ at $\theta = \theta^\ast + \pi + \epsilon$
+is $h = -F'(\theta)/B = A\sin\epsilon/B \approx \epsilon$, so the distance from the maximum doubles each iteration until the
+quadratic phase takes over (my derivation; the iterates below confirm the doubling).</p>
+<p>Wrong correspondences break the Gaussian assumption. The Cauchy kernel $\rho(s) = \frac{c^2}{2}\log(1 + s^2/c^2)$ replaces
+$\frac12 s^2$; iteratively reweighted least squares solves it with Gauss-Newton on residuals scaled by $\sqrt{w_i}$,
+$w_i = \rho'(s_i)/s_i = 1/(1 + s_i^2/c^2)$, the weights recomputed at every iterate.</p>
+<h4 id="kinematic-calibration-of-the-fl-leg">Kinematic calibration of the FL leg</h4>
+<p>The encoders report $\hat q$; the true joint angles are $q = \hat q + \delta$ with unknown zero offsets $\delta$. The thigh and calf
+lengths $l_1$, $l_2$ are also unknown. A motion-capture marker measures the foot centre $y_i$ in the base frame at $N$ poses. The
+model, with the hip origin $o_1$, the lateral offset $d_y = 0.0955$ m and the foot's forward offset $f_x = -0.002$ m read from the MJCF:</p>
+<p>$$f(\hat q; \delta, l_1, l_2) = o_1 + R_x(\hat q_1 + \delta_1)\Big[(0, d_y, 0)^\top + R_y(\hat q_2+\delta_2)\big((0, 0, -l_1)^\top + R_y(\hat q_3 + \delta_3)(f_x, 0, -l_2)^\top\big)\Big],
+\qquad r_i = f(\hat q_i) - y_i .$$</p>
+<p><img loading="lazy" alt="Calibration problem in the leg's sagittal plane" src="figures/calibration_diagram.png" /></p>
+<p>The Jacobian needs no differentiation by hand. A zero offset acts exactly like a joint angle, so its column is the geometric
+Jacobian column $z_k \times (f - o_k)$, with $z_k$ the joint axis and $o_k$ the joint origin in the base frame. A length enters
+linearly along its link, so its column is the link's unit vector: $-R_xR_y(\hat q_2+\delta_2)\,e_z$ for $l_1$ and
+$-R_xR_y(\hat q_2+\delta_2)R_y(\hat q_3+\delta_3)\,e_z$ for $l_2$.</p>
+<p>How well the data determine the parameters follows from the same Jacobian. With independent noise of standard deviation $\sigma$
+on every coordinate, the linearised estimate has covariance</p>
+<p>$$\Sigma = \sigma^2 (J^\top J)^{-1},\qquad \text{NEES} = e^\top \Sigma^{-1} e \sim \chi^2_5,\quad \mathbb E[\text{NEES}] = 5 ,$$</p>
+<p>for the estimation error $e$. If the poses barely move a joint, the columns of $J$ for that joint's offset and the neighbouring
+length become nearly parallel, $J^\top J$ becomes ill-conditioned and $\Sigma$ grows; damping in LM makes the step finite but does not
+add information.</p>
+<p>The parameterisation has a second global minimum. Turning the thigh offset by $\pi$ and negating $l_1$ gives the same knee position,
+$R_y(a+\pi)(0,0,l_1)^\top = R_y(a)(0,0,-l_1)^\top$. The calf frame has then also turned by $\pi$, and with $l_2$ negated the calf
+vector becomes $R_y(\beta')\,R_y(\pi)(f_x, 0, l_2)^\top = R_y(\beta')(-f_x, 0, -l_2)^\top$, where $\beta' = \hat q_3 + \delta_3'$.
+It equals the original $R_y(\beta)(f_x, 0, -l_2)^\top$ when $R_y(\beta' - \beta)$ maps $(-f_x, -l_2)$ onto $(f_x, -l_2)$ in the
+x-z plane, a small angle:</p>
+<p>$$\delta_3' - \delta_3 = -2\arctan(f_x / l_2) = +1.08° \quad (f_x = -0.002\ \text{m},\ l_2 = 0.213\ \text{m}).$$</p>
+<p>The worked end state in Failure analysis shows this shift, $\delta_3$ = 3.87° to 4.94°. Every pose fits identically, so the
+solvers cannot prefer one branch; only the constraint $l_1, l_2 &gt; 0$ can.</p>
+<h2 id="implementation">Implementation</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>File</th>
+<th>Function</th>
+<th>Equation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>rotations.py</code></td>
+<td><code>skew</code>, <code>Rx/Ry/Rz</code>, <code>exp_so3</code>, <code>log_so3</code>, <code>R_to_quat</code> (Shepperd), <code>rpy_to_R</code>, <code>R_to_rpy</code> (gimbal-lock branch), <code>rpy_rates</code>, <code>se2_compose</code>, <code>se2_inverse</code>, <code>se3</code>, <code>se3_inverse</code>, <code>R_LINK_OPTICAL</code></td>
+<td>fundamental and intermediate sections. Rodrigues and quaternion to matrix are <code>axis_angle_R</code> and <code>quat_to_R</code> in <code>../common.py</code></td>
+</tr>
+<tr>
+<td><code>lie.py</code></td>
+<td><code>jr_so3</code>, <code>jl_so3</code>, <code>jr_inv_so3</code>, <code>jl_inv_so3</code></td>
+<td>right/left Jacobians and inverses, series below $10^{-5}$ rad</td>
+</tr>
+<tr>
+<td><code>lie.py</code></td>
+<td><code>se2_exp</code>, <code>se2_log</code>, <code>se2_plus</code></td>
+<td>SE(2) Exp/Log with $V(\varphi)$, the right retraction $T\,\mathrm{Exp}(h)$</td>
+</tr>
+<tr>
+<td><code>optim.py</code></td>
+<td><code>gauss_newton</code>, <code>levenberg_marquardt</code></td>
+<td>normal equations; damped step, gain ratio and Nielsen's update. Both take <code>fun(x) -&gt; (r, J)</code> and <code>plus(x, h)</code>, so one implementation serves vectors and SE(2)</td>
+</tr>
+<tr>
+<td><code>optim.py</code></td>
+<td><code>registration_problem</code>, <code>registration_closed_form</code>, <code>cauchy_weights</code></td>
+<td>$J_i = [R,\ RJ_2p_i]$; 2-D Procrustes; IRLS weights</td>
+</tr>
+<tr>
+<td><code>optim.py</code></td>
+<td><code>leg_fk</code>, <code>calibration_problem</code></td>
+<td>calibration model and its analytic Jacobian, vectorised over poses</td>
+</tr>
+<tr>
+<td><code>validate.py</code></td>
+<td>experiment, figures, videos, <code>ACCEPT</code> thresholds</td>
+<td></td>
+</tr>
+<tr>
+<td><code>test_rotations.py</code>, <code>test_lie.py</code>, <code>test_optim.py</code></td>
+<td>31 regression tests</td>
+<td>assert the <code>ACCEPT</code> thresholds through <code>thr(...)</code> / <code>ACCEPT[...]</code>, with three exceptions: the two missed Pinocchio rows are asserted only above 0.01 rad, where they hold (Failure analysis); the missed iteration row is asserted as "−145° is the only start over 10 iterations" on the same 5° grid; the MP4 size is checked by <code>validate.py</code> only. The five calibration Monte Carlo and basin rows rerun <code>validate.calibration()</code> itself, same seeds and sample sizes (about 5 s)</td>
+</tr>
+</tbody>
+</table></div>
+<p>Design choices:</p>
+<ul>
+<li>Gauss-Newton solves the normal equations with <code>np.linalg.solve</code> and has no line search, so its failure modes stay visible.
+  LM uses identity damping, not Marquardt's $\mu\,\mathrm{diag}(J^\top J)$; the calibration mixes radians and metres, and the
+  measured iteration counts below show identity damping was enough here.</li>
+<li>Nothing in <code>lie.py</code> or <code>optim.py</code> calls scipy, Pinocchio or MuJoCo. MuJoCo appears only in <code>validate.py</code>, as the "motion capture"
+  (<code>mj_kinematics</code>, then the foot geom position) and as the source of the true link lengths.</li>
+<li>The solvers record every accepted iterate (<code>xs</code>, <code>cost</code>), which the convergence plots and the registration video use.</li>
+</ul>
+<h2 id="experiment">Experiment</h2>
+<pre><code class="language-bash">DISPLAY=:1 .venv-modules/bin/python modules/m00_math/validate.py    # 161 s on this machine (load average ~60 on 32 cores)
+.venv-modules/bin/python -m pytest -q modules/m00_math
+</code></pre>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Part</th>
+<th>Inputs</th>
+<th>Seed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>rotations vs scipy and Pinocchio</td>
+<td>100 000 rotations uniform on SO(3), scipy <code>Rotation.random</code></td>
+<td>0</td>
+</tr>
+<tr>
+<td>SO(3) Jacobians vs finite differences and Pinocchio</td>
+<td>20 000 rotation vectors, direction uniform, $\lVert w\rVert$ uniform in $[0, \pi - 10^{-3}]$; central differences, step $10^{-6}$</td>
+<td>1</td>
+</tr>
+<tr>
+<td>small-angle diagnostic</td>
+<td>2 000 rotation vectors, $\lVert w\rVert$ log-spaced in $[10^{-4}, 10^{-2}]$, against the 11-term Taylor series</td>
+<td>1</td>
+</tr>
+<tr>
+<td>SE(2) registration</td>
+<td>68 points on the walls of a 4 m × 3 m room and a 0.6 m box; true pose $(0.4\ \text{m}, -0.25\ \text{m}, 35°)$; noise σ = 1 cm per coordinate; initial guess at the origin with heading 170° and, for the basin, every heading on a 5° grid</td>
+<td>2</td>
+</tr>
+<tr>
+<td>registration with outliers</td>
+<td>same scene, 20 % of the map points replaced by uniform points in $[-2.5, 2.5]^2$ m; Cauchy $c = 5$ cm</td>
+<td>3</td>
+</tr>
+<tr>
+<td>leg calibration</td>
+<td>40 poses uniform over the FL joint limits; true offsets $\delta = (2°, -3°, 4°)$; true lengths 0.213 m (MJCF); motion-capture noise σ = 1 mm per coordinate; initial guess $\delta = 0$, $l_1 = l_2 = 0.20$ m</td>
+<td>4</td>
+</tr>
+<tr>
+<td>calibration Monte Carlo</td>
+<td>the same 40 poses, 200 new noise draws, Gauss-Newton from the initial guess</td>
+<td>4</td>
+</tr>
+<tr>
+<td>calibration basin</td>
+<td>60 starts per offset magnitude $a$: offsets uniform in $\pm a$ around the truth, lengths ±3 cm</td>
+<td>4</td>
+</tr>
+<tr>
+<td>calibration excitation</td>
+<td>40 poses within $\pm r$ of the standing pose $(0, 0.9, -1.8)$ rad, clipped to the limits, 30 noise draws each</td>
+<td>5</td>
+</tr>
+</tbody>
+</table></div>
+<p>scipy <code>least_squares(method='lm')</code> (MINPACK) gets the same residuals and analytic Jacobians with <code>xtol = ftol = gtol = 1e-15</code>. For
+registration it works on the plain vector $(x, y, \theta)$, so it gets the Jacobian with respect to that vector.</p>
+<h2 id="validation">Validation</h2>
+<h3 id="fundamental-and-intermediate-levels">Fundamental and intermediate levels</h3>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Measured max error</th>
+<th>Acceptance</th>
+<th><code>results.json</code> key</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>quat_to_R</code> vs scipy</td>
+<td>6.7e-16</td>
+<td>&lt; 1e-14</td>
+<td><code>max_error.quat_to_R_vs_scipy</code></td>
+</tr>
+<tr>
+<td><code>R_to_quat</code> vs scipy (sign fixed to w ≥ 0)</td>
+<td>1.7e-16</td>
+<td>&lt; 1e-14</td>
+<td><code>max_error.R_to_quat_vs_scipy</code></td>
+</tr>
+<tr>
+<td><code>rpy_to_R</code> vs Pinocchio <code>rpy.rpyToMatrix</code></td>
+<td>1.2e-15</td>
+<td>&lt; 1e-14</td>
+<td><code>max_error.rpy_to_R_vs_pinocchio</code></td>
+</tr>
+<tr>
+<td><code>R_to_rpy</code> vs Pinocchio <code>rpy.matrixToRpy</code></td>
+<td>7.7e-15</td>
+<td>&lt; 1e-10</td>
+<td><code>max_error.R_to_rpy_vs_pinocchio</code></td>
+</tr>
+<tr>
+<td><code>exp_so3</code> vs Pinocchio <code>exp3</code></td>
+<td>8.9e-16</td>
+<td>&lt; 1e-14</td>
+<td><code>max_error.exp_vs_pinocchio</code></td>
+</tr>
+<tr>
+<td><code>log_so3</code> vs scipy <code>as_rotvec</code></td>
+<td>1.3e-15</td>
+<td>&lt; 1e-9</td>
+<td><code>max_error.log_vs_scipy</code></td>
+</tr>
+<tr>
+<td><code>log_so3</code> vs Pinocchio <code>log3</code></td>
+<td>5.7e-11</td>
+<td>&lt; 1e-9</td>
+<td><code>max_error.log_vs_pinocchio</code></td>
+</tr>
+<tr>
+<td><code>se3_inverse</code> vs Pinocchio <code>SE3.inverse</code></td>
+<td>0</td>
+<td>&lt; 1e-14</td>
+<td><code>max_error.se3_inverse_vs_pinocchio</code></td>
+</tr>
+<tr>
+<td><code>rpy_rates</code> vs Pinocchio <code>rpy.computeRpyJacobian</code> (LOCAL), |pitch| &lt; 1.5 rad</td>
+<td>2.7e-15</td>
+<td>&lt; 1e-12</td>
+<td><code>max_error.rpy_rates_vs_pinocchio</code></td>
+</tr>
+<tr>
+<td>Gimbal lock, pitch ±π/2: $\psi$ returned as 0 and <code>rpy_to_R(R_to_rpy(R))</code> vs R, 1000 matrices per sign, seed 6</td>
+<td>3.3e-16</td>
+<td>&lt; 1e-12</td>
+<td><code>max_error.gimbal_lock_rpy_roundtrip</code></td>
+</tr>
+<tr>
+<td><code>R_LINK_OPTICAL</code> vs Pinocchio <code>rpy.rpyToMatrix(-π/2, 0, -π/2)</code></td>
+<td>1.6e-16</td>
+<td>&lt; 1e-15</td>
+<td><code>max_error.R_link_optical_vs_pinocchio</code></td>
+</tr>
+</tbody>
+</table></div>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Yaw lost per turn integrating $\omega_z$ only</th>
+<th>Predicted $1 - c_\phi c_\theta$</th>
+<th>Integrated (1 ms steps)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>roll 1.0°</td>
+<td>0.055°</td>
+<td>0.055°</td>
+</tr>
+<tr>
+<td>roll 2.1°</td>
+<td>0.242°</td>
+<td>0.242°</td>
+</tr>
+<tr>
+<td>roll 3.6°</td>
+<td>0.710°</td>
+<td>0.710°</td>
+</tr>
+<tr>
+<td>roll 3.6°, pitch 2.0°</td>
+<td>0.929°</td>
+<td>0.929°</td>
+</tr>
+<tr>
+<td>roll 10°</td>
+<td>5.469°</td>
+<td>5.469°</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="advanced-level_1">Advanced level</h3>
+<p>Thresholds are in <code>validate.ACCEPT</code> and were fixed before the first full run; <code>results.json</code> → <code>checks</code> holds each row with its
+measured value and verdict. Missed rows stay in the table. 29 of the 32 rows pass; the misses are <code>jr_vs_pinocchio_Jexp3</code>,
+<code>jr_inv_vs_pinocchio_Jlog3</code> and <code>registration_gn_max_iters</code>, so the module status is <code>partial</code>.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Measured</th>
+<th>Acceptance</th>
+<th>Reference</th>
+<th>Verdict</th>
+<th><code>results.json</code> key</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>$J_r$ vs central differences of $\mathrm{Log}(\mathrm{Exp}(w)^\top\mathrm{Exp}(w+\delta))$, max abs</td>
+<td>5e-10</td>
+<td>&lt; 1e-08</td>
+<td>finite differences</td>
+<td>pass</td>
+<td><code>checks.jr_vs_fd</code></td>
+</tr>
+<tr>
+<td>$J_l$ vs central differences of $\mathrm{Log}(\mathrm{Exp}(w+\delta)\mathrm{Exp}(w)^\top)$, max abs</td>
+<td>5e-10</td>
+<td>&lt; 1e-08</td>
+<td>finite differences</td>
+<td>pass</td>
+<td><code>checks.jl_vs_fd</code></td>
+</tr>
+<tr>
+<td>$J_r^{-1}$ vs central differences of $\mathrm{Log}(\mathrm{Exp}(w)\mathrm{Exp}(\delta))$, max abs</td>
+<td>6.5e-10</td>
+<td>&lt; 1e-07</td>
+<td>finite differences</td>
+<td>pass</td>
+<td><code>checks.jr_inv_vs_fd</code></td>
+</tr>
+<tr>
+<td>$J_r^{-1}J_r - I$, max abs</td>
+<td>6.1e-16</td>
+<td>&lt; 1e-12</td>
+<td>identity</td>
+<td>pass</td>
+<td><code>checks.jr_inv_times_jr_minus_I</code></td>
+</tr>
+<tr>
+<td>$J_l - RJ_r$, max abs</td>
+<td>9.6e-16</td>
+<td>&lt; 1e-14</td>
+<td>identity</td>
+<td>pass</td>
+<td><code>checks.jl_equals_R_jr</code></td>
+</tr>
+<tr>
+<td>$J_r$ vs Pinocchio <code>Jexp3</code>, max abs</td>
+<td>5.2e-14</td>
+<td>&lt; 1e-14</td>
+<td>Pinocchio</td>
+<td><strong>missed</strong></td>
+<td><code>checks.jr_vs_pinocchio_Jexp3</code></td>
+</tr>
+<tr>
+<td>$J_r^{-1}$ vs Pinocchio <code>Jlog3</code>, max abs</td>
+<td>3.8e-10</td>
+<td>&lt; 1e-10</td>
+<td>Pinocchio</td>
+<td><strong>missed</strong></td>
+<td><code>checks.jr_inv_vs_pinocchio_Jlog3</code></td>
+</tr>
+<tr>
+<td>jump of $J_r$, $J_r^{-1}$ across the series switch at $10^{-5}$ rad</td>
+<td>8.7e-15</td>
+<td>&lt; 1e-14</td>
+<td>continuity</td>
+<td>pass</td>
+<td><code>checks.jacobian_jump_at_series_switch</code></td>
+</tr>
+<tr>
+<td>log-log slope of the first-order error with $J_r$, $\epsilon \le 10^{-2}$</td>
+<td>2</td>
+<td>1.9 to 2.1</td>
+<td>theory: 2</td>
+<td>pass</td>
+<td><code>checks.first_order_slope_with_jr</code></td>
+</tr>
+<tr>
+<td>same slope with $J_r$ replaced by $I$</td>
+<td>1</td>
+<td>0.9 to 1.1</td>
+<td>theory: 1</td>
+<td>pass</td>
+<td><code>checks.first_order_slope_without_jr</code></td>
+</tr>
+<tr>
+<td>SE(2) $\mathrm{Exp}(\mathrm{Log}(T)) - T$, 1000 poses, max abs</td>
+<td>8.9e-16</td>
+<td>&lt; 1e-14</td>
+<td>identity</td>
+<td>pass</td>
+<td><code>checks.se2_exp_log_roundtrip</code></td>
+</tr>
+<tr>
+<td>registration Jacobian vs central differences through <code>se2_plus</code>, max abs</td>
+<td>1.5e-10</td>
+<td>&lt; 1e-08</td>
+<td>finite differences</td>
+<td>pass</td>
+<td><code>checks.registration_jacobian_vs_fd</code></td>
+</tr>
+<tr>
+<td>Gauss-Newton pose vs closed form, from 170° [m or rad]</td>
+<td>9.3e-15</td>
+<td>&lt; 1e-09</td>
+<td>closed form</td>
+<td>pass</td>
+<td><code>checks.registration_gn_vs_closed_form</code></td>
+</tr>
+<tr>
+<td>LM pose vs closed form, from 170°</td>
+<td>5.9e-12</td>
+<td>&lt; 1e-09</td>
+<td>closed form</td>
+<td>pass</td>
+<td><code>checks.registration_lm_vs_closed_form</code></td>
+</tr>
+<tr>
+<td>scipy <code>least_squares('lm')</code> pose vs closed form</td>
+<td>1.2e-11</td>
+<td>&lt; 1e-09</td>
+<td>closed form</td>
+<td>pass</td>
+<td><code>checks.registration_scipy_vs_closed_form</code></td>
+</tr>
+<tr>
+<td>Gauss-Newton starts reaching the closed form (72 headings, 5° grid), fraction</td>
+<td>1</td>
+<td>&gt;= 1</td>
+<td>closed form</td>
+<td>pass</td>
+<td><code>checks.registration_gn_success_all_angles</code></td>
+</tr>
+<tr>
+<td>LM starts reaching the closed form, fraction</td>
+<td>1</td>
+<td>&gt;= 1</td>
+<td>closed form</td>
+<td>pass</td>
+<td><code>checks.registration_lm_success_all_angles</code></td>
+</tr>
+<tr>
+<td>Gauss-Newton iterations, worst of the 72 headings</td>
+<td>17</td>
+<td>&lt;= 10</td>
+<td>count</td>
+<td><strong>missed</strong></td>
+<td><code>checks.registration_gn_max_iters</code></td>
+</tr>
+<tr>
+<td>Cauchy IRLS heading error with 20 % outliers [deg]</td>
+<td>0.0458</td>
+<td>&lt; 0.5</td>
+<td>truth</td>
+<td>pass</td>
+<td><code>checks.registration_cauchy_20pct_outliers_rot_err_deg</code></td>
+</tr>
+<tr>
+<td>Cauchy IRLS translation error with 20 % outliers [m]</td>
+<td>0.0011</td>
+<td>&lt; 0.02</td>
+<td>truth</td>
+<td>pass</td>
+<td><code>checks.registration_cauchy_20pct_outliers_trans_err_m</code></td>
+</tr>
+<tr>
+<td><code>leg_fk</code> at the MJCF lengths vs MuJoCo foot geom, 2000 poses, max [m]</td>
+<td>2.2e-16</td>
+<td>&lt; 1e-12</td>
+<td>MuJoCo</td>
+<td>pass</td>
+<td><code>checks.calib_fk_vs_mujoco_m</code></td>
+</tr>
+<tr>
+<td>calibration Jacobian vs central differences, max abs</td>
+<td>5e-11</td>
+<td>&lt; 1e-08</td>
+<td>finite differences</td>
+<td>pass</td>
+<td><code>checks.calib_jacobian_vs_fd</code></td>
+</tr>
+<tr>
+<td>Gauss-Newton parameters vs scipy, max abs</td>
+<td>4e-12</td>
+<td>&lt; 1e-08</td>
+<td>scipy</td>
+<td>pass</td>
+<td><code>checks.calib_gn_vs_scipy</code></td>
+</tr>
+<tr>
+<td>LM parameters vs scipy, max abs</td>
+<td>3.4e-11</td>
+<td>&lt; 1e-08</td>
+<td>scipy</td>
+<td>pass</td>
+<td><code>checks.calib_lm_vs_scipy</code></td>
+</tr>
+<tr>
+<td>final cost vs scipy, relative</td>
+<td>3.6e-15</td>
+<td>&lt; 1e-10</td>
+<td>scipy</td>
+<td>pass</td>
+<td><code>checks.calib_cost_rel_diff_vs_scipy</code></td>
+</tr>
+<tr>
+<td>largest parameter error vs MJCF truth, in predicted σ</td>
+<td>2.38</td>
+<td>&lt; 3</td>
+<td>MuJoCo truth</td>
+<td>pass</td>
+<td><code>checks.calib_max_err_in_sd</code></td>
+</tr>
+<tr>
+<td>mean NEES over 200 noise draws ($\chi^2_5$: 5)</td>
+<td>4.64</td>
+<td>4.5 to 5.5</td>
+<td>statistics</td>
+<td>pass</td>
+<td><code>checks.calib_mean_nees</code></td>
+</tr>
+<tr>
+<td>LM starts reaching scipy's solution, offsets ±0.5 rad, fraction</td>
+<td>1</td>
+<td>&gt;= 1</td>
+<td>scipy</td>
+<td>pass</td>
+<td><code>checks.calib_lm_success_at_0p5rad</code></td>
+</tr>
+<tr>
+<td>Gauss-Newton starts reaching scipy's solution, offsets ±0.5 rad, fraction</td>
+<td>1</td>
+<td>&gt;= 1</td>
+<td>scipy</td>
+<td>pass</td>
+<td><code>checks.calib_gn_success_at_0p5rad</code></td>
+</tr>
+<tr>
+<td>LM success ≥ Gauss-Newton success at every magnitude (1 = yes)</td>
+<td>1</td>
+<td>&gt;= 1</td>
+<td>count</td>
+<td>pass</td>
+<td><code>checks.calib_lm_not_worse_than_gn</code></td>
+</tr>
+<tr>
+<td>RMS error / predicted σ, worst parameter and pose spread (30 draws)</td>
+<td>1.43</td>
+<td>&lt; 1.5</td>
+<td>statistics</td>
+<td>pass</td>
+<td><code>checks.calib_rms_over_predicted_sd_max</code></td>
+</tr>
+<tr>
+<td>both MP4 files under 6 MB (1 = yes)</td>
+<td>1</td>
+<td>&gt;= 1</td>
+<td><code>ls</code></td>
+<td>pass</td>
+<td><code>checks.media_mp4_under_6MB</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>Extra measurements, no acceptance threshold:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Quantity</th>
+<th>Value</th>
+<th><code>results.json</code> key</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>our $J_r$ vs 11-term series, $\lVert w\rVert \in [10^{-4}, 10^{-2}]$</td>
+<td>2.2e-16</td>
+<td><code>advanced.so3_jacobians.small_angle_diagnostic</code></td>
+</tr>
+<tr>
+<td>Pinocchio <code>Jexp3</code> vs the same series</td>
+<td>4e-13</td>
+<td>same</td>
+</tr>
+<tr>
+<td>our $J_r^{-1}$ vs series</td>
+<td>3.3e-16</td>
+<td>same</td>
+</tr>
+<tr>
+<td>Pinocchio <code>Jlog3</code> vs series</td>
+<td>3e-09</td>
+<td>same</td>
+</tr>
+<tr>
+<td>Pinocchio <code>Jexp3</code> vs $J_r$, $\lVert w\rVert &gt; 10^{-2}$</td>
+<td>4.2e-15</td>
+<td>same</td>
+</tr>
+<tr>
+<td>Pinocchio <code>Jlog3</code> vs $J_r^{-1}$, $\lVert w\rVert &gt; 10^{-2}$</td>
+<td>2.2e-11</td>
+<td>same</td>
+</tr>
+<tr>
+<td>angle of the worst <code>Jexp3</code> / <code>Jlog3</code> disagreement [rad]</td>
+<td>0.00078 / 0.0004</td>
+<td><code>advanced.so3_jacobians</code></td>
+</tr>
+<tr>
+<td>bias-during-turn example: first-order error vs exact, with $J_r$ / without [rad]</td>
+<td>2.9e-05 / 0.0115</td>
+<td><code>bias_turn_example</code></td>
+</tr>
+<tr>
+<td>plain least squares, 20 % outliers: heading / translation error</td>
+<td>3.78° / 0.203 m</td>
+<td><code>registration_plain_20pct_*</code></td>
+</tr>
+<tr>
+<td>Cauchy IRLS iterations</td>
+<td>9</td>
+<td><code>registration_cauchy_iters</code></td>
+</tr>
+<tr>
+<td>LM iterations, worst heading</td>
+<td>17</td>
+<td><code>registration_lm_max_iters</code></td>
+</tr>
+<tr>
+<td>calibration: GN / LM iterations, scipy evaluations (nfev) / residual calls</td>
+<td>4 / 5 / 9 / 11</td>
+<td><code>calib_*_iters</code>, <code>calib_scipy_nfev</code>, <code>calib_scipy_residual_calls</code></td>
+</tr>
+<tr>
+<td>registration from 170°: scipy evaluations (nfev) / residual calls</td>
+<td>10 / 12</td>
+<td><code>registration_scipy_nfev_170deg</code>, <code>registration_scipy_residual_calls_170deg</code></td>
+</tr>
+<tr>
+<td>calibration basin, GN reaching scipy's solution at a = 1 / 1.5 / 2 / 3 rad</td>
+<td>92 % / 62 % / 57 % / 33 %</td>
+<td><code>calib_basin.gn</code></td>
+</tr>
+<tr>
+<td>same for LM</td>
+<td>100 % / 87 % / 82 % / 37 %</td>
+<td><code>calib_basin.lm</code></td>
+</tr>
+<tr>
+<td>GN / LM reaching either global minimum at a = 3 rad</td>
+<td>100 % / 100 %</td>
+<td><code>calib_basin.*_min_cost</code></td>
+</tr>
+<tr>
+<td>end states over all 540 starts, GN</td>
+<td>reference 405, mirrored 135</td>
+<td><code>calib_basin.gn_kinds</code></td>
+</tr>
+<tr>
+<td>end states, LM</td>
+<td>reference 451, mirrored 89</td>
+<td><code>calib_basin.lm_kinds</code></td>
+</tr>
+<tr>
+<td>predicted σ of $\delta_2$ at pose spread ±0.02 / ±1 rad</td>
+<td>3.84° / 0.083°</td>
+<td><code>calib_excitation.pred_sd</code></td>
+</tr>
+<tr>
+<td>condition number of $J^\top J$ at ±0.02 / ±1 rad</td>
+<td>5.07e+05 / 231</td>
+<td><code>calib_excitation.cond</code></td>
+</tr>
+</tbody>
+</table></div>
+<p><img loading="lazy" alt="First-order error of the SO(3) perturbation with and without the right Jacobian" src="figures/so3_jacobian_first_order.png" /></p>
+<p>Without $J_r$ the error falls as $\epsilon$ (fitted slope 1.000); with it, as $\epsilon^2$ (slope 2.000), down to
+$\epsilon = 10^{-5}$ rad.</p>
+<p><img loading="lazy" alt="SE(2) registration from a 170° heading error" src="figures/se2_registration.png" /></p>
+<p>Gauss-Newton takes 7 iterations from 170° (<code>registration_gn_iters_170deg</code>); LM accepts 7 steps out of 16 trials
+(<code>registration_lm_accepted_steps_170deg</code>, <code>registration_lm_iters_170deg</code>; Failure analysis). scipy reports 10 function
+evaluations (<code>registration_scipy_nfev_170deg</code>, MINPACK's count); the figure plots every residual call, 12 in all
+(<code>registration_scipy_residual_calls_170deg</code>), of which the first 3 are at the start point. The closed form is off the true pose by
+0.0016 m and 0.043°, which is the noise, not the solver.</p>
+<p><img loading="lazy" alt="Iterations against the initial heading" src="figures/se2_registration_basin.png" /></p>
+<p><a href="media/se2_gauss_newton.mp4">Video: Gauss-Newton iterates from 170°, each step drawn along the geodesic $T_k\,\mathrm{Exp}(s\,h_k)$, $s \in [0, 1]$</a>
+(149 kB, 9.7 s, 960×540, 20 fps, 194 frames; <code>ffprobe</code>)</p>
+<p><img loading="lazy" alt="Last frame of the registration video" src="media/se2_gauss_newton.png" /></p>
+<p><img loading="lazy" alt="Calibration convergence" src="figures/calibration_convergence.png" /></p>
+<p>From the nominal guess Gauss-Newton takes 4 iterations, LM 5, scipy 9 evaluations (<code>calib_scipy_nfev</code>; the figure plots all 11
+residual calls, <code>calib_scipy_residual_calls</code>). The RMS residual at the
+optimum is 1.030 mm against 1 mm noise per coordinate. The estimate is $\delta = $ (2.072°, -2.836°, 3.869°), $l_1$ = 213.06 mm, $l_2$ = 213.65 mm; errors against the truth 1.69σ, 2.23σ, 1.40σ, 0.22σ, 2.38σ.</p>
+<p>The basin of convergence and the pose-spread study are in Failure analysis.</p>
+<p><a href="media/calibration_poses.mp4">Video: the FL leg moving through 10 of the 40 calibration poses, base held 0.45 m above the floor</a>
+(639 kB, 9.9 s, 960×540, 30 fps, 297 frames; <code>ffprobe</code>)</p>
+<p><img loading="lazy" alt="Still from the calibration video" src="media/calibration_poses.png" /></p>
+<h2 id="failure-analysis">Failure analysis</h2>
+<p>Three rows of the advanced table are missed. Each is kept, with its cause below.</p>
+<h3 id="gauss-newton-needs-17-iterations-from-the-start-opposite-the-truth-row-registration_gn_max_iters-missed">Gauss-Newton needs 17 iterations from the start opposite the truth (row <code>registration_gn_max_iters</code>, missed)</h3>
+<p>Every one of the 72 headings converges to the closed form, but the start at −145° (truth 35° − 180°) takes 17 iterations against
+the threshold of 10. It is the peak in the basin figure above. The cost in heading is $\text{const} - A\cos(\theta - \theta^\ast)$, which
+has its maximum there, so the gradient and the step start near zero. The closed-form optimum is 35.04°, so the start sits 0.04° from
+the maximum. The Gauss-Newton headings from that start were −145.00°, −145.04°, −145.13°, −145.30°, −145.65°, −146.34°, −147.73°,
+−150.51°, −156.06°, −167.10°, then 171.29°, 131.63°, 74.67°, 38.10° and 35.04° (<code>registration_gn_headings_from_slowest_start_deg</code>,
+seed 2): the distance from the maximum roughly doubles each iteration, as the step
+$h \approx \epsilon$ in the Theory section predicts. It takes about $\log_2(\pi / 7\times10^{-4}) \approx 12$ doublings to get away,
+then about 5 quadratic iterations. LM behaves the same (17). A start from the closed form, or any other heading, avoids it.</p>
+<h3 id="lm-spends-trial-steps-after-it-has-converged">LM spends trial steps after it has converged</h3>
+<p>From 170°, LM made 16 trial steps and accepted 7 (<code>registration_lm_iters_170deg</code>, <code>registration_lm_accepted_steps_170deg</code>);
+Gauss-Newton needed 7. Trials 1 to 6 were accepted, and after the 6th the cost was at its minimum to 11 significant digits
+($F = 6.057\times10^{-3}$ m², <code>registration_lm_final_cost_170deg</code>) while the gradient was still above the absolute $10^{-10}$
+tolerance. Trials 7 to 12 changed $F$ by rounding noise only, so $\varrho \le 0$ and each was rejected; trial 13 was accepted with a
+2e-12 step that lowered $F$ by about 2e-18, which is rounding too. Trials 14 and 15 were rejected and the step of trial 16 fell
+below the step tolerance. Over these trials the damping grew from $3.1\times10^{-4}$ to $1.7\times10^{3}$
+(<code>registration_lm_mu_per_trial_170deg</code>). The spikes of the LM curve in the basin figure have this cause. The
+answer is unaffected (5.9e-12 from the closed form). A gradient tolerance relative to $F$ or a test on the relative cost change
+would remove the wasted evaluations; this module keeps the textbook stopping rules.</p>
+<h3 id="pinocchios-jexp3-and-jlog3-lose-digits-below-001-rad-rows-jr_vs_pinocchio_jexp3-jr_inv_vs_pinocchio_jlog3-missed">Pinocchio's <code>Jexp3</code> and <code>Jlog3</code> lose digits below 0.01 rad (rows <code>jr_vs_pinocchio_Jexp3</code>, <code>jr_inv_vs_pinocchio_Jlog3</code>, missed)</h3>
+<p>The worst disagreements, 5.2e-14 for $J_r$ and 3.8e-10 for $J_r^{-1}$, are at $\lVert w\rVert$ = 7.8e-4 rad and 4.0e-4 rad. To decide
+which side is wrong, the diagnostic compares both against the Taylor series summed to 11 terms, which is exact to rounding in this
+range: <code>lie.py</code> agrees with it to 2.2e-16 ($J_r$) and 3.3e-16 ($J_r^{-1}$), Pinocchio to 4.0e-13 and 3.0e-9. Above 0.01 rad the two
+agree to 4.2e-15 and 2.2e-11. The threshold assumed Pinocchio was accurate everywhere; it is not, so the row is missed as written,
+and the series check (<code>test_small_angles_match_taylor_series</code>) is the reference this module now relies on. Which formula Pinocchio
+uses below its own switch was not checked in its source.</p>
+<p>The same kind of cancellation hit <code>lie.py</code> during development. The first <code>jr_so3</code> used $(1-\cos\theta)/\theta^2$; just above the
+series switch at $10^{-5}$ rad, $J_r^{-1}J_r - I$ was 1.4e-12, because $1 - \cos\theta \approx 5\times10^{-11}$ keeps only about 6
+significant digits. Writing it as $2\sin^2(\theta/2)/\theta^2$ brought the error to 2.2e-16 at the same angles.</p>
+<h3 id="least-squares-with-wrong-correspondences">Least squares with wrong correspondences</h3>
+<p><img loading="lazy" alt="Registration with 20 % wrong correspondences" src="figures/se2_registration_outliers.png" /></p>
+<p>With 14 of the 68 map points replaced by random points, plain least squares ends 3.78° and 0.203 m from the true pose; the outliers
+pull the solution because their residuals enter squared. The Cauchy kernel (IRLS, $c$ = 5 cm, started from the least-squares
+answer) brings this to 0.046° and 1.1 mm, the same level as the outlier-free closed form (0.043°, 1.6 mm). The Cauchy cost is not
+convex; this run started 3.8° from the truth. Higher outlier fractions and worse starts were not measured.</p>
+<h3 id="calibration-a-second-global-minimum-and-poses-that-do-not-excite-the-joints">Calibration: a second global minimum, and poses that do not excite the joints</h3>
+<p><img loading="lazy" alt="Calibration basin and pose spread" src="figures/calibration_basin_and_excitation.png" /></p>
+<p>Left: from starts with joint offsets up to ±0.5 rad off, both solvers always reach scipy's solution. From ±3 rad only 33 % (GN) and
+37 % (LM) do. None of the other runs failed in the usual sense. All 540 GN runs and all 540 LM runs reached the minimum cost to
+1e-9 relative (dotted lines at 100 %). The ones counted as misses (135 GN, 89 LM) ended in the mirrored branch with negative link
+lengths, which fits every pose exactly as well (Theory). An example GN end state was
+$\delta = (2.07°, 177.16°, 4.94°)$, $l_1 = -0.213$ m, $l_2 = -0.214$ m. The data cannot reject this branch; the code would need
+$l_1, l_2 &gt; 0$ as a constraint (for example $l = e^s$), or a check that flips the solution back. Neither is implemented here.
+LM's damping keeps more starts in the reference branch than GN at every magnitude above 0.5 rad.</p>
+<p>Middle and right: when the 40 poses stay within ±0.02 rad of standing, the predicted standard deviation of $\delta_2$ is 3.84°, of
+$\delta_3$ 4.77°, of $l_1$ 14.3 mm, and the condition number of $J^\top J$ is 5.07e5. At ±1 rad they are 0.083°, 0.103°, 0.31 mm and
+231. The measured RMS errors over 30 noise draws follow the prediction (ratio 0.79 to 1.43 over all parameters and spreads), so the
+covariance $\sigma^2(J^\top J)^{-1}$ is a usable design tool: choose poses before collecting data. LM was used for this sweep; its
+damping changes nothing here, because the problem is a lack of information, not a bad step. The hip offset $\delta_1$ stays at
+about 0.034° at every spread; the hip abduction joint is observed through the lateral foot offset, which every pose contains.</p>
+<p>The single calibration run in the table ended 2.38σ off in $l_2$ (0.65 mm against σ = 0.27 mm). The 200-draw Monte Carlo gives a
+mean NEES of 4.64 against 5; the standard error of that mean is about $\sqrt{10/200} = 0.22$, so 4.64 is 1.6 standard errors low,
+not evidence of an inconsistent covariance. The calibration data are MuJoCo kinematics plus Gaussian noise. Marker placement on a
+real foot, backlash and link flexibility are not modelled.</p>
+<h3 id="fundamental-and-intermediate-levels_1">Fundamental and intermediate levels</h3>
+<p>The first <code>log_so3</code> computed $\theta = \arccos((\operatorname{tr}R - 1)/2)$. It failed the 1e-9 test with an error of 2.0e-9 at
+$\theta = 3.10$ rad: the derivative of arccos grows as $1/\sqrt{1-x^2}$ near $x = \pm1$, so rounding in the trace is amplified,
+and the axis was then divided by a small $\sin\theta$. Switching to $\operatorname{atan2}$ and to the symmetric-part axis above
+$\pi/2$ brought the error against scipy to 1.3e-15. Pinocchio's <code>log3</code> shows the same effect: its largest deviation from scipy,
+5.7e-11, is at $\theta = \pi - 3.7$ mrad, while below 3 rad it agrees to 4.6e-14.</p>
+<p><code>R_to_rpy</code> loses accuracy as $c_\theta \to 0$ before the gimbal-lock branch takes over at $c_\theta &lt; 10^{-9}$: $\phi$ and $\psi$ come
+from entries of size $c_\theta$ with absolute rounding of about 1e-16, so their error grows like $10^{-16}/c_\theta$. <code>rpy_rates</code>
+divides by $c_\theta$ and is undefined at $\pm\pi/2$; an estimator that can pitch that far must integrate the rotation (quaternion
+or SO(3)) and extract angles only for display.</p>
+<h2 id="references">References</h2>
+<ul>
+<li>K. M. Lynch and F. C. Park, <em>Modern Robotics: Mechanics, Planning, and Control</em>, Cambridge University Press, 2017, ch. 3
+  (rotations, exponential coordinates, SE(3)).</li>
+<li>J. Solà, J. Deray, D. Atchuthan, "A micro Lie theory for state estimation in robotics", arXiv:1812.01537, 2018: the $\oplus$
+  notation, right and left Jacobians, the SO(3) and SE(2) appendices.</li>
+<li>T. D. Barfoot, <em>State Estimation for Robotics</em>, Cambridge University Press, 2017, ch. 7 (matrix Lie groups, the SO(3) Jacobians
+  and their series).</li>
+<li>K. Madsen, H. B. Nielsen, O. Tingleff, <em>Methods for Non-Linear Least Squares Problems</em>, 2nd ed., IMM, Technical University of
+  Denmark, 2004, ch. 3 (Gauss-Newton, Levenberg-Marquardt, the gain ratio and the damping update used here).</li>
+<li>J. Nocedal and S. J. Wright, <em>Numerical Optimization</em>, 2nd ed., Springer, 2006, ch. 10 (nonlinear least squares).</li>
+<li>K. S. Arun, T. S. Huang, S. D. Blostein, "Least-squares fitting of two 3-D point sets", <em>IEEE TPAMI</em> 9(5), pp. 698-700, 1987:
+  the translation decoupled through the centroids ($t = \bar q - R\bar p$) and the rotation from the SVD of
+  $H = \sum_i a_i b_i^\top$, $R = VU^\top$, with the reflection case $\det R = -1$. Used for the centring step of the closed form;
+  the section numbers of the paper were not checked, only a secondary summary of its algorithm.</li>
+<li>S. Umeyama, "Least-squares estimation of transformation parameters between two point patterns", <em>IEEE TPAMI</em> 13(4), pp. 376-380,
+  1991, eqs. (38)-(41): covariance $\Sigma_{xy}$, the sign matrix $S$, $R = USV^\top$ and $t = \mu_y - R\mu_x$ (eq. numbers as
+  cited in Eigen's <code>Umeyama.h</code>, not checked against the paper). In the plane, $R = USV^\top$ reduces to the $\operatorname{atan2}$
+  form derived in Theory, which never returns a reflection.</li>
+<li>S. W. Shepperd, "Quaternion from rotation matrix", <em>Journal of Guidance and Control</em> 1(3), pp. 223-224, 1978, the whole
+  note (its internal numbering was not checked): pick the largest of $4w^2, 4v_x^2, 4v_y^2, 4v_z^2$ and divide the other entries by it, as in Theory.</li>
+<li>REP 103 (standard units and coordinate conventions) and REP 105 (coordinate frames), ROS Enhancement Proposals.</li>
+<li>SciPy <code>scipy.spatial.transform.Rotation</code> and <code>scipy.optimize.least_squares</code>; J. Carpentier et al., "The Pinocchio C++ library",
+  IEEE/SICE SII, 2019; MuJoCo Menagerie Unitree Go2 model.</li>
+</ul><p class="source">Source: <a href="https://github.com/Armanasq/go2-nav-sim/blob/main/modules/m00_math/README.md">modules/m00_math/README.md</a></p></article></div>
+</main>
+<footer class="site"><div class="wrap">Simulation only. Source and issues on <a href="https://github.com/Armanasq/go2-nav-sim">GitHub</a>.</div></footer>
+<script type="module" src="../../static/js/site.js"></script>
+</body>
+</html>

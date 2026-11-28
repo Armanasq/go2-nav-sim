@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Test the stack: a launch smoke test · go2-nav-sim</title>
+<meta name="description" content="Test the stack: a launch smoke test">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../../static/css/site.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5' fill='%230a6a9c'/%3E%3C/svg%3E">
+
+</head>
+<body data-root="../../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar"><div class="inner">
+<a class="brand" href="../../index.html">go2-nav-sim</a>
+<nav aria-label="Main"><a href="../../tutorial/00-overview.html" aria-current="page">Learn</a><a href="../../tasks/index.html">Tasks</a><a href="../../modules/index.html">Deep dives</a><a href="../../reference.html">Reference</a></nav>
+<button class="theme-toggle" type="button" aria-label="Colour theme: auto">auto</button>
+</div></header>
+<main id="main">
+<div class="wrap doc"><details class="side" open><summary>Test the stack</summary><nav aria-label="Contents"><ol class="parts"><li><a class="part" href="../../tutorial/00-overview.html">Start</a></li><li><a class="part" href="../../tutorial/05-frames-and-tf2.html">The robot</a></li><li><a class="part" href="../p02_teleop-and-safety/index.html">Move it</a></li><li><a class="part" href="../../tutorial/08-robot-and-sensors.html">Sense and avoid</a></li><li><a class="part" href="../../tutorial/09-state-estimation.html">Estimate and map</a></li><li><a class="part" href="../p11_command-arbitration/index.html">Navigate</a></li><li class="open"><p class="part">Beyond simulation</p><ol><li><a href="index.html" aria-current="page"><span class="n">P14</span><span>Test the stack</span></a><ul class="sections"><li><a href="#task-1-check-the-passfail-rules-without-ros">Task 1: Check the pass/fail rules without ROS</a></li><li><a href="#task-2-run-the-smoke-test-on-a-healthy-stack">Task 2: Run the smoke test on a healthy stack</a></li><li><a href="#task-3-break-the-stack-and-read-the-failure">Task 3: Break the stack and read the failure</a></li><li><a href="#task-4-run-it-under-colcon-test">Task 4: Run it under colcon test</a></li><li><a href="#how-the-code-works">How the code works</a></li><li><a href="#results">Results</a></li><li><a href="#exercise">Exercise</a></li><li><a href="#if-it-goes-wrong">If it goes wrong</a></li><li><a href="#further-reading">Further reading</a></li></ul></li><li><a href="../../tutorial/13-toward-the-real-go2.html"><span class="n">13</span><span>Toward the real Go2</span></a></li></ol></li></ol></nav></details><article class="prose"><p class="where">Beyond simulation · Project 14</p><h1>Test the stack: a launch smoke test</h1><div class="table-wrap"><table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Goal</td>
+<td>One test that starts the simulation headless, checks that the lidar scan, the IMU and the odometry arrive within a deadline at the rates the configuration asks for, and that <code>map</code> → <code>base_footprint</code> can be looked up. Run it with <code>launch_test</code> and under <code>colcon test</code>, then break the stack on purpose and read the failure.</td>
+</tr>
+<tr>
+<td>Time</td>
+<td>1.5 h</td>
+</tr>
+<tr>
+<td>Before you start</td>
+<td>The stack from <a href="../../tutorial/03-install-and-first-run.html">chapter 3</a> and the TF tree from <a href="../../tutorial/05-frames-and-tf2.html">chapter 5</a> (<code>map</code> → <code>odom</code> → <code>base_footprint</code>).</td>
+</tr>
+<tr>
+<td>You will learn</td>
+<td>how <code>launch_testing</code> works (a launch description that starts the system under test, <code>ReadyToTest</code>, and ordinary <code>unittest</code> test cases that run while it is up); why the rates are measured from message stamps (simulated time) and not from the wall clock; how to keep the pass/fail rules free of ROS so they can be unit-tested in milliseconds; what a failing smoke test prints, and how to go from that output to the missing launch file.</td>
+</tr>
+</tbody>
+</table></div>
+<p>Every terminal starts with:</p>
+<pre><code class="language-bash">cd go2-nav-sim
+source env.sh
+bash scripts/stop.sh        # the test starts its own Gazebo; a running stack in the same ROS domain would answer for it
+</code></pre>
+<p>The files:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>File</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>smoke.launch.py</code></td>
+<td>the launch test: starts sim, estimation and map_server + AMCL, then one test case</td>
+</tr>
+<tr>
+<td><code>smoke_checks.py</code></td>
+<td>the pass/fail rules (deadline, expected rates, tolerance), no ROS imports</td>
+</tr>
+<tr>
+<td><code>tests/test_smoke_checks.py</code></td>
+<td>unit tests of the rules</td>
+</tr>
+<tr>
+<td><code>plot.py</code></td>
+<td>the figure below, from <code>results/healthy.json</code> and <code>results/broken.json</code></td>
+</tr>
+<tr>
+<td><code>colcon_pkg/</code></td>
+<td>a package that registers the test with <code>colcon test</code> (Task 4)</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="task-1-check-the-passfail-rules-without-ros">Task 1: Check the pass/fail rules without ROS</h2>
+<h3 id="11-run-the-unit-tests">1.1 Run the unit tests</h3>
+<p>Objective: know the rules work before you trust a two-minute test built on them.</p>
+<pre><code class="language-bash">/usr/bin/python3 -m pytest -q projects/p14_test-the-stack/tests
+</code></pre>
+<pre><code>...                                                                      [100%]
+3 passed in 0.02s
+</code></pre>
+<p>Check: three tests pass, including <code>test_each_kind_of_failure_is_reported</code>.</p>
+<h3 id="12-read-the-rules">1.2 Read the rules</h3>
+<p>Objective: know where each expected number comes from.</p>
+<p>The rules in <code>smoke_checks.py</code>:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Expected</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/scan</code></td>
+<td>10 Hz ± 10 %</td>
+<td>lidar <code>update_rate</code> 10 in <code>urdf/sensors.xacro</code></td>
+</tr>
+<tr>
+<td><code>/imu/data</code></td>
+<td>100 Hz ± 10 %</td>
+<td>the Go2 description's IMU plugin; <a href="../p01_first-steps/index.html">project 1</a>, step 4, measured 98.6 Hz</td>
+</tr>
+<tr>
+<td><code>/odom</code></td>
+<td>50 Hz ± 10 %</td>
+<td><code>frequency: 50.0</code> in <code>config/ekf.yaml</code></td>
+</tr>
+<tr>
+<td>first message of each, and <code>map</code> → <code>base_footprint</code></td>
+<td>within 120 s of the start</td>
+<td><code>DEADLINE</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>Check: you can name the file each expected rate comes from.</p>
+<h2 id="task-2-run-the-smoke-test-on-a-healthy-stack">Task 2: Run the smoke test on a healthy stack</h2>
+<h3 id="21-run-it">2.1 Run it</h3>
+<p>Objective: one command that says whether the stack comes up.</p>
+<pre><code class="language-bash">launch_test projects/p14_test-the-stack/smoke.launch.py
+</code></pre>
+<p>The launch output of 14 processes scrolls past; the lines that matter:</p>
+<pre><code>test_sensors_odometry_and_tf (smoke.launch.TestStackComesUp) ... [INFO] [robot_state_publisher-1]: process started ...
+...
+smoke: topic          first msg (s)   rate (Hz)   expected (Hz)
+smoke: /scan                    4.5        10.0              10
+smoke: /imu/data                2.7        99.8             100
+smoke: /odom                    2.8        50.0              50
+smoke: map -&gt; base_footprint  5.4 s
+...
+ok
+----------------------------------------------------------------------
+Ran 1 test in 9.837s
+
+OK
+...
+Ran 0 tests in 0.000s
+
+OK
+</code></pre>
+<p>The second <code>Ran 0 tests</code> is the post-shutdown section, which this test does not use. <code>echo $?</code> after the command prints <code>0</code>.</p>
+<p>The chase camera for the 5.2 s of simulated time the test ran: the robot is spawned on A and stands. Nothing moves, and
+nothing has to; the test only checks that data flows.</p>
+<video controls muted playsinline src="media/smoke_healthy_chase.mp4"></video>
+
+<p>Check: <code>OK</code>, exit status 0, and <code>results/last_run.json</code> holds the numbers above.</p>
+<p>Common mistakes: running the test while <code>scripts/up.sh</code> is still up in the same terminal setup. Both use the same
+<code>ROS_DOMAIN_ID</code>, so the probe would read the old stack's topics and the test's own Gazebo would compete for the same
+<code>GAZEBO_MASTER_URI</code>. Stop the stack first.</p>
+<h3 id="22-find-how-much-margin-the-deadline-has">2.2 Find how much margin the deadline has</h3>
+<p>Objective: find the smallest <code>DEADLINE</code> that a healthy run still passes, without starting Gazebo again.</p>
+<p><code>check()</code> takes the measurements of one run, so you can replay a saved run against other deadlines. This uses healthy run 2
+(<code>results/healthy.json</code>) and rebuilds 5 s of stamps at each measured rate:</p>
+<pre><code class="language-bash">cd projects/p14_test-the-stack
+python3 - &lt;&lt;'EOF'
+import json, smoke_checks as sc
+r = json.load(open('results/healthy.json'))                         # healthy run 2
+ticks = lambda hz: [100 + i / hz for i in range(int(hz * 5) + 1)]   # 5 s of stamps at the measured rate
+stamps = {t: ticks(hz) for t, hz in r['rate_hz'].items()}
+print(f&quot;transform at {r['tf_s']:.2f} s&quot;)
+for d in (5.4, 5.5, 120):
+    print(d, sc.check(r['first_msg_s'], stamps, r['tf_s'], deadline=d))
+EOF
+cd ../..
+</code></pre>
+<pre><code>transform at 5.44 s
+5.4 ['map -&gt; base_footprint: no transform within 5 s']
+5.5 []
+120 []
+</code></pre>
+<p>The transform is the last item to arrive, and <code>check()</code> fails only when it arrives after the deadline (<code>tf_seen &gt; deadline</code>).
+Over the three healthy runs in Results the latest transform was run 1's, at 6.6 s, so any deadline below 6.6 s would have
+failed run 1. (The message prints the deadline rounded to whole seconds, hence "5 s".) Keep a margin for a cold start
+(Gazebo loading models from disk the first time) and for a loaded machine; 120 s costs nothing when the stack is healthy,
+because the test stops as soon as everything is in.</p>
+<p>Check: 5.4 fails on the transform only, 5.5 and 120 pass.</p>
+<h2 id="task-3-break-the-stack-and-read-the-failure">Task 3: Break the stack and read the failure</h2>
+<h3 id="31-leave-out-the-estimation-launch-file">3.1 Leave out the estimation launch file</h3>
+<p>Objective: see what a failure looks like, and check that the test catches it.</p>
+<p><code>estimation.launch.py</code> starts <code>pointcloud_to_laserscan</code> (<code>/scan</code>), the lidar odometry and the EKF (<code>/odom</code>, and the
+<code>odom</code> → <code>base_footprint</code> transform). The test has a launch argument to leave it out:</p>
+<pre><code class="language-bash">launch_test projects/p14_test-the-stack/smoke.launch.py estimation:=false
+echo $?
+</code></pre>
+<p>After 120 s:</p>
+<pre><code>FAIL
+======================================================================
+FAIL: test_sensors_odometry_and_tf (smoke.launch.TestStackComesUp)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File &quot;.../projects/p14_test-the-stack/smoke.launch.py&quot;, line 84, in test_sensors_odometry_and_tf
+    self.assertEqual(fails, [], 'smoke test failed:\n  ' + '\n  '.join(fails))
+AssertionError: Lists differ: ['/scan: no message within 120 s', '/odom:[73 chars]0 s'] != []
+...
+  /scan: no message within 120 s
+  /odom: no message within 120 s
+  map -&gt; base_footprint: no transform within 120 s
+----------------------------------------------------------------------
+Ran 1 test in 120.250s
+
+FAILED (failures=1)
+smoke: topic          first msg (s)   rate (Hz)   expected (Hz)
+smoke: /scan          never         0.0              10
+smoke: /imu/data                3.7        99.7             100
+smoke: /odom          never         0.0              50
+smoke: map -&gt; base_footprint  never
+</code></pre>
+<p>and <code>echo $?</code> prints <code>1</code>.</p>
+<p>Check: exit status 1, and the three failure lines name <code>/scan</code>, <code>/odom</code> and the transform, not <code>/imu/data</code>.</p>
+<h3 id="32-read-the-failure-from-the-bottom">3.2 Read the failure from the bottom</h3>
+<p>Objective: get from the failure lines to the launch file that did not run.</p>
+<p>The IMU works, so Gazebo and the robot are up. <code>/scan</code> and <code>/odom</code> never came, and the transform failed because <code>odom</code> →
+<code>base_footprint</code> comes from the EKF, which also did not run. Three failures with one cause: the estimation launch file. The
+test cannot tell you that directly; the pattern of what came and what did not points to it.</p>
+<p><img loading="lazy" alt="Time to first message, healthy run and run without estimation" src="figures/first_message.png" /></p>
+<p>Check: you can say which of the three failures would remain if only the EKF were missing (<code>/odom</code> and the transform;
+<code>/scan</code> comes from <code>pointcloud_to_laserscan</code>).</p>
+<h3 id="33-make-a-rate-check-fail">3.3 Make a rate check fail</h3>
+<p>Objective: see the second kind of failure, a topic that arrives at the wrong rate.</p>
+<p>Replay the same healthy run with <code>/odom</code> expected at 100 Hz instead of 50 Hz:</p>
+<pre><code class="language-bash">cd projects/p14_test-the-stack
+python3 - &lt;&lt;'EOF'
+import json, smoke_checks as sc
+r = json.load(open('results/healthy.json'))
+ticks = lambda hz: [100 + i / hz for i in range(int(hz * 5) + 1)]
+stamps = {t: ticks(hz) for t, hz in r['rate_hz'].items()}
+print(sc.check(r['first_msg_s'], stamps, r['tf_s'], expected={**sc.EXPECTED, '/odom': 100.0}))
+EOF
+cd ../..
+</code></pre>
+<pre><code>['/odom: 50.0 Hz, expected 100 Hz +- 10%']
+</code></pre>
+<p>Changing <code>EXPECTED['/odom']</code> in <code>smoke_checks.py</code> to 100.0 and running <code>launch_test</code> gives this line in the assertion
+message, and the other checks pass. The unit test <code>test_each_kind_of_failure_is_reported</code> shows the same format for the IMU.</p>
+<p>Check: one failure, on <code>/odom</code> only.</p>
+<h2 id="task-4-run-it-under-colcon-test">Task 4: Run it under colcon test</h2>
+<h3 id="41-register-the-test-in-a-package">4.1 Register the test in a package</h3>
+<p>Objective: make the smoke test part of the normal test command of a ROS 2 workspace.</p>
+<p><code>colcon test</code> runs tests that a package registers in its <code>CMakeLists.txt</code>. The course's own package is shared, so this
+project ships a small package in <code>colcon_pkg/</code> (a <code>package.xml</code> and the <code>CMakeLists.txt</code> below) that points at the test
+file. It contains a <code>COLCON_IGNORE</code> file so that the course's own <code>colcon build</code> skips it; copy it into a workspace of
+your own and remove that file there:</p>
+<pre><code class="language-cmake">cmake_minimum_required(VERSION 3.8)
+project(p14_smoke)
+find_package(ament_cmake REQUIRED)
+if(NOT DEFINED ENV{SMOKE_TEST})
+  message(FATAL_ERROR &quot;set SMOKE_TEST to the absolute path of projects/p14_test-the-stack/smoke.launch.py&quot;)
+endif()
+if(BUILD_TESTING)
+  find_package(launch_testing_ament_cmake REQUIRED)
+  add_launch_test($ENV{SMOKE_TEST} TIMEOUT 300)
+  add_launch_test($ENV{SMOKE_TEST} TARGET smoke_no_estimation ARGS &quot;estimation:=false&quot; TIMEOUT 300)
+endif()
+ament_package()
+</code></pre>
+<p>The second <code>add_launch_test</code> registers the broken run of Task 3 as its own test, <code>smoke_no_estimation</code>, by passing the
+launch argument with <code>ARGS</code>. It is there so you can see a failure in <code>colcon test</code>; it is meant to fail.</p>
+<p>Check: two <code>add_launch_test</code> lines, the second with <code>ARGS "estimation:=false"</code>.</p>
+<h3 id="42-build-and-test-the-package">4.2 Build and test the package</h3>
+<p>Objective: one healthy test that passes and one broken test that fails, both under <code>colcon test</code>.</p>
+<p>From a terminal where <code>env.sh</code> is sourced, in the <code>go2-nav-sim</code> folder:</p>
+<pre><code class="language-bash">mkdir -p ~/p14_ws/src &amp;&amp; cp -r projects/p14_test-the-stack/colcon_pkg ~/p14_ws/src/p14_smoke &amp;&amp; rm ~/p14_ws/src/p14_smoke/COLCON_IGNORE
+export SMOKE_TEST=$PWD/projects/p14_test-the-stack/smoke.launch.py
+cd ~/p14_ws
+colcon build --packages-select p14_smoke
+colcon test --packages-select p14_smoke --event-handlers console_direct-
+colcon test-result --all
+</code></pre>
+<pre><code>Finished &lt;&lt;&lt; p14_smoke [2min 20s]   [ with test failures ]
+
+Summary: 1 package finished [2min 20s]
+  1 package had stderr output: p14_smoke
+  1 package had test failures: p14_smoke
+</code></pre>
+<pre><code>.../build/p14_smoke/Testing/20261128-0658/Test.xml: 2 tests, 0 errors, 1 failure, 0 skipped
+.../build/p14_smoke/test_results/p14_smoke/..._smoke.launch.py.xunit.xml: 1 test, 0 errors, 0 failures, 0 skipped
+.../build/p14_smoke/test_results/p14_smoke/smoke_no_estimation.xunit.xml: 1 test, 0 errors, 1 failure, 0 skipped
+
+Summary: 4 tests, 0 errors, 2 failures, 0 skipped
+</code></pre>
+<p>Each launch test is counted twice, once by CTest (<code>Test.xml</code>) and once by launch_testing (<code>*.xunit.xml</code>), so two tests
+show up as four. With only the first <code>add_launch_test</code> line, the same commands gave <code>Finished &lt;&lt;&lt; p14_smoke [14.9s]</code> and
+<code>Summary: 2 tests, 0 errors, 0 failures, 0 skipped</code>. CTest ran the two tests one after the other (14.9 s + about 120 s),
+so the two Gazebo instances did not overlap.</p>
+<p>Check: the healthy test passes and <code>smoke_no_estimation</code> fails. Delete the second <code>add_launch_test</code> line once you have
+seen it, so that a failure in <code>colcon test</code> again means the stack is broken.</p>
+<p>Common mistakes: building without <code>SMOKE_TEST</code> set. CMake then stops with <code>set SMOKE_TEST to the absolute path of ...</code>;
+without that check, <code>add_launch_test</code> got an empty path and failed with <code>Can't find launch test file "TIMEOUT"</code>.</p>
+<h2 id="how-the-code-works">How the code works</h2>
+<p><strong>The launch description</strong> (<code>generate_test_description</code>) is a normal launch file with two additions: the
+<code>@pytest.mark.launch_test</code> decorator, and <code>launch_testing.actions.ReadyToTest()</code> at the end, which tells the framework it
+may start the test cases. It includes <code>sim.launch.py</code> (headless by default), <code>estimation.launch.py</code>, and Nav2's
+<code>localization_launch.py</code> (map_server + AMCL only; planner and controller are not needed to check frames).</p>
+<pre><code class="language-python">include('go2_nav_sim', 'launch/estimation.launch.py', condition=IfCondition(LaunchConfiguration('estimation'))),
+include('nav2_bringup', 'launch/localization_launch.py',
+        {'map': ..., 'params_file': ..., 'use_sim_time': 'true', 'autostart': 'true', 'use_composition': 'False'}),
+launch_testing.actions.ReadyToTest(),
+</code></pre>
+<p>AMCL has <code>set_initial_pose: true</code> in <code>nav2_params.yaml</code>, so it publishes <code>map</code> → <code>odom</code> without anyone sending a pose.</p>
+<p><strong>The test case</strong> creates a node with <code>use_sim_time</code>, subscribes to the three topics with the sensor-data QoS, and keeps a
+<code>tf2_ros.Buffer</code>. It spins until either everything is in (every topic has 5 s of simulated time of messages, and the
+transform resolved once) or the deadline has passed with something still missing; a topic that started late gets 30 s more
+to measure its rate. Then it hands the measurements to <code>smoke_checks.check</code> and asserts that the list of failures is empty.
+Putting the failure strings in the assertion message is what makes the output in Task 3 readable.</p>
+<p><strong>Rates from stamps.</strong> For a topic with stamps <code>t_0 … t_n</code> (simulated seconds),</p>
+<pre><code>rate = n / (t_n − t_0)
+</code></pre>
+<p><code>n</code> intervals, not <code>n + 1</code> messages (the first unit test checks this). Gazebo ran below real time on this machine (<code>gz stats</code>
+showed a real-time factor of 0.82 at a load average of about 100 on 32 threads), so a wall-clock rate for a healthy IMU
+would have come out near 0.82 × 100 = 82 Hz and failed the ±10 % band. The stamps say how often the data was produced in the simulation, which is what the configuration sets.</p>
+<p><strong>Deadline from the wall clock.</strong> Arrival is measured in wall-clock seconds, because the question there is "did it start
+at all"; a sim that never starts has no simulated time to measure in.</p>
+<p><strong>Exit status.</strong> <code>launch_test</code> returns 0 only if every test case passed, so it can gate a script:
+<code>launch_test ... &amp;&amp; scripts/up.sh</code>.</p>
+<h2 id="results">Results</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Run</th>
+<th>Command</th>
+<th>Outcome</th>
+<th>Test time</th>
+<th>First <code>/imu/data</code></th>
+<th>First <code>/odom</code></th>
+<th>First <code>/scan</code></th>
+<th><code>map</code> → <code>base_footprint</code></th>
+<th>Rates (scan / IMU / odom)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>healthy 1</td>
+<td><code>launch_test …/smoke.launch.py</code></td>
+<td>OK</td>
+<td>11.4 s</td>
+<td>4.4 s</td>
+<td>4.4 s</td>
+<td>5.6 s</td>
+<td>6.6 s</td>
+<td>10.0 / 99.4 / 49.9 Hz</td>
+</tr>
+<tr>
+<td>healthy 2</td>
+<td>same</td>
+<td>OK</td>
+<td>9.8 s</td>
+<td>2.7 s</td>
+<td>2.8 s</td>
+<td>4.5 s</td>
+<td>5.4 s</td>
+<td>10.0 / 99.8 / 50.0 Hz</td>
+</tr>
+<tr>
+<td>healthy 3</td>
+<td><code>colcon test</code> (Task 4, one test)</td>
+<td>0 failures</td>
+<td>14.9 s (package)</td>
+<td>4.1 s</td>
+<td>4.1 s</td>
+<td>5.2 s</td>
+<td>6.3 s</td>
+<td>10.0 / 99.5 / 50.0 Hz</td>
+</tr>
+<tr>
+<td>broken 1</td>
+<td><code>… estimation:=false</code></td>
+<td>FAILED (3 failures)</td>
+<td>120.3 s</td>
+<td>4.7 s</td>
+<td>never</td>
+<td>never</td>
+<td>never</td>
+<td>0 / 99.6 / 0 Hz</td>
+</tr>
+<tr>
+<td>broken 2</td>
+<td>same</td>
+<td>FAILED (3 failures)</td>
+<td>120.3 s</td>
+<td>3.7 s</td>
+<td>never</td>
+<td>never</td>
+<td>never</td>
+<td>0 / 99.7 / 0 Hz</td>
+</tr>
+<tr>
+<td>broken 3</td>
+<td><code>colcon test</code>, <code>smoke_no_estimation</code></td>
+<td>1 failure</td>
+<td>about 120 s</td>
+<td>4.0 s</td>
+<td>never</td>
+<td>never</td>
+<td>never</td>
+<td>0 / 99.4 / 0 Hz</td>
+</tr>
+</tbody>
+</table></div>
+<p>The machine had a load average between 74 and 125 on 32 threads during these runs (other simulations were running). The
+numbers come from the <code>smoke:</code> lines of each run and from <code>results/last_run.json</code>; <code>results/healthy.json</code> and
+<code>results/broken.json</code> are runs 2 and "broken 2", and <code>results/*_launch_test.log</code> are their full outputs. The figure:</p>
+<pre><code class="language-bash">python3 projects/p14_test-the-stack/plot.py
+</code></pre>
+<h2 id="exercise">Exercise</h2>
+<p><strong>Check one more topic.</strong> Add <code>/odom_gt</code> (ground truth, <code>nav_msgs/Odometry</code>, 50 Hz from the <code>p3d_gt</code> plugin in
+<code>urdf/sensors.xacro</code>) to the smoke test. Which two lines change, and what does the <code>smoke:</code> table print?</p>
+<p><em>Answer:</em> <code>TOPICS</code> in <code>smoke.launch.py</code> gets <code>'/odom_gt': Odometry</code>, and <code>EXPECTED</code> in <code>smoke_checks.py</code> gets
+<code>'/odom_gt': 50.0</code>. Nothing else: the loop, the rate and the report iterate over these dictionaries. With both changes in a copy of the two
+files, <code>launch_test</code> passed (<code>Ran 1 test in 10.208s</code>, <code>OK</code>, exit status 0) and the table gained one line:</p>
+<pre><code>smoke: topic          first msg (s)   rate (Hz)   expected (Hz)
+smoke: /scan                    4.8        10.0              10
+smoke: /imu/data                2.8        99.9             100
+smoke: /odom                    2.8        50.0              50
+smoke: /odom_gt                 2.8        50.0              50
+smoke: map -&gt; base_footprint  5.8 s
+</code></pre>
+<h2 id="if-it-goes-wrong">If it goes wrong</h2>
+<ul>
+<li><strong><code>Found remap rule 'estimation:=false'. This syntax is deprecated.</code></strong> The first version called <code>rclpy.init()</code>, which
+  read <code>launch_test</code>'s command line and took the launch argument for a ROS remapping. It now calls <code>rclpy.init(args=[])</code>.</li>
+<li><strong><code>[ERROR] [lidar_odom.py-10]: process has died [pid …, exit code -2 …]</code></strong> at the end of every run, including passing
+  ones. That is the lidar odometry node exiting on Ctrl-C (SIGINT, -2) with a Python traceback while the launch shuts
+  down. The test does not check exit codes in a post-shutdown test for this reason; adding
+  <code>launch_testing.asserts.assertExitCodes</code> would fail on it.</li>
+<li><strong><code>gazebo_ros2_control: Parameter 'hold_joints' has already been declared</code></strong> (three <code>[ERROR]</code> lines) appears in every
+  run and the controllers still load (<code>Configured and activated joint_group_effort_controller</code>). It does not affect the
+  test.</li>
+<li><strong>The test hangs for 120 s and then fails on everything, including <code>/imu/data</code>.</strong> Gazebo did not start: look for
+  <code>gzserver</code> in the launch output, and check that no other Gazebo uses the same <code>GAZEBO_MASTER_URI</code>.</li>
+</ul>
+<h2 id="further-reading">Further reading</h2>
+<ul>
+<li>ROS 2 documentation, <code>Testing/Integration.rst</code> (integration tests with launch_testing).</li>
+<li><code>cra-ros-pkg/robot_localization</code>, <code>doc/</code>: the configuration and sign checklist for the EKF whose output <code>/odom</code> this test
+  checks.</li>
+</ul><nav class="prevnext" aria-label="Previous and next"><a class="pn" href="../p13_behaviour-trees/index.html"><span>Previous</span>Behaviour trees: read, change and write one</a><a class="pn next" href="../../tutorial/13-toward-the-real-go2.html"><span>Next</span>Toward the real Go2</a></nav><p class="source">Source: <a href="https://github.com/Armanasq/go2-nav-sim/blob/main/projects/p14_test-the-stack/README.md">projects/p14_test-the-stack/README.md</a></p></article></div>
+</main>
+<footer class="site"><div class="wrap">Simulation only. Source and issues on <a href="https://github.com/Armanasq/go2-nav-sim">GitHub</a>.</div></footer>
+<script type="module" src="../../static/js/site.js"></script>
+</body>
+</html>

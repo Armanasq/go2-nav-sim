@@ -1,0 +1,592 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Import the Go2 · go2-nav-sim</title>
+<meta name="description" content="Import the Go2">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../static/css/site.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5' fill='%230a6a9c'/%3E%3C/svg%3E">
+
+</head>
+<body data-root="../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar"><div class="inner">
+<a class="brand" href="../index.html">go2-nav-sim</a>
+<nav aria-label="Main"><a href="../tutorial/00-overview.html" aria-current="page">Learn</a><a href="../tasks/index.html">Tasks</a><a href="../modules/index.html">Deep dives</a><a href="../reference.html">Reference</a></nav>
+<button class="theme-toggle" type="button" aria-label="Colour theme: auto">auto</button>
+</div></header>
+<main id="main">
+<div class="wrap doc"><details class="side" open><summary>Import the Go2</summary><nav aria-label="Contents"><ol class="parts"><li><a class="part" href="00-overview.html">Start</a></li><li class="open"><p class="part">The robot</p><ol><li><a href="05-frames-and-tf2.html"><span class="n">5</span><span>Frames and TF2</span></a></li><li><a href="06-import-the-go2.html" aria-current="page"><span class="n">6</span><span>Import the Go2</span></a><ul class="sections"><li><a href="#task-1-find-the-files-and-render-the-urdf">Task 1: Find the files and render the URDF</a></li><li><a href="#task-2-inspect-the-robot-in-rviz">Task 2: Inspect the robot in RViz</a></li><li><a href="#task-3-compare-visual-and-collision-geometry">Task 3: Compare visual and collision geometry</a></li><li><a href="#task-4-add-a-sensor-link">Task 4: Add a sensor link</a></li><li><a href="#task-5-check-the-names-that-must-match">Task 5: Check the names that must match</a></li><li><a href="#task-6-follow-the-robot-into-gazebo">Task 6: Follow the robot into Gazebo</a></li><li><a href="#exercise">Exercise</a></li><li><a href="#further-reading">Further reading</a></li></ul></li><li><a href="../tasks/s01_import-and-inspect/index.html"><span class="n">S1</span><span>Import and inspect the robot</span></a></li><li><a href="../tasks/s02_joint-and-leg-control/index.html"><span class="n">S2</span><span>Joint and leg control</span></a></li><li><a href="../tasks/s03_posture-and-balance/index.html"><span class="n">S3</span><span>Posture and balance</span></a></li><li><a href="07-make-it-walk.html"><span class="n">7</span><span>Make it walk</span></a></li></ol></li><li><a class="part" href="../projects/p02_teleop-and-safety/index.html">Move it</a></li><li><a class="part" href="08-robot-and-sensors.html">Sense and avoid</a></li><li><a class="part" href="09-state-estimation.html">Estimate and map</a></li><li><a class="part" href="../projects/p11_command-arbitration/index.html">Navigate</a></li><li><a class="part" href="../projects/p14_test-the-stack/index.html">Beyond simulation</a></li></ol></nav></details><article class="prose"><p class="where">The robot · Chapter 6</p><h1>Import the Go2</h1><div class="table-wrap"><table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Goal</td>
+<td>Know which files describe the Go2, look at it in RViz, change a copy of its URDF, and check that every name CHAMP and ros2_control need is spelled the same everywhere.</td>
+</tr>
+<tr>
+<td>Time</td>
+<td>2 h</td>
+</tr>
+<tr>
+<td>Before you start</td>
+<td><a href="03-install-and-first-run.html">Chapter 3</a> built the workspace; <a href="05-frames-and-tf2.html">chapter 5</a> covered TF and <code>view_frames</code>. A desktop session for RViz.</td>
+</tr>
+<tr>
+<td>You will learn</td>
+<td>how the xacro is assembled; how to open the shared RViz config <code>go2.rviz</code>; joint limits; visual and collision geometry; how to add a link; which names must match between the URDF, <code>ros_control.yaml</code> and the CHAMP maps.</td>
+</tr>
+</tbody>
+</table></div>
+<p>The Go2 model and its gait controller are not part of this repository. <code>scripts/setup.sh</code> fetches
+<a href="https://github.com/anujjain-dev/unitree-go2-ros2">anujjain-dev/unitree-go2-ros2</a> at commit
+<code>fdac259518930c8f03e79189c4d0fdd00fc47483</code> into <code>src/third_party/unitree-go2-ros2</code> and applies <code>patches/upstream.patch</code>. The
+patch touches only two CHAMP launch files. Every command below runs from the repository root after <code>source env.sh</code>.</p>
+<p><img loading="lazy" alt="The Go2 from the front left with the joint origins of all four legs marked and the three revolute joints of the left front leg labelled with their axes and limits" src="../img/c06-go2-joints.png" /></p>
+<p><em>MuJoCo Menagerie Go2 (<code>modules/assets/unitree_go2</code>, home pose) labelled with this stack's URDF names; its leg offsets are the ones in <code>const.xacro</code>. Red dots: hip joints (axis x), blue: upper leg (axis y), green: lower leg (axis y), black squares: foot points. Limits from the expanded URDF.</em></p>
+<h2 id="task-1-find-the-files-and-render-the-urdf">Task 1: Find the files and render the URDF</h2>
+<h3 id="11-locate-what-upstream-provides">1.1 Locate what upstream provides</h3>
+<p>Objective: know which file holds what before you change anything.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Path under <code>src/third_party/unitree-go2-ros2</code></th>
+<th>Contents</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>robots/descriptions/go2_description/xacro/</code></td>
+<td><code>robot.xacro</code> (entry point), <code>leg.xacro</code>, <code>const.xacro</code>, <code>gazebo.xacro</code>, <code>materials.xacro</code>, and unused variants (<code>robot_VLP.xacro</code>, <code>velodyne.xacro</code>, <code>laser.xacro</code>, <code>transmission.xacro</code>)</td>
+</tr>
+<tr>
+<td><code>robots/descriptions/go2_description/meshes/</code></td>
+<td>Collada visuals: <code>trunk.dae</code>, <code>hip.dae</code>, <code>thigh.dae</code>, <code>thigh_mirror.dae</code>, <code>calf.dae</code>; <code>calf_mirror.dae</code>, <code>foot.dae</code> and <code>hokuyo.dae</code> are not referenced by <code>robot.xacro</code></td>
+</tr>
+<tr>
+<td><code>robots/descriptions/go2_description/config/ros_control/ros_control.yaml</code></td>
+<td>controller manager and controller parameters</td>
+</tr>
+<tr>
+<td><code>robots/configs/go2_config/config/joints/joints.yaml</code></td>
+<td>CHAMP joint map</td>
+</tr>
+<tr>
+<td><code>robots/configs/go2_config/config/links/links.yaml</code></td>
+<td>CHAMP link map</td>
+</tr>
+<tr>
+<td><code>robots/configs/go2_config/config/gait/gait.yaml</code></td>
+<td>CHAMP gait parameters (<a href="07-make-it-walk.html#task-5-edit-the-gait-yaml-restart-and-measure">chapter 7</a>)</td>
+</tr>
+<tr>
+<td><code>champ/champ_bringup/launch/bringup.launch.py</code></td>
+<td><code>robot_state_publisher</code>, CHAMP controller and state estimator, two EKFs</td>
+</tr>
+<tr>
+<td><code>champ/champ_gazebo/launch/gazebo.launch.py</code></td>
+<td><code>gzserver</code>, spawning, controller loading</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>go2_config</code> also has its own <code>launch/gazebo.launch.py</code> and <code>bringup.launch.py</code> for upstream's demo. This repository does not
+use them. It includes the two CHAMP launch files directly and passes the Go2 paths in.</p>
+<p><img loading="lazy" alt="Files on the left (go2_nav.xacro and its includes, ros_control.yaml, the three CHAMP YAML maps) with arrows to the processes that read them" src="../img/c06-description-flow.png" /></p>
+<p><em>Which process reads which file. Every node that needs the URDF runs <code>xacro</code> on <code>go2_nav.xacro</code> itself; the controller YAML is found through the path in <code>gazebo.xacro</code>, and the three maps through <code>sim.launch.py</code>.</em></p>
+<p>Check: <code>ls src/third_party/unitree-go2-ros2/robots/configs/go2_config/config/</code> lists <code>gait</code>, <code>joints</code> and <code>links</code> among its folders.</p>
+<h3 id="12-read-how-the-xacro-is-assembled">1.2 Read how the xacro is assembled</h3>
+<p>Objective: know where each link and joint comes from.</p>
+<p><code>src/go2_nav_sim/urdf/go2_nav.xacro</code> includes upstream's <code>robot.xacro</code> and this repository's <code>sensors.xacro</code>. <code>robot.xacro</code>
+includes <code>const.xacro</code>, <code>materials.xacro</code>, <code>leg.xacro</code> and <code>gazebo.xacro</code>. It defines <code>base_link</code>, a fixed joint named
+<code>floating_base</code> to <code>trunk</code> (the trunk mesh, a 0.376 × 0.094 × 0.114 m collision box and 6.921 kg), and <code>imu_link</code> at the trunk
+origin. It then calls the leg macro four times:</p>
+<pre><code class="language-xml">&lt;xacro:leg name=&quot;rf&quot; mirror=&quot;-1&quot; mirror_dae= &quot;False&quot; front_hind=&quot;1&quot;  front_hind_dae=&quot;True&quot;  /&gt;
+&lt;xacro:leg name=&quot;lf&quot; mirror=&quot;1&quot;  mirror_dae=&quot;True&quot;   front_hind=&quot;1&quot;  front_hind_dae=&quot;True&quot;  /&gt;
+</code></pre>
+<p><code>mirror</code> flips y offsets and inertia products for the right side, <code>front_hind</code> flips x for the hind legs, and the two <code>_dae</code>
+flags choose the mesh and its orientation. <code>leg.xacro</code> creates <code>&lt;name&gt;_hip_joint</code> (axis x, at ±0.1934, ±0.0465 m from the trunk
+centre), <code>&lt;name&gt;_upper_leg_joint</code> (axis y, 0.0955 m outward), <code>&lt;name&gt;_lower_leg_joint</code> (axis y, 0.213 m below) and a fixed
+<code>&lt;name&gt;_foot_joint</code> another 0.213 m below. All dimensions, joint limits, masses and inertias live in <code>const.xacro</code>.</p>
+<p><img loading="lazy" alt="Left side and front views of the Go2 with every joint angle at zero, dimension lines for 0.1934, 0.0465, 0.0955 and the two 0.213 m segments, and 0.426 m from base_link to the foot point" src="../img/c06-go2-dimensions.png" /></p>
+<p><em>The offsets above drawn between joint origins, all joint angles zero (outside the knee limit, posed only to show the lengths). With straight legs the foot point is 0.213 + 0.213 = 0.426 m below <code>base_link</code>.</em></p>
+<p><code>gazebo.xacro</code> adds the <code>libgazebo_ros2_control.so</code> plugin, pointed at
+<code>$(find go2_description)/config/ros_control/ros_control.yaml</code>, an IMU on <code>imu_link</code> publishing <code>/imu/data</code>
+(<a href="08-robot-and-sensors.html">chapter 8</a>), and friction 0.6 on the feet and 0.2 on the other links. <code>go2_nav.xacro</code> attaches a lidar, an RGB-D camera, a chase camera and the ground-truth plugin to <code>base_link</code> with fixed joints
+(<a href="08-robot-and-sensors.html">chapter 8</a>), and takes <code>start_x</code> and <code>start_y</code> so that <code>/odom_gt</code> starts at zero.</p>
+<p>Check: <code>grep -c "xacro:leg " src/third_party/unitree-go2-ros2/robots/descriptions/go2_description/xacro/robot.xacro</code> prints <code>4</code>.</p>
+<h3 id="13-render-the-model-without-starting-anything">1.3 Render the model without starting anything</h3>
+<p>Objective: expand the xacro and confirm it parses.</p>
+<pre><code class="language-bash">xacro src/go2_nav_sim/urdf/go2_nav.xacro | check_urdf /dev/stdin | head -n 4
+xacro src/go2_nav_sim/urdf/go2_nav.xacro | grep -c 'type=&quot;revolute&quot;'
+xacro src/go2_nav_sim/urdf/go2_nav.xacro | grep -o '&lt;ros2_control name=&quot;[a-z]*&quot;'
+</code></pre>
+<pre><code>robot name is: go2
+---------- Successfully Parsed XML ---------------
+root Link: base_link has 4 child(ren)
+    child(1):  camera_link
+12
+&lt;ros2_control name=&quot;rf&quot;
+&lt;ros2_control name=&quot;lf&quot;
+&lt;ros2_control name=&quot;rh&quot;
+&lt;ros2_control name=&quot;lh&quot;
+</code></pre>
+<p>Check: 12 revolute joints and four <code>&lt;ros2_control&gt;</code> blocks, one per leg.</p>
+<p><img loading="lazy" alt="Link tree from base_link: trunk with imu_link and four legs of hip, upper leg, lower leg and foot links, and the sensor links lidar_link, camera_link with camera_optical, and chase_cam" src="../img/c06-urdf-tree.png" /></p>
+<p><em>The expanded URDF as a tree, parsed from the <code>xacro</code> output by <code>docs/img/c06-figures.py</code>. Solid blue edges are the 12 revolute joints; dashed edges are fixed. Sensor links (blue boxes) come from <code>sensors.xacro</code>.</em></p>
+<h2 id="task-2-inspect-the-robot-in-rviz">Task 2: Inspect the robot in RViz</h2>
+<h3 id="21-open-the-shared-rviz-config">2.1 Open the shared RViz config</h3>
+<p>Objective: see the URDF with no simulator running, using the config every later chapter uses.</p>
+<p><code>src/go2_nav_sim/rviz/go2.rviz</code> holds one set of displays for the whole course:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Display</th>
+<th>Topic</th>
+<th>QoS set in the config</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>RobotModel</td>
+<td><code>/robot_description</code></td>
+<td>Reliable, Transient Local</td>
+<td><code>robot_state_publisher</code> publishes it once, Transient Local</td>
+</tr>
+<tr>
+<td>TF</td>
+<td><code>/tf</code>, <code>/tf_static</code></td>
+<td></td>
+<td>every frame with its name</td>
+</tr>
+<tr>
+<td>LaserScan</td>
+<td><code>/scan</code></td>
+<td>Best Effort</td>
+<td>the publisher, <code>pointcloud_to_laserscan</code>, is Best Effort; a Reliable display receives nothing</td>
+</tr>
+<tr>
+<td>LidarPoints (PointCloud2)</td>
+<td><code>/lidar/points</code></td>
+<td>Best Effort</td>
+<td>drops old clouds instead of queueing them</td>
+</tr>
+<tr>
+<td>Map</td>
+<td><code>/map</code></td>
+<td>Reliable, Transient Local</td>
+<td><code>map_server</code> publishes the map once, Transient Local</td>
+</tr>
+<tr>
+<td>GlobalCostmap, LocalCostmap</td>
+<td><code>/global_costmap/costmap</code>, <code>/local_costmap/costmap</code></td>
+<td>Reliable, Transient Local</td>
+<td>as published by Nav2</td>
+</tr>
+<tr>
+<td>Plan</td>
+<td><code>/plan</code></td>
+<td>Reliable</td>
+<td>global path, amber</td>
+</tr>
+<tr>
+<td>Footprint</td>
+<td><code>/local_costmap/published_footprint</code></td>
+<td>Reliable</td>
+<td>the 0.33 m circle Nav2 plans with</td>
+</tr>
+</tbody>
+</table></div>
+<p>The QoS of each publisher was read with <code>ros2 topic info &lt;topic&gt; -v</code> on the running stack (started as in
+<a href="10-mapping-and-navigation.html">chapter 10</a>). The fixed frame is <code>map</code>, the camera orbits <code>base_link</code>, and the tool bar
+has 2D Pose Estimate (<code>/initialpose</code>) and 2D Goal Pose (<code>/goal_pose</code>). RViz takes <code>use_sim_time</code> on its command line, not from
+the config. Use one of these three commands:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>When</th>
+<th>Command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>URDF alone, no simulator (this chapter)</td>
+<td><code>rviz2 -d src/go2_nav_sim/rviz/go2.rviz -f base_link</code></td>
+</tr>
+<tr>
+<td><code>sim.launch.py odom:=gt</code>, no map (<a href="07-make-it-walk.html">chapter 7</a>, <a href="08-robot-and-sensors.html">8</a>)</td>
+<td><code>rviz2 -d src/go2_nav_sim/rviz/go2.rviz -f odom --ros-args -p use_sim_time:=true</code></td>
+</tr>
+<tr>
+<td>Localisation or Nav2 running (chapters <a href="09-state-estimation.html">9</a>, <a href="10-mapping-and-navigation.html">10</a> and the projects)</td>
+<td><code>rviz2 -d src/go2_nav_sim/rviz/go2.rviz --ros-args -p use_sim_time:=true</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>After a build the same file is also at <code>$(ros2 pkg prefix go2_nav_sim)/share/go2_nav_sim/rviz/go2.rviz</code>. Displays whose topic
+has no publisher yet show a warning and nothing else; that is expected in this chapter.</p>
+<p>Start the robot description, a joint slider window and RViz, each in its own terminal:</p>
+<pre><code class="language-bash">ros2 run robot_state_publisher robot_state_publisher --ros-args -p robot_description:=&quot;$(xacro src/go2_nav_sim/urdf/go2_nav.xacro)&quot;
+ros2 run joint_state_publisher_gui joint_state_publisher_gui
+rviz2 -d src/go2_nav_sim/rviz/go2.rviz -f base_link
+</code></pre>
+<p>Expect <code>got segment trunk</code> and the other links in the first terminal, <code>Centering</code> in the second, and an RViz window with
+<code>Global Status: Ok</code>:</p>
+<p><img loading="lazy" alt="RViz render of the Go2 URDF in its default joint pose: four legs with the lower legs pointing backwards, lidar cylinder on top" src="../img/c06-rviz-model.png" /></p>
+<p><em><code>go2.rviz</code> with fixed frame <code>base_link</code> and the TF display switched off. The lower legs point backwards because the slider
+window starts every knee at the middle of its range (next sub-task).</em></p>
+<p>Check: RobotModel has a blue tick in the Displays panel and the robot is drawn.</p>
+<h3 id="22-read-the-tf-tree-on-the-model">2.2 Read the TF tree on the model</h3>
+<p>Objective: match each frame you saw in <a href="05-frames-and-tf2.html">chapter 5</a> to a place on the robot.</p>
+<p>Tick the TF display (it is on in <code>go2.rviz</code>; the screenshot above had it off). Set the RobotModel Alpha to 0.35 to see the
+frames through the meshes.</p>
+<p><img loading="lazy" alt="The same robot drawn semi-transparent with an axis triad and a name at every link: hip, upper leg, lower leg and foot links, trunk, base_link, imu_link, lidar and camera frames" src="../img/c06-rviz-tf.png" /></p>
+<p><em>Every frame of the expanded URDF. Red is x, green y, blue z. At the feet x points up because the lower leg is rotated by
+-1.78 rad.</em></p>
+<pre><code class="language-bash">ros2 topic echo --once /joint_states --field name
+</code></pre>
+<pre><code>['rf_hip_joint', 'rf_upper_leg_joint', 'rf_lower_leg_joint', 'lf_hip_joint', 'lf_upper_leg_joint', 'lf_lower_leg_joint', 'rh_hip_joint', 'rh_upper_leg_joint', 'rh_lower_leg_joint', 'lh_hip_joint', 'lh_upper_leg_joint', 'lh_lower_leg_joint']
+</code></pre>
+<p>Check: the Frames list under TF shows 24 frames, the 24 links of the URDF.</p>
+<h3 id="23-move-a-leg-and-read-its-joint-limits">2.3 Move a leg and read its joint limits</h3>
+<p>Objective: see a joint move and find where its range comes from.</p>
+<p>Read the limits of the left front leg from the expanded URDF:</p>
+<pre><code class="language-bash">for j in hip upper_leg lower_leg; do
+  xacro src/go2_nav_sim/urdf/go2_nav.xacro | grep -A6 &quot;&lt;joint name=\&quot;lf_${j}_joint\&quot; type&quot; | grep limit
+done
+</code></pre>
+<pre><code>    &lt;limit effort=&quot;23.7&quot; lower=&quot;-1.0472&quot; upper=&quot;1.0472&quot; velocity=&quot;30.1&quot;/&gt;
+    &lt;limit effort=&quot;23.7&quot; lower=&quot;-1.5708&quot; upper=&quot;3.4907&quot; velocity=&quot;30.1&quot;/&gt;
+    &lt;limit effort=&quot;35.55&quot; lower=&quot;-2.7227&quot; upper=&quot;-0.83776&quot; velocity=&quot;20.06&quot;/&gt;
+</code></pre>
+<p>The knee range, -2.7227 to -0.83776 rad, does not contain zero, so <code>joint_state_publisher_gui</code> starts it at the middle of the
+range:</p>
+<pre><code class="language-bash">ros2 topic echo --once /joint_states --field position
+</code></pre>
+<pre><code>array('d', [0.0, -0.00021654999999998203, -1.78023, 0.0, -0.00021654999999998203, -1.78023, 0.0, -0.00021654999999998203, -1.78023, 0.0, -0.00021654999999998203, -1.78023])
+</code></pre>
+<p>Drag the <code>lf_hip_joint</code>, <code>lf_upper_leg_joint</code> and <code>lf_lower_leg_joint</code> sliders. Each slider runs exactly over the joint's
+limit. To reproduce the picture below, close the slider window and start it with set values instead:</p>
+<pre><code class="language-bash">ros2 run joint_state_publisher_gui joint_state_publisher_gui --ros-args \
+  -p zeros.lf_hip_joint:=0.6 -p zeros.lf_upper_leg_joint:=0.5 -p zeros.lf_lower_leg_joint:=-0.83776
+</code></pre>
+<p><code>/joint_states</code> then carried <code>0.59983616</code>, <code>0.4998596500000001</code> and <code>-0.8377599999999998</code> for the three left front joints (the
+slider rounds to its step).</p>
+<p><img loading="lazy" alt="The Go2 with the left front leg swung out by the hip, the thigh forward and the knee straightened to its limit" src="../img/c06-rviz-leg.png" /></p>
+<p><em>Left front leg at hip 0.6, upper leg 0.5 and knee -0.838 rad, the knee's upper limit; the other three legs are at the slider
+defaults.</em></p>
+<p>Check: the <code>lf_lower_leg_joint</code> slider stops at -0.84 and cannot straighten the knee further.</p>
+<p>Common mistakes:</p>
+<ul>
+<li>A slider window left over from an earlier try keeps publishing. Here, after one was stopped with <code>kill</code> (SIGTERM) it kept
+  running, and <code>ros2 topic info /joint_states --no-daemon</code> showed <code>Publisher count: 2</code>. Close the window or press Ctrl-C in
+  its terminal, then check for <code>Publisher count: 1</code>.</li>
+</ul>
+<h2 id="task-3-compare-visual-and-collision-geometry">Task 3: Compare visual and collision geometry</h2>
+<h3 id="31-switch-rviz-to-the-collision-shapes">3.1 Switch RViz to the collision shapes</h3>
+<p>Objective: see the shapes Gazebo's physics uses.</p>
+<p>In the RobotModel display, untick Visual Enabled and tick Collision Enabled.</p>
+<p><img loading="lazy" alt="Left: the Go2 meshes with the left front leg moved. Right: the same pose as red primitives: a box for the trunk, cylinders at the hips, thin boxes for thigh and calf, spheres at the feet" src="../img/c06-rviz-collision.png" /></p>
+<p><em>The same pose, visual meshes (left) and collision shapes (right). The curved calf mesh is a straight 0.213 m box for the
+physics; the lidar cylinder on top has no collision shape at all.</em></p>
+<p>Check: the trunk is one box and each foot a sphere.</p>
+<h3 id="32-count-the-shapes-in-the-urdf">3.2 Count the shapes in the URDF</h3>
+<p>Objective: confirm the picture from the file.</p>
+<pre><code class="language-bash">python3 - &lt;&lt;'EOF'
+import collections, subprocess, xml.etree.ElementTree as ET
+urdf = ET.fromstring(subprocess.run(['xacro', 'src/go2_nav_sim/urdf/go2_nav.xacro'], capture_output=True, text=True).stdout)
+for tag in ('visual', 'collision'):
+    shapes = collections.Counter(g[0].tag for link in urdf.iter('link') for e in link.findall(tag) for g in e.findall('geometry'))
+    print(tag, sum(shapes.values()), dict(shapes))
+EOF
+</code></pre>
+<pre><code>visual 20 {'box': 2, 'mesh': 13, 'sphere': 4, 'cylinder': 1}
+collision 18 {'box': 10, 'cylinder': 4, 'sphere': 4}
+</code></pre>
+<p>The 18 collision shapes are the trunk box, the <code>imu_link</code> box, a 0.046 m radius cylinder per hip, a box per thigh and calf, and
+a 0.02 m sphere per foot. <code>base_link</code>, the lidar and the cameras have visuals or nothing; Gazebo cannot collide with them. The ground contact is the four 0.02 m spheres with friction 0.6.</p>
+<p>Check: <code>collision 18</code>.</p>
+<h2 id="task-4-add-a-sensor-link">Task 4: Add a sensor link</h2>
+<h3 id="41-copy-the-xacro-and-add-a-link">4.1 Copy the xacro and add a link</h3>
+<p>Objective: add a frame without touching the robot that the simulator uses.</p>
+<pre><code class="language-bash">mkdir -p docs/exercises
+cp src/go2_nav_sim/urdf/go2_nav.xacro docs/exercises/go2_extra.xacro
+</code></pre>
+<p>Paste this into <code>docs/exercises/go2_extra.xacro</code>, just above <code>&lt;/robot&gt;</code>:</p>
+<pre><code class="language-xml">  &lt;link name=&quot;rear_cam_link&quot;&gt;
+    &lt;visual&gt;&lt;geometry&gt;&lt;box size=&quot;0.02 0.06 0.03&quot;/&gt;&lt;/geometry&gt;&lt;/visual&gt;
+  &lt;/link&gt;
+  &lt;joint name=&quot;rear_cam_joint&quot; type=&quot;fixed&quot;&gt;
+    &lt;parent link=&quot;base_link&quot;/&gt;
+    &lt;child link=&quot;rear_cam_link&quot;/&gt;
+    &lt;origin xyz=&quot;-0.25 0 0.06&quot; rpy=&quot;0 0 3.14159&quot;/&gt;
+  &lt;/joint&gt;
+</code></pre>
+<p>The include paths in the copy use <code>$(find ...)</code>, so the copy works from any folder.</p>
+<pre><code class="language-bash">grep -c rear_cam docs/exercises/go2_extra.xacro
+tail -n 1 docs/exercises/go2_extra.xacro
+</code></pre>
+<pre><code>3
+&lt;/robot&gt;
+</code></pre>
+<p>Check: <code>3</code> (the link name, the joint name and the joint's child) and <code>&lt;/robot&gt;</code> still on the last line.</p>
+<h3 id="42-check-that-it-parses">4.2 Check that it parses</h3>
+<p>Objective: catch a typo before a node does.</p>
+<pre><code class="language-bash">xacro docs/exercises/go2_extra.xacro | check_urdf /dev/stdin | grep -E &quot;root Link|rear&quot;
+</code></pre>
+<pre><code>root Link: base_link has 5 child(ren)
+    child(5):  rear_cam_link
+</code></pre>
+<p>Check: five children of <code>base_link</code> instead of the four in Task 1.3.</p>
+<h3 id="43-confirm-the-frame-in-view_frames">4.3 Confirm the frame in view_frames</h3>
+<p>Objective: see the new frame in the TF tree that other nodes will use.</p>
+<p>Stop the <code>robot_state_publisher</code> from Task 2 and start it on the copy. Keep the slider window and RViz running.</p>
+<pre><code class="language-bash">ros2 run robot_state_publisher robot_state_publisher --ros-args -p robot_description:=&quot;$(xacro docs/exercises/go2_extra.xacro)&quot;
+</code></pre>
+<p>In another terminal:</p>
+<pre><code class="language-bash">ros2 run tf2_tools view_frames 2&gt;&amp;1 | grep &quot;Generating graph&quot;
+grep -o '&quot;base_link&quot; -&gt; &quot;rear_cam_link&quot;' frames_*.gv
+ros2 run tf2_ros tf2_echo base_link rear_cam_link
+</code></pre>
+<pre><code>[INFO] [...] [view_frames]: Generating graph in frames.pdf file...
+&quot;base_link&quot; -&gt; &quot;rear_cam_link&quot;
+At time 0.0
+- Translation: [-0.250, 0.000, 0.060]
+- Rotation: in Quaternion (xyzw) [0.000, 0.000, 1.000, 0.000]
+- Rotation: in RPY (radian) [0.000, -0.000, 3.142]
+- Rotation: in RPY (degree) [0.000, -0.000, 180.000]
+</code></pre>
+<p><code>frames_&lt;date&gt;.pdf</code> shows <code>rear_cam_link</code> under <code>base_link</code>, published by <code>default_authority</code> (the static broadcaster) with
+"Most recent transform: 0.0": fixed joints go to <code>/tf_static</code> once. The moving leg frames update at about 10 Hz (10.187 and
+10.203 Hz in two runs), the slider window's rate. <code>tf2_echo</code> may print <code>Invalid frame ID "base_link"</code> once before the first transform arrives.</p>
+<p>Check: the <code>.gv</code> line exists and the translation is (-0.25, 0, 0.06). The new link also appears in RViz as a small box at the
+rear. The simulator still uses <code>go2_nav.xacro</code> and is unchanged.</p>
+<p><img loading="lazy" alt="Top view of the trunk with the base_link axes pointing forward and left, and the new rear_cam_link 0.25 m behind it with its x axis pointing backwards; beside it the TF tree with rear_cam_link as the fifth child of base_link" src="../img/c06-rear-cam.png" /></p>
+<p><em>The link from Task 4.1 drawn at its offset. The yaw of π flips x and y, which is the quaternion (0, 0, 1, 0) that <code>tf2_echo</code> printed.</em></p>
+<h2 id="task-5-check-the-names-that-must-match">Task 5: Check the names that must match</h2>
+<h3 id="51-read-the-ros2_control-configuration">5.1 Read the ros2_control configuration</h3>
+<p>Objective: know which names the controllers expect.</p>
+<p>The leg macro emits one <code>&lt;ros2_control&gt;</code> block per leg:</p>
+<pre><code class="language-xml">&lt;ros2_control name=&quot;${name}&quot; type=&quot;system&quot;&gt;
+    &lt;hardware&gt;&lt;plugin&gt;gazebo_ros2_control/GazeboSystem&lt;/plugin&gt;&lt;/hardware&gt;
+    &lt;joint name=&quot;${name}_hip_joint&quot;&gt;
+        &lt;command_interface name=&quot;effort&quot;/&gt;
+        &lt;state_interface name=&quot;position&quot;/&gt;
+        &lt;state_interface name=&quot;velocity&quot;/&gt;
+    &lt;/joint&gt;
+    ...
+</code></pre>
+<p><code>ros_control.yaml</code> sets <code>update_rate: 250</code> and declares two controllers:</p>
+<ul>
+<li><code>joint_states_controller</code> (<code>joint_state_broadcaster/JointStateBroadcaster</code>) publishes <code>/joint_states</code> from the position and
+  velocity state interfaces.</li>
+<li><code>joint_group_effort_controller</code> (<code>joint_trajectory_controller/JointTrajectoryController</code>) claims the 12 effort command
+  interfaces. Every joint has the gains <code>p: 100.0, i: 0.2, d: 1.0, i_clamp: 2.5</code>. CHAMP sends it position targets and the
+  controller turns the position error into torque.</li>
+</ul>
+<p><img loading="lazy" alt="CHAMP sends joint position targets to joint_group_effort_controller, which sends efforts to four GazeboSystem blocks; their position and velocity state goes back to that controller and to the joint state broadcaster, which publishes /joint_states" src="../img/c06-ros2-control.png" /></p>
+<p><em>One controller manager, two controllers, four hardware blocks (one per <code>&lt;ros2_control&gt;</code> leg). The PID gains are the per-joint values from <code>ros_control.yaml</code>; the 249.6 Hz is the <code>/joint_states</code> rate measured in <a href="07-make-it-walk.html">chapter 7</a>.</em></p>
+<p>An identical copy of the file sits in <code>go2_config/config/ros_control/</code>. Only the one named in <code>gazebo.xacro</code> is read; the
+<code>ros_control_file</code> launch argument of <code>champ_gazebo</code> is declared but never used.</p>
+<p>Check: <code>grep -c "p: 100.0" src/third_party/unitree-go2-ros2/robots/descriptions/go2_description/config/ros_control/ros_control.yaml</code> prints <code>12</code>.</p>
+<h3 id="52-read-how-champ-finds-the-legs">5.2 Read how CHAMP finds the legs</h3>
+<p>Objective: know which names CHAMP looks up and what it reads from them.</p>
+<p>CHAMP does not parse joint names out of the URDF. It reads two maps. <code>joints.yaml</code> lists four joints per leg, in the order
+<code>left_front</code>, <code>right_front</code>, <code>left_hind</code>, <code>right_hind</code>:</p>
+<pre><code class="language-yaml">joints_map:
+  left_front:
+    - lf_hip_joint
+    - lf_upper_leg_joint
+    - lf_lower_leg_joint
+    - lf_foot_joint
+</code></pre>
+<p>Only the first three names per leg are used; they become the joint order of the trajectory CHAMP publishes. <code>links.yaml</code> gives
+<code>base: base_link</code> and four links per leg (<code>lf_hip_link</code>, <code>lf_upper_leg_link</code>, <code>lf_lower_leg_link</code>, <code>lf_foot_link</code>).
+<code>urdf_loader.h</code> computes the translation between consecutive links, starting from the URDF root, and builds its leg model from
+those offsets. It does not read joint axes or limits. <code>gait.yaml</code> sets <code>knee_orientation: "&gt;&gt;"</code>: the first character is for the
+front legs, the second for the hind legs, and it selects the inverse kinematics solution.</p>
+<pre><code class="language-bash">grep -A4 left_front src/third_party/unitree-go2-ros2/robots/configs/go2_config/config/joints/joints.yaml
+grep -A4 left_front src/third_party/unitree-go2-ros2/robots/configs/go2_config/config/links/links.yaml
+</code></pre>
+<pre><code>      left_front:
+        - lf_hip_joint
+        - lf_upper_leg_joint
+        - lf_lower_leg_joint
+        - lf_foot_joint
+      left_front:
+        - lf_hip_link
+        - lf_upper_leg_link
+        - lf_lower_leg_link
+        - lf_foot_link
+</code></pre>
+<p>Check: <code>lf_hip_joint</code> comes first in the joint map, and every name in the link map is a link you saw in RViz in Task 2.2.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Name list</th>
+<th>Must match</th>
+<th>Read by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>links.yaml</code> (base and 16 leg links)</td>
+<td>link names in the URDF</td>
+<td>CHAMP, at start</td>
+</tr>
+<tr>
+<td><code>joints.yaml</code> (first three per leg)</td>
+<td>joint names in <code>ros_control.yaml</code></td>
+<td>the trajectory controller, on every message from CHAMP</td>
+</tr>
+<tr>
+<td><code>ros_control.yaml</code> <code>joints</code> and <code>gains</code></td>
+<td>revolute joint names in the URDF, the <code>&lt;ros2_control&gt;</code> blocks</td>
+<td><code>gazebo_ros2_control</code></td>
+</tr>
+<tr>
+<td>controller names <code>joint_states_controller</code>, <code>joint_group_effort_controller</code></td>
+<td><code>ros_control.yaml</code></td>
+<td><code>champ_gazebo</code> spawners, <code>sim.launch.py</code></td>
+</tr>
+</tbody>
+</table></div>
+<p><img loading="lazy" alt="Three boxes for the URDF, CHAMP's links.yaml and joints.yaml, and ros_control.yaml, with green lines joining the entries that must carry the same name, and the two failure modes in red below" src="../img/c06-name-match.png" /></p>
+<p><em>The table above with one example name per row. A wrong link name crashes CHAMP; a wrong joint name passes CHAMP silently (Task 5.3).</em></p>
+<h3 id="53-check-that-all-names-agree">5.3 Check that all names agree</h3>
+<p>Objective: run one check that compares every list in the table.</p>
+<pre><code class="language-bash">python3 - &lt;&lt;'EOF'
+import subprocess, yaml, xml.etree.ElementTree as ET
+R = 'src/third_party/unitree-go2-ros2/robots/'
+load = lambda f: yaml.safe_load(open(R + f))
+urdf = ET.fromstring(subprocess.run(['xacro', 'src/go2_nav_sim/urdf/go2_nav.xacro'], capture_output=True, text=True).stdout)
+links = {l.get('name') for l in urdf.iter('link')}
+revolute = {j.get('name') for j in urdf.iter('joint') if j.get('type') == 'revolute'}
+jmap = load('configs/go2_config/config/joints/joints.yaml')['/**']['ros__parameters']['joints_map']
+lmap = load('configs/go2_config/config/links/links.yaml')['/**']['ros__parameters']['links_map']
+ctrl = load('descriptions/go2_description/config/ros_control/ros_control.yaml')['joint_group_effort_controller']['ros__parameters']
+champ_joints = {n for leg in jmap.values() for n in leg[:3]}
+champ_links = {lmap['base']} | {n for k, leg in lmap.items() if k != 'base' for n in leg}
+print('CHAMP joints not revolute in URDF:', sorted(champ_joints - revolute))
+print('CHAMP links not in URDF:          ', sorted(champ_links - links))
+print('controller joints not revolute:   ', sorted(set(ctrl['joints']) - revolute))
+print('revolute joints without a gain:   ', sorted(revolute - set(ctrl['gains'])))
+EOF
+</code></pre>
+<pre><code>CHAMP joints not revolute in URDF: []
+CHAMP links not in URDF:           []
+controller joints not revolute:    []
+revolute joints without a gain:    []
+</code></pre>
+<p>Check: four empty lists.</p>
+<p>Common mistakes, both reproduced by starting <code>quadruped_controller_node</code> alone with a copy of one map that had a single name
+changed:</p>
+<ul>
+<li>A wrong link name (<code>lf_thigh_link</code> for <code>lf_upper_leg_link</code>) crashes CHAMP right after <code>Successfully parsed urdf file</code>, with
+  only <code>[ros2run]: Segmentation fault</code>. No message names the link.</li>
+<li>A wrong joint name (<code>lf_thigh_joint</code>) starts without any error. CHAMP publishes it unchanged in <code>joint_names</code> of every
+  trajectory message, so the mismatch only shows up at the controller, which knows no joint of that name. The controller's
+  reaction was not tested here.</li>
+</ul>
+<h3 id="54-adapt-this-to-your-own-quadruped">5.4 Adapt this to your own quadruped</h3>
+<p>Objective: the checklist for replacing the Go2 with another robot. Run 5.3 on your files at the end.</p>
+<ol>
+<li>Write a xacro whose root is <code>base_link</code> and which has three revolute joints per leg with the hip on x and the thigh and knee
+   on y, plus a fixed foot link at the contact point. CHAMP's leg model (<code>quadruped_leg.h</code>, <code>kinematics.h</code>) hard-codes these
+   axes. Give every link a collision shape, a mass and an inertia.</li>
+<li>Add one <code>&lt;ros2_control&gt;</code> block per leg with <code>gazebo_ros2_control/GazeboSystem</code>, an <code>effort</code>
+   command interface and <code>position</code> and <code>velocity</code> state interfaces per joint.</li>
+<li>Add the <code>libgazebo_ros2_control.so</code> plugin, pointing at your controller YAML, and an IMU publishing <code>/imu/data</code>.</li>
+<li>In the controller YAML, list the same 12 joint names under <code>joint_group_effort_controller.joints</code> and give each a gain entry.
+   Keep the controller names: <code>champ_gazebo</code> spawns them by name, and <code>sim.launch.py</code> sends CHAMP's output to
+   <code>joint_group_effort_controller/joint_trajectory</code>.</li>
+<li>Write <code>joints.yaml</code> and <code>links.yaml</code> with your joint and link names under <code>left_front</code>, <code>right_front</code>, <code>left_hind</code>,
+   <code>right_hind</code>, and <code>links_map.base</code> equal to your root link. The loader looks the links up by name in the URDF, so
+   they must match exactly.</li>
+<li>Write <code>gait.yaml</code>: set <code>nominal_height</code> below the standing height your legs can reach, <code>knee_orientation</code> to match your
+   knees, and the velocity limits to what the robot can follow.</li>
+<li>Point <code>description_path</code>, <code>joints_map_path</code>, <code>links_map_path</code> and <code>gait_config_path</code> in <code>sim.launch.py</code> at your files, and
+   set <code>world_init_z</code> a few centimetres above the standing height so the robot drops onto its feet.</li>
+</ol>
+<p>Step 1 is the one CHAMP does not check for you. Run it on the Go2 first to see what a correct answer looks like:</p>
+<pre><code class="language-bash">xacro src/go2_nav_sim/urdf/go2_nav.xacro | grep -A6 'type=&quot;revolute&quot;' | grep -o 'axis xyz=&quot;[^&quot;]*&quot;' | sort | uniq -c
+</code></pre>
+<pre><code>      8 axis xyz=&quot;0 1 0&quot;
+      4 axis xyz=&quot;1 0 0&quot;
+</code></pre>
+<p>Check: on your own xacro the same command prints 4 joints on <code>1 0 0</code> (the hips) and 8 on <code>0 1 0</code>, and the Task 5.3 script
+prints four empty lists.</p>
+<h2 id="task-6-follow-the-robot-into-gazebo">Task 6: Follow the robot into Gazebo</h2>
+<h3 id="61-read-how-this-repository-wraps-upstream">6.1 Read how this repository wraps upstream</h3>
+<p>Objective: know which launch file passes which path.</p>
+<pre><code class="language-bash">grep -n &quot;xacro = \|_path'&quot; src/go2_nav_sim/launch/sim.launch.py
+</code></pre>
+<pre><code>17:    xacro = f&quot;{os.path.join(me, 'urdf/go2_nav.xacro')} start_x:={START_X} start_y:={START_Y}&quot;
+22:            'description_path': xacro,
+23:            'joints_map_path': os.path.join(cfg, 'config/joints/joints.yaml'),
+24:            'links_map_path': os.path.join(cfg, 'config/links/links.yaml'),
+25:            'gait_config_path': os.path.join(cfg, 'config/gait/gait.yaml'),
+34:            'use_sim_time': 'true', 'robot_name': 'go2', 'lite': 'false', 'description_path': xacro,
+</code></pre>
+<p><code>sim.launch.py</code> passes the xacro path, with <code>start_x:=-4.5 start_y:=-3.5</code> appended, as <code>description_path</code> to both CHAMP launch
+files, together with the three <code>go2_config</code> YAML files. Each node that needs the URDF runs <code>xacro</code> itself. The upstream
+description files are not edited, so updating the pin means changing <code>SHA</code> in <code>setup.sh</code> and checking that the patch still
+applies.</p>
+<p>Check: <code>description_path</code> appears twice (lines 22 and 34), once per CHAMP launch file, and the three map and gait paths once.</p>
+<h3 id="62-follow-the-spawn-and-the-controller-start-up">6.2 Follow the spawn and the controller start-up</h3>
+<p>Objective: know what has to happen before the legs take commands.</p>
+<ol>
+<li><code>robot_state_publisher</code> publishes the URDF on <code>/robot_description</code>.</li>
+<li><code>gzserver</code> starts with the arena world and the <code>gazebo_ros</code> init and factory plugins.</li>
+<li><code>spawn_entity.py -entity go2 -topic /robot_description -x -4.5 -y -3.5 -z 0.275 -Y 0.0</code> inserts the robot 0.275 m above the
+   floor at marker A. It drops onto its feet.</li>
+<li>The <code>gazebo_ros2_control</code> plugin inside the model fetches the URDF from <code>robot_state_publisher</code>, creates the four leg systems
+   and starts a controller manager at <code>/controller_manager</code>.</li>
+<li>Two <code>controller_manager</code> spawner nodes load and activate <code>joint_states_controller</code> and <code>joint_group_effort_controller</code>.</li>
+</ol>
+<p>Upstream used <code>ros2 control load_controller</code> for step 5. That command comes from <code>ros2controlcli</code>, which is not installed here,
+and without it the legs never receive a command. The patch replaces both calls with the spawner node. The launch output of one
+start, shortened:</p>
+<pre><code>[spawn_entity]: Spawn status: SpawnEntity: Successfully spawned entity [go2]
+[gazebo_ros2_control]: Parameter 'hold_joints' has already been declared, ...
+[spawner_joint_group_effort_controller]: Configured and activated joint_group_effort_controller
+[spawner_joint_states_controller]: Configured and activated joint_states_controller
+</code></pre>
+<p>The <code>hold_joints</code> error appears three times, once for each <code>&lt;ros2_control&gt;</code> block after the first, and the controllers start
+normally after it.</p>
+<p><img loading="lazy" alt="Sequence diagram with lanes ros2 launch, robot_state_publisher, gzserver, spawn_entity.py, gazebo_ros2_control and the spawners, showing steps 1 to 5 in order" src="../img/c06-startup-sequence.png" /></p>
+<p><em>The five start-up steps above in time order. The URDF reaches the plugin from <code>robot_state_publisher</code>; the spawners are this repository's patch.</em></p>
+<p>Check: both <code>Configured and activated</code> lines appear when you start the simulator in <a href="07-make-it-walk.html">chapter 7</a>, Task 1.</p>
+<h2 id="exercise">Exercise</h2>
+<p>In your copy <code>docs/exercises/go2_extra.xacro</code>, add a range sensor frame <code>tof_link</code> 0.30 m in front of <code>base_link</code> and 0.05 m
+below it, tilted 0.5 rad nose-down. What does <code>tf2_echo base_link tof_link</code> print?</p>
+<p>Answer: the joint is</p>
+<pre><code class="language-xml">  &lt;link name=&quot;tof_link&quot;/&gt;
+  &lt;joint name=&quot;tof_joint&quot; type=&quot;fixed&quot;&gt;
+    &lt;parent link=&quot;base_link&quot;/&gt;
+    &lt;child link=&quot;tof_link&quot;/&gt;
+    &lt;origin xyz=&quot;0.30 0 -0.05&quot; rpy=&quot;0 0.5 0&quot;/&gt;
+  &lt;/joint&gt;
+</code></pre>
+<p>A positive pitch about y turns +x downwards (REP-103, right hand). With <code>robot_state_publisher</code> on the copy, <code>tf2_echo</code> printed:</p>
+<pre><code>- Translation: [0.300, 0.000, -0.050]
+- Rotation: in Quaternion (xyzw) [0.000, 0.247, 0.000, 0.969]
+- Rotation: in RPY (radian) [0.000, 0.500, 0.000]
+- Rotation: in RPY (degree) [0.000, 28.648, 0.000]
+</code></pre>
+<h2 id="further-reading">Further reading</h2>
+<ul>
+<li>ROS 2 documentation, <code>URDF/Building-a-Visual-Robot-Model-with-URDF-from-Scratch.rst</code> (humble branch of <code>ros2/ros2_documentation</code>).</li>
+<li>Articulated Robotics tutorials: https://articulatedrobotics.xyz/tutorials/</li>
+</ul><nav class="prevnext" aria-label="Previous and next"><a class="pn" href="05-frames-and-tf2.html"><span>Previous</span>Frames and TF2</a><a class="pn next" href="../tasks/s01_import-and-inspect/index.html"><span>Next</span>Import and inspect the robot</a></nav><p class="source">Source: <a href="https://github.com/Armanasq/go2-nav-sim/blob/main/docs/06-import-the-go2.md">docs/06-import-the-go2.md</a></p></article></div>
+</main>
+<footer class="site"><div class="wrap">Simulation only. Source and issues on <a href="https://github.com/Armanasq/go2-nav-sim">GitHub</a>.</div></footer>
+<script type="module" src="../static/js/site.js"></script>
+</body>
+</html>

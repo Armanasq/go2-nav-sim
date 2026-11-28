@@ -1,0 +1,548 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>First steps: launch, inspect, walk, stop · go2-nav-sim</title>
+<meta name="description" content="First steps: launch, inspect, walk, stop">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../../static/css/site.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5' fill='%230a6a9c'/%3E%3C/svg%3E">
+
+</head>
+<body data-root="../../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar"><div class="inner">
+<a class="brand" href="../../index.html">go2-nav-sim</a>
+<nav aria-label="Main"><a href="../../tutorial/00-overview.html" aria-current="page">Learn</a><a href="../../tasks/index.html">Tasks</a><a href="../../modules/index.html">Deep dives</a><a href="../../reference.html">Reference</a></nav>
+<button class="theme-toggle" type="button" aria-label="Colour theme: auto">auto</button>
+</div></header>
+<main id="main">
+<div class="wrap doc"><details class="side" open><summary>First steps</summary><nav aria-label="Contents"><ol class="parts"><li class="open"><p class="part">Start</p><ol><li><a href="../../tutorial/00-overview.html"><span class="n">0</span><span>What you will build</span></a></li><li><a href="../../tutorial/01-legged-robot-foundations.html"><span class="n">1</span><span>Legged robot foundations</span></a></li><li><a href="../../tutorial/02-prerequisites.html"><span class="n">2</span><span>Prerequisites</span></a></li><li><a href="../../tutorial/03-install-and-first-run.html"><span class="n">3</span><span>Install and first run</span></a></li><li><a href="../../tutorial/04-ros2-from-scratch.html"><span class="n">4</span><span>ROS 2 from scratch</span></a></li><li><a href="index.html" aria-current="page"><span class="n">P1</span><span>First steps</span></a><ul class="sections"><li><a href="#goal">Goal</a></li><li><a href="#what-you-will-learn">What you will learn</a></li><li><a href="#before-you-start">Before you start</a></li><li><a href="#steps">Steps</a></li><li><a href="#how-the-code-works">How the code works</a></li><li><a href="#results">Results</a></li><li><a href="#try-this">Try this</a></li><li><a href="#if-it-goes-wrong">If it goes wrong</a></li></ul></li></ol></li><li><a class="part" href="../../tutorial/05-frames-and-tf2.html">The robot</a></li><li><a class="part" href="../p02_teleop-and-safety/index.html">Move it</a></li><li><a class="part" href="../../tutorial/08-robot-and-sensors.html">Sense and avoid</a></li><li><a class="part" href="../../tutorial/09-state-estimation.html">Estimate and map</a></li><li><a class="part" href="../p11_command-arbitration/index.html">Navigate</a></li><li><a class="part" href="../p14_test-the-stack/index.html">Beyond simulation</a></li></ol></nav></details><article class="prose"><p class="where">Start · Project 1</p><h1>First steps: launch, inspect, walk, stop</h1><h2 id="goal">Goal</h2>
+<p>Start the simulated Go2, find out what is running, make the robot walk forward, turn and stop from the command line, and
+measure what it actually did from the simulator's ground truth. You finish with a script that drives a fixed sequence, a
+plot of where the robot went, and a first video of your robot.</p>
+<h2 id="what-you-will-learn">What you will learn</h2>
+<ul>
+<li>Starting the stack and checking that it is up.</li>
+<li>Reading the ROS 2 graph: nodes, topics, message types, publishers and subscribers, rates.</li>
+<li>Commanding the robot on <code>/cmd_vel</code> with <code>ros2 topic pub</code>, and why you must always send a zero twist to stop it.</li>
+<li>Reading a pose from <code>nav_msgs/Odometry</code>, including the heading from a quaternion.</li>
+<li>Writing two small rclpy scripts that run on simulated time: one that drives, one that measures.</li>
+<li>Comparing commanded motion, true motion (<code>/odom_gt</code>) and estimated motion (<code>/odom</code>).</li>
+</ul>
+<h2 id="before-you-start">Before you start</h2>
+<p>You need the repository built (<a href="../../tutorial/03-install-and-first-run.html">chapter 3</a>) and the <code>ros2</code> command line basics from
+<a href="../../tutorial/04-ros2-from-scratch.html">chapter 4</a>. <a href="../../tutorial/07-make-it-walk.html">Chapter 7</a> explains the gait controller in
+depth; this project only uses its interface.</p>
+<p>Every terminal starts with:</p>
+<pre><code class="language-bash">cd go2-nav-sim
+source env.sh
+</code></pre>
+<p>The scripts in this project are plain Python files. They need no build: <code>python3 projects/p01_first-steps/&lt;script&gt;.py</code>.</p>
+<h2 id="steps">Steps</h2>
+<h3 id="1-start-the-stack">1. Start the stack</h3>
+<pre><code class="language-bash">scripts/up.sh
+</code></pre>
+<p>Expected, after 30 s to a few minutes:</p>
+<pre><code>stack: ROS_DOMAIN_ID=42 GAZEBO_MASTER_URI=http://localhost:11345
+stack up
+</code></pre>
+<p><code>up.sh</code> starts three launch files in order and waits for each: <code>sim.launch.py</code> (Gazebo, the robot, the CHAMP gait controller,
+the sensors), <code>estimation.launch.py</code> (2D scan, lidar odometry, EKF) and <code>nav.launch.py</code> (Nav2, AMCL, a passive mapper). The
+robot is spawned on the green disc A at (-4.5, -3.5), facing +x. Gazebo runs without a window.</p>
+<p>Check: <code>ros2 topic echo --once /clock</code> prints a <code>sec</code> value that grows each time you run it.</p>
+<h3 id="2-list-what-is-running">2. List what is running</h3>
+<pre><code class="language-bash">ros2 node list | wc -l
+ros2 node list | grep -v transform_listener
+</code></pre>
+<pre><code>44
+/amcl
+/base_to_footprint_ekf
+...
+/lidar_odom
+...
+/p3d_gt
+...
+/quadruped_controller_node
+/robot_state_publisher
+/slam_toolbox
+...
+</code></pre>
+<p><code>/quadruped_controller_node</code> is CHAMP, the gait controller that turns a body velocity into leg joint trajectories.
+<code>/p3d_gt</code> is a Gazebo plugin that publishes the true pose of the trunk. <code>/lidar_odom</code> and <code>/odom_ekf</code> produce the estimated
+pose.</p>
+<p>Check: the count is around 44, and <code>/quadruped_controller_node</code> is in the list.</p>
+<h3 id="3-find-the-topic-that-moves-the-robot">3. Find the topic that moves the robot</h3>
+<pre><code class="language-bash">ros2 node info /quadruped_controller_node
+</code></pre>
+<pre><code>/quadruped_controller_node
+  Subscribers:
+    /body_pose: geometry_msgs/msg/Pose
+    /clock: rosgraph_msgs/msg/Clock
+    /cmd_vel: geometry_msgs/msg/Twist
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+  Publishers:
+    /joint_group_effort_controller/joint_trajectory: trajectory_msgs/msg/JointTrajectory
+    ...
+</code></pre>
+<p>The controller listens to <code>/cmd_vel</code>, a <code>geometry_msgs/msg/Twist</code>. Look at the message:</p>
+<pre><code class="language-bash">ros2 interface show geometry_msgs/msg/Twist
+</code></pre>
+<pre><code># This expresses velocity in free space broken into its linear and angular parts.
+
+Vector3  linear
+    float64 x
+    float64 y
+    float64 z
+Vector3  angular
+    float64 x
+    float64 y
+    float64 z
+</code></pre>
+<p>For a walking robot on flat ground only three fields matter: <code>linear.x</code> (forward, m/s), <code>linear.y</code> (left, m/s) and
+<code>angular.z</code> (turn left, rad/s). CHAMP clips them to 0.3 m/s, 0.25 m/s and 0.5 rad/s (<code>gait.yaml</code>, chapter 7).</p>
+<p>Who else publishes there:</p>
+<pre><code class="language-bash">ros2 topic info -v /cmd_vel | grep -E &quot;Node name:|count&quot;
+</code></pre>
+<pre><code>Publisher count: 6
+Node name: velocity_smoother
+Node name: behavior_server
+Node name: behavior_server
+Node name: behavior_server
+Node name: behavior_server
+Node name: behavior_server
+Subscription count: 1
+Node name: quadruped_controller_node
+</code></pre>
+<p><code>behavior_server</code> appears five times because each of its five behaviour plugins (spin, backup, drive_on_heading,
+assisted_teleop, wait in <code>src/go2_nav_sim/config/nav2_params.yaml</code>) has its own publisher. Nav2's <code>velocity_smoother</code> and
+<code>behavior_server</code> are idle until Nav2 is given a goal. While you drive by hand they stay quiet;
+if you send a Nav2 goal at the same time, both of you command the same robot. (With <code>ros2 topic echo /cmd_vel</code> running for
+25 s while I sent one command, the echo printed that one message and nothing else.)</p>
+<p>Check: <code>Subscription count: 1</code>, and the subscriber is <code>quadruped_controller_node</code>.</p>
+<h3 id="4-measure-the-sensor-rates">4. Measure the sensor rates</h3>
+<pre><code class="language-bash">ros2 topic hz -s /imu/data
+</code></pre>
+<p><code>-s</code> measures in simulated time, which is what the sensors are configured in. Stop each with Ctrl-C after a few seconds.
+What I measured, 20 s per topic, all at once:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Topic</th>
+<th>Type</th>
+<th>Rate (sim time)</th>
+<th>Published by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/joint_states</code></td>
+<td><code>sensor_msgs/JointState</code></td>
+<td>249.2 Hz</td>
+<td>ros2_control</td>
+</tr>
+<tr>
+<td><code>/imu/data</code></td>
+<td><code>sensor_msgs/Imu</code></td>
+<td>98.6 Hz</td>
+<td>Gazebo IMU plugin</td>
+</tr>
+<tr>
+<td><code>/odom_gt</code></td>
+<td><code>nav_msgs/Odometry</code></td>
+<td>50.0 Hz</td>
+<td><code>/p3d_gt</code>, ground truth</td>
+</tr>
+<tr>
+<td><code>/odom</code></td>
+<td><code>nav_msgs/Odometry</code></td>
+<td>50.0 Hz</td>
+<td><code>/odom_ekf</code>, the estimate</td>
+</tr>
+<tr>
+<td><code>/lidar/points</code></td>
+<td><code>sensor_msgs/PointCloud2</code></td>
+<td>10.04 Hz</td>
+<td>Gazebo 3D lidar</td>
+</tr>
+<tr>
+<td><code>/scan</code></td>
+<td><code>sensor_msgs/LaserScan</code></td>
+<td>10.03 Hz</td>
+<td><code>pointcloud_to_laserscan</code></td>
+</tr>
+<tr>
+<td><code>/camera/image_raw</code></td>
+<td><code>sensor_msgs/Image</code></td>
+<td>2.39 Hz</td>
+<td>Gazebo RGB-D camera, configured for 10 Hz</td>
+</tr>
+</tbody>
+</table></div>
+<p>The camera came in at a quarter of its configured rate because the machine was loaded (load average 38 on 32 threads) and
+rendering is the most expensive sensor. Expect a different camera rate on your machine; the other rates should match.</p>
+<p>Check: <code>/imu/data</code> near 100 Hz and <code>/odom_gt</code> at 50 Hz.</p>
+<h3 id="5-read-the-true-pose">5. Read the true pose</h3>
+<pre><code class="language-bash">ros2 topic echo --once /odom_gt --field pose.pose
+</code></pre>
+<pre><code>position:
+  x: 0.09921225913936116
+  y: 0.012619213036241028
+  z: 0.21497210013485696
+orientation:
+  x: ...
+  y: ...
+  z: ...
+  w: ...
+</code></pre>
+<p><code>/odom_gt</code> is relative to the spawn point A, although its <code>frame_id</code> says <code>world</code>: the plugin subtracts A
+(<code>urdf/sensors.xacro</code>, <code>xyz_offset</code>). Add (-4.5, -3.5) to get arena coordinates. The 0.10 m in x before the robot has
+moved is the slide on landing after the spawn. <code>z</code> is the trunk height, about 0.215 m. The heading is hidden in the
+quaternion; the measuring script below converts it.</p>
+<p>Check: <code>x</code> and <code>y</code> within about 0.15 m of zero.</p>
+<h3 id="6-start-the-measuring-script">6. Start the measuring script</h3>
+<p>In a second terminal:</p>
+<pre><code class="language-bash">python3 projects/p01_first-steps/measure.py --csv manual.csv
+</code></pre>
+<p>It prints the true pose in arena coordinates once per simulated second. Leave it running.</p>
+<pre><code>t    0.0 s  x  -4.40  y  -3.49  heading     2.1 deg  speed 0.00 m/s
+t    1.0 s  x  -4.40  y  -3.49  heading     2.1 deg  speed 0.00 m/s
+</code></pre>
+<p>Check: one line per simulated second, speed 0.00.</p>
+<h3 id="7-walk-forward-then-stop">7. Walk forward, then stop</h3>
+<p>In a third terminal:</p>
+<pre><code class="language-bash">timeout 10 ros2 topic pub -r 10 /cmd_vel geometry_msgs/msg/Twist &quot;{linear: {x: 0.3}}&quot; &gt; /dev/null
+</code></pre>
+<p>This publishes 0.3 m/s forward ten times a second until <code>timeout</code> ends it after 10 s of wall time. Watch the measuring
+terminal: the speed climbs to 0.30 m/s within about a second. Now wait a few seconds after the command has returned. The robot
+does not stop. CHAMP keeps executing the last command it received; there is no timeout. Stop it with a zero twist:</p>
+<pre><code class="language-bash">ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist &quot;{}&quot;
+</code></pre>
+<p>What the measuring script printed in my run:</p>
+<pre><code>t    5.0 s  x  -4.40  y  -3.49  heading     1.3 deg  speed 0.00 m/s
+t    6.0 s  x  -4.09  y  -3.49  heading     1.4 deg  speed 0.31 m/s
+t    7.0 s  x  -3.80  y  -3.47  heading     2.1 deg  speed 0.29 m/s
+...
+t   13.0 s  x  -1.99  y  -3.46  heading    -1.0 deg  speed 0.30 m/s
+t   14.0 s  x  -1.69  y  -3.46  heading    -1.4 deg  speed 0.30 m/s
+t   15.0 s  x  -1.59  y  -3.46  heading     0.4 deg  speed 0.10 m/s
+t   16.0 s  x  -1.59  y  -3.46  heading     0.3 deg  speed 0.00 m/s
+</code></pre>
+<p>The robot covered 2.81 m (x from -4.40 to -1.59) and drifted 3 cm to the left. Your distance will differ: <code>timeout</code> counts
+wall time, and how much simulated time fits into 10 s of wall time depends on how loaded your machine is. A learner's run of
+this step on the same machine covered 3.20 m. What should match is the speed of 0.30 m/s, the robot still walking after
+<code>timeout</code> returns, and the speed falling to 0.00 after the zero twist. In a separate test I published one 0.2 m/s
+message with <code>--once</code> and nothing else: 21 s later the robot was still walking at 0.19 m/s and had covered 3.99 m, and its trunk
+was 0.24 m from the inner face of the west wall when I sent the zero.</p>
+<p>Check: speed 0.00 within a second of the zero twist.</p>
+<h3 id="8-turn-then-stop">8. Turn, then stop</h3>
+<pre><code class="language-bash">timeout 10 ros2 topic pub -r 10 /cmd_vel geometry_msgs/msg/Twist &quot;{angular: {z: 0.5}}&quot; &gt; /dev/null
+ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist &quot;{}&quot;
+</code></pre>
+<pre><code>t   17.0 s  x  -1.59  y  -3.46  heading     0.3 deg  speed 0.00 m/s
+t   18.0 s  x  -1.62  y  -3.46  heading    25.6 deg  speed 0.03 m/s
+t   19.0 s  x  -1.66  y  -3.49  heading    53.4 deg  speed 0.05 m/s
+...
+t   23.0 s  x  -1.60  y  -3.62  heading   162.4 deg  speed 0.04 m/s
+t   24.0 s  x  -1.58  y  -3.63  heading   177.0 deg  speed 0.00 m/s
+</code></pre>
+<p>The heading grows by about 27 degrees per second, 0.47 rad/s against the 0.5 commanded. The total angle depends on the
+machine for the same reason as the distance in step 7: my run turned 175 degrees, a learner's run 199 degrees. The rate of about
+27 degrees per second is what to compare. The trunk also moves a few
+centimetres while turning in place: the turn is made of steps, and the centre of rotation is not exactly the trunk origin.</p>
+<p>Check: heading increases while the command runs, and stays put after the zero twist.</p>
+<h3 id="9-read-the-summary">9. Read the summary</h3>
+<p>Press Ctrl-C in the measuring terminal:</p>
+<pre><code>ground truth: 26.5 s  path 3.39 m  net 2.82 m  mean speed 0.128 m/s  turned 174.8 deg  end (-1.58, -3.63) heading 176.9 deg
+estimate    : 26.5 s  path 5.57 m  net 2.85 m  mean speed 0.210 m/s  turned 184.3 deg  end (-1.44, -3.70) heading -170.7 deg
+wrote manual.csv
+</code></pre>
+<p>The first line is the truth. The second is what the robot itself believes, from lidar and IMU (<code>/odom</code>). The net
+displacement agrees to 3 cm, the turn is overestimated by 9.5 degrees, and the path length of the estimate is 64 % too
+long; <a href="#how-the-code-works">How the code works</a> explains why the path length is the wrong thing to compare.</p>
+<p>Check: <code>net</code> within a few centimetres between the two lines. The other numbers depend on how far your robot walked and
+turned in steps 7 and 8, so they will not match mine.</p>
+<h3 id="10-drive-a-sequence-from-a-script-and-record-it">10. Drive a sequence from a script, and record it</h3>
+<p>Typing commands gives uneven timing: each <code>ros2</code> process takes a few seconds to start, and <code>timeout</code> counts wall time
+while the robot lives in simulated time. <code>drive.py</code> publishes a list of <code>vx,vy,wz,seconds</code> segments on the simulated clock and
+always ends with a zero twist. Restart the stack first so the robot is back on A (<code>scripts/up.sh</code> stops the old one). Then,
+in three terminals:</p>
+<pre><code class="language-bash">python3 projects/p01_first-steps/record.py first_walk.mp4 --topic /spectator/cam/image_raw   # terminal 1, the video
+python3 projects/p01_first-steps/measure.py --csv drive.csv                                  # terminal 2, the measurement
+python3 projects/p01_first-steps/drive.py                                                    # terminal 3, the commands
+</code></pre>
+<p><code>record.py</code> is the shared recorder <code>projects/common/record_cam.py</code> with one change: it asks for reliable delivery of the
+images instead of best effort. See the <code>record_cam.py</code> row in <a href="#if-it-goes-wrong">If it goes wrong</a> for why.</p>
+<p>The default sequence is 0.3 m/s forward for 10 s, a left turn at 0.5 rad/s for 3.2 s, and 0.3 m/s forward for 3 s.
+<code>drive.py</code> prints each change of command:</p>
+<pre><code>  0.1 s  vx 0.30  vy 0.00  wz 0.00
+ 10.0 s  vx 0.00  vy 0.00  wz 0.50
+ 13.2 s  vx 0.30  vy 0.00  wz 0.00
+stop: zero twist sent
+</code></pre>
+<p>When it has stopped, press Ctrl-C in terminals 1 and 2. <code>record.py</code> prints the number of frames it wrote, at 10 frames per
+simulated second: <code>first_walk.mp4: 310 frames</code> in my latest run, with a load average of about 58 (31.0 s of video according
+to <code>ffprobe</code>). My first measurement:</p>
+<pre><code>ground truth: 21.6 s  path 4.28 m  net 2.96 m  mean speed 0.198 m/s  turned 91.0 deg  end (-1.51, -2.68) heading 90.8 deg
+estimate    : 21.6 s  path 6.19 m  net 2.96 m  mean speed 0.287 m/s  turned 94.5 deg  end (-1.66, -2.64) heading 94.5 deg
+</code></pre>
+<p>A later run on the same machine (<code>results/drive_run3.csv</code>) ended at (-1.59, -2.62) and turned 91.1 degrees.</p>
+<p>The video is the second run of the same sequence, recorded from the spectator camera with a reliable subscription, as
+<code>record.py</code> does (22 s, simulated time):</p>
+<video controls muted playsinline src="media/first_walk_spectator.mp4"></video>
+
+<p>Check: <code>turned</code> near 90 degrees and the robot ends about 0.9 m north of where it turned.</p>
+<h3 id="11-plot-the-run">11. Plot the run</h3>
+<pre><code class="language-bash">python3 projects/p01_first-steps/plot_run.py drive.csv drive.png
+</code></pre>
+<p>My first scripted run:</p>
+<p><img loading="lazy" alt="The scripted run from drive.py on the arena map: ground truth as a wide grey band, the start-aligned estimate as a thin blue line on top of it, arrows at the final heading" src="figures/drive_run1.png" /></p>
+<p>Ground truth is drawn as a wide grey band and the estimate as a thin blue line on top of it. The two are a few centimetres
+apart, so where the estimate is good you see blue running down the middle of the grey band.</p>
+<p>The arena outline, boxes and pillars are drawn from <code>src/go2_nav_sim/scripts/make_arena.py</code>, the file that also generated
+the Gazebo world and the navigation map, so the plot and the simulator cannot disagree about where the obstacles are.</p>
+<p>Check: the grey band starts on A, runs 3 m east, turns north and stops below the box at (-1.5, -1.5).</p>
+<h3 id="12-stop-everything">12. Stop everything</h3>
+<pre><code class="language-bash">scripts/stop.sh
+</code></pre>
+<p>Check: <code>ros2 node list</code> prints nothing (it may take a few seconds for the daemon to forget the nodes).</p>
+<h2 id="how-the-code-works">How the code works</h2>
+<p>Three scripts, all plain rclpy, all on simulated time. <code>record.py</code> only wraps the shared recorder (step 10).</p>
+<h3 id="measurepy"><code>measure.py</code></h3>
+<p>The node subscribes to both odometry topics with one callback factory, and stores <code>(t, x, y, yaw)</code> per message. Times come
+from the message stamps, not from the arrival time, because on a loaded machine messages arrive in bursts:</p>
+<pre><code class="language-python">def on_odom(key):
+    def cb(m):
+        t = m.header.stamp.sec + m.header.stamp.nanosec * 1e-9
+        p = m.pose.pose
+        data[key].append((t, p.position.x + A[0], p.position.y + A[1], yaw_of(p.orientation)))
+    return cb
+</code></pre>
+<p>The heading is the rotation about the vertical axis, taken from the unit quaternion (x, y, z, w):</p>
+<p>yaw = atan2(2(wz + xy), 1 - 2(y² + z²))</p>
+<pre><code class="language-python">def yaw_of(q):
+    return math.atan2(2 * (q.w * q.z + q.x * q.y), 1 - 2 * (q.y * q.y + q.z * q.z))
+</code></pre>
+<p>The summary adds up small steps:</p>
+<pre><code class="language-python">for (_, x0, y0, a0), (_, x1, y1, a1) in zip(samples, samples[1:]):
+    path += math.hypot(x1 - x0, y1 - y0)
+    turn += wrap(a1 - a0)                  # sum of small steps, so a 400 degree spin counts as 400, not 40
+</code></pre>
+<p>The summary and the CSV are written after Ctrl-C, so <code>measure.py</code> turns off rclpy's own Ctrl-C handler, as <code>drive.py</code> does
+(explained below). With the handler on, one of five Ctrl-Cs in my runs raised a <code>RuntimeError</code> inside rclpy and the summary
+was lost; with it off, ten of ten wrote the CSV.</p>
+<p><code>wrap</code> maps an angle into [-180, 180) degrees. Subtracting the first heading from the last would be wrong as soon as the robot
+crosses ±180 degrees (step 9 ends at 176.9 degrees true and -170.7 degrees estimated, which are 12.4 degrees apart, not 347).
+Each step between two 50 Hz samples is far smaller than 180 degrees, so wrapping each step is safe.</p>
+<p>Path length is the sum of the step lengths. On ground truth that is the distance walked plus a little trunk sway. On the
+estimate it is inflated: <code>/odom</code> is published at 50 Hz but corrected by the lidar at 10 Hz, so it moves in small jumps. In
+the straight part of the scripted run the largest step between two <code>/odom</code> samples was 3.4 cm, against 0.8 cm for ground
+truth, and the estimated path came out 1.9 m longer than the true one. Compare positions and headings, not path lengths.</p>
+<h3 id="drivepy"><code>drive.py</code></h3>
+<p>The sequence logic is a pure function, so it is unit-tested without ROS:</p>
+<pre><code class="language-python">def command_at(segs, t):
+    for vx, vy, wz, dur in segs:
+        if t &lt; dur:
+            return vx, vy, wz
+        t -= dur
+    return None
+</code></pre>
+<p>A 20 Hz timer on the node's clock (simulated time, because <code>use_sim_time</code> is true) looks up the command for the elapsed time
+and publishes it. If the simulation runs at half speed, the sequence takes twice as long in wall time and the robot still
+walks for 10 s of its own time.</p>
+<p>Stopping safely takes two details:</p>
+<pre><code class="language-python">rclpy.init(signal_handler_options=SignalHandlerOptions.NO)
+...
+finally:
+    for _ in range(3):
+        pub.publish(Twist())
+        time.sleep(0.05)
+</code></pre>
+<p>rclpy's default Ctrl-C handler shuts the ROS context down before your <code>finally</code> block runs, and a publisher on a shut-down
+context cannot send. With the handler disabled, Ctrl-C is an ordinary <code>KeyboardInterrupt</code>, the context is still valid, and the
+zero twist goes out. It is sent three times because one lost message would leave the robot walking.</p>
+<h3 id="predicting-where-the-robot-should-end">Predicting where the robot should end</h3>
+<p>Integrating the commands from the true start pose (x₀, y₀, θ₀) gives where a perfect robot would stop:</p>
+<p>x₁ = x₀ + 3.0 cos θ₀, θ₁ = θ₀ + 0.5 × 3.2, x₂ = x₁ + 0.9 cos θ₁ (and the same with sin for y)</p>
+<p>From (-4.35, -3.51, -0.2°) that is (-1.37, -2.62). Ground truth ended at (-1.51, -2.68), 0.15 m away. The forward leg
+covered 2.94 m when the heading passed 5 degrees (3.0 m commanded), and the turn was 91.0 degrees (91.7 commanded). The
+steady forward speed between 6 s and 12 s was 0.300 m/s, so the loss is in the gait starting and stopping, plus the trunk
+shifting during the turn.</p>
+<h3 id="plot_runpy"><code>plot_run.py</code></h3>
+<p>Draws the CSV over the arena. <code>/odom_gt</code> is zero at the spawn point; the robot then slides 0.10 to 0.15 m on landing, and
+<code>/odom</code> is zero wherever the robot stood when the estimator started. The plot translates the estimate so both start at the
+same point (no rotation), so what is left is the estimator's error during the run plus any heading error it already had.</p>
+<h2 id="results">Results</h2>
+<p>All from my runs on one machine (32 threads, load average 38 to 135 from other simulations). Ground truth from <code>/odom_gt</code>,
+estimate from <code>/odom</code>.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Run</th>
+<th>Command</th>
+<th>Ground truth</th>
+<th>Estimate</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Manual forward (step 7)</td>
+<td><code>ros2 topic pub -r 10</code>, vx 0.3</td>
+<td>2.81 m at 0.30 m/s, 3 cm lateral drift</td>
+<td></td>
+</tr>
+<tr>
+<td>Manual turn (step 8)</td>
+<td><code>ros2 topic pub -r 10</code>, wz 0.5</td>
+<td>about 0.47 rad/s; whole session turned 174.8°</td>
+<td>turned 184.3°, 9.5° too much</td>
+</tr>
+<tr>
+<td>One message, no stop</td>
+<td><code>ros2 topic pub --once</code>, vx 0.2</td>
+<td>still 0.19 m/s after 21 s, 3.99 m</td>
+<td></td>
+</tr>
+<tr>
+<td><code>drive.py</code> default, run 1</td>
+<td>3.0 m, 91.7°, 0.9 m</td>
+<td>2.94 m, 91.0°, end 0.15 m from prediction</td>
+<td>end 0.03 m from truth (start aligned), heading 3.6° off</td>
+</tr>
+<tr>
+<td><code>drive.py</code> default, run 2 (video)</td>
+<td>3.0 m, 91.7°, 0.9 m</td>
+<td>2.97 m, 91.3°, end 0.11 m from prediction</td>
+<td>end 0.07 m from truth (start aligned), heading 8.2° off</td>
+</tr>
+<tr>
+<td><code>drive.py</code> default, run 3</td>
+<td>3.0 m, 91.7°, 0.9 m</td>
+<td>2.96 m, 91.1°, end 0.13 m from prediction</td>
+<td>end 0.02 m from truth (start aligned), heading 3.4° off</td>
+</tr>
+<tr>
+<td>Exercise 1, vx 0.5 after wz -0.5</td>
+<td>clipped to 0.3</td>
+<td>0.29 to 0.32 m/s (two runs)</td>
+<td></td>
+</tr>
+<tr>
+<td>Exercise 2, vy -0.25</td>
+<td>1.5 m to the right</td>
+<td>0.26 to 0.29 m/s, 1.61 and 1.60 m, heading -6.9° and -2.3°</td>
+<td>turned -12.7° and -4.0°</td>
+</tr>
+<tr>
+<td>Exercise 3, square</td>
+<td>4 × (1.02 m, 91.7°)</td>
+<td>turned 363.0° and 355.8°, ended 0.10 and 0.14 m from its start</td>
+<td>turned 370.0° and 364.1°, net 0.16 and 0.22 m</td>
+</tr>
+</tbody>
+</table></div>
+<p>Steady forward speed between 6 s and 12 s of runs 1 and 2: 0.300 and 0.302 m/s; run 3, 2 s to 8 s after the robot started
+moving (its CSV begins 8 s before the motion): 0.300 m/s. In runs 1 and 2 the estimate ended 3.6° and 8.2°
+off the true heading, in opposite directions: it measured the turn as 94.5° and 84.5° against 91.0° and 91.3° true. Run 3
+measured 94.6° against 91.1°. The estimator is the subject of <a href="../../tutorial/09-state-estimation.html">chapter 9</a>; here it is enough to know that its heading can be several degrees
+off after one turn.</p>
+<p>Commands: steps 6 to 10 above and the exercises below. The forward-leg length and steady speed come from the CSVs:</p>
+<pre><code class="language-python">import csv, math
+gt = [(float(r['t']), float(r['x']), float(r['y']), float(r['yaw']))
+      for r in csv.DictReader(open('projects/p01_first-steps/results/drive_run1.csv')) if r['source'] == 'gt']
+t0, x0, y0, a0 = gt[0]
+leg = next(s for s in gt if abs(math.degrees(s[3] - a0)) &gt; 5)          # first sample 5 deg off the start heading
+p, q = (min(gt, key=lambda s: abs(s[0] - t0 - T)) for T in (6, 12))
+print(f'forward leg {math.hypot(leg[1] - x0, leg[2] - y0):.2f} m, speed {math.hypot(q[1] - p[1], q[2] - p[2]) / (q[0] - p[0]):.3f} m/s')
+# forward leg 2.94 m, speed 0.300 m/s
+</code></pre>
+<p>The CSVs of all my runs are in <code>results/</code> (<code>manual</code>, <code>drive_run1</code> to <code>drive_run3</code>, and <code>ex_clip</code>, <code>ex_side</code>, <code>ex_square</code> with
+a <code>_run2</code> copy of each), so you can re-plot them without the simulator. Run 3 and the <code>_run2</code> exercises were done in one
+session, in the order of the exercises above.</p>
+<p>Unit tests for the pure logic (quaternion to heading, angle wrapping, summary, sequence parsing):</p>
+<pre><code class="language-bash">python3 -m pytest -q projects/p01_first-steps
+# 7 passed
+</code></pre>
+<h2 id="try-this">Try this</h2>
+<p>Each exercise starts where the previous one stopped, so do them in this order, straight after step 10 (the robot is at
+about (-1.6, -2.6), facing north). The paths were chosen to stay clear of the boxes from there. If your robot is somewhere
+else, restart with <code>scripts/up.sh</code> and run <code>drive.py</code> without arguments first. Run <code>measure.py</code> in another terminal during
+each one.</p>
+<ol>
+<li>Ask for more than the robot can do: turn right to face east, then 0.5 m/s forward. What speed does <code>measure.py</code> report?</li>
+</ol>
+<p><code>bash
+   python3 projects/p01_first-steps/drive.py 0,0,-0.5,3.2 0.5,0,0,6     # wz -0.5 is a right turn: from north to east</code></p>
+<p>Answer: 0.29 to 0.32 m/s on every full second of the straight part after the first, which is the gait speeding up. CHAMP
+   clips <code>linear.x</code> to <code>max_linear_velocity_x</code> = 0.3 and says nothing about it; the publisher gets no error. In my two runs
+   the heading was 8 and 11 degrees when the robot started walking east (the turn was a few degrees short) and drifted to
+   about 2 degrees by the end. The robot stopped at (0.20, -2.63) and (0.14, -2.49).</p>
+<ol start="2">
+<li>Walk sideways to the right: <code>linear.y</code> = -0.25 m/s for 6 s. Is it as clean as walking forward?</li>
+</ol>
+<p><code>bash
+   python3 projects/p01_first-steps/drive.py 0,-0.25,0,6</code></p>
+<p>Answer: no. In two runs the robot moved 1.61 and 1.60 m (6 s at 0.25 m/s would be 1.5 m) at 0.26 to 0.29 m/s, faster
+   than the 0.25 m/s clip, and crept backwards by 0.29 and 0.28 m while facing about +x. The heading drift varies from run to
+   run: -6.9 and -2.3 degrees in mine, +1.3 in a learner's run. Sideways walking is the least accurate of the three motions,
+   so prefer turning and walking forward when you need precision.</p>
+<ol start="3">
+<li>Walk a square with 1 m sides: four times forward 0.3 m/s for 3.4 s, then left 0.5 rad/s for 3.2 s. How far from its start
+   does the robot end, and how much has it turned?</li>
+</ol>
+<p><code>bash
+   python3 projects/p01_first-steps/drive.py 0.3,0,0,3.4 0,0,0.5,3.2 0.3,0,0,3.4 0,0,0.5,3.2 0.3,0,0,3.4 0,0,0.5,3.2 0.3,0,0,3.4 0,0,0.5,3.2</code></p>
+<p>Answer from my two runs: <code>turned 363.0 deg</code>, <code>net 0.10 m</code> and <code>turned 355.8 deg</code>, <code>net 0.14 m</code>. A learner who restarted
+   and walked the square from A got 353.9 degrees and 0.12 m. The commands ask for 4 × 0.5 × 3.2 rad = 366.7 degrees; each
+   side came out at about 0.9 m because the gait needs about a second to reach full speed. The estimate turned 370.0 and 364.1
+   degrees. Ground truth grey, estimate blue (shifted to the same start, not rotated, so the heading error it already had
+   shows):</p>
+<p><img loading="lazy" alt="Square walked with drive.py: ground truth as a grey band, estimate as a blue line" src="figures/ex_square.png" /></p>
+<h2 id="if-it-goes-wrong">If it goes wrong</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Cause</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>TIMEOUT waiting for: gazebo</code> from <code>up.sh</code>, but <code>logs/up_sim.log</code> shows the controllers loaded</td>
+<td>On a loaded machine (load average above 100 in my case) <code>gz stats</code> did not answer within its 5 s timeout, so <code>up.sh</code> gave up although Gazebo was running</td>
+<td>Check <code>ros2 topic echo --once /clock</code>. If the clock runs, start the other two launch files by hand: <code>ros2 launch go2_nav_sim estimation.launch.py</code>, wait for a <code>pose=</code> line, then <code>ros2 launch go2_nav_sim nav.launch.py</code>. Or run <code>scripts/up.sh</code> again when the machine is quieter</td>
+</tr>
+<tr>
+<td>The robot keeps walking after <code>ros2 topic pub</code> ended</td>
+<td>CHAMP holds the last command</td>
+<td><code>ros2 topic pub --once /cmd_vel geometry_msgs/msg/Twist "{}"</code></td>
+</tr>
+<tr>
+<td><code>timeout 10 ros2 topic pub</code> moves the robot for less (or more) than 10 s</td>
+<td><code>timeout</code> counts wall time, including the 2 to 3 s the <code>ros2</code> process needs to start; the robot moves in simulated time</td>
+<td>Use <code>drive.py</code>, which times segments on <code>/clock</code></td>
+</tr>
+<tr>
+<td><code>projects/common/record_cam.py</code> prints <code>1 frames</code> and the video is a still</td>
+<td>It subscribes best effort (<code>qos_profile_sensor_data</code>). A 960 × 540 image is 1.5 MB, sent in many fragments; on a loaded machine one lost fragment loses the whole image, and best effort does not resend. In 25 s a best-effort subscriber got 2 spectator images, a reliable one 150</td>
+<td>Record with <code>projects/p01_first-steps/record.py</code> (same arguments), which subscribes reliably. It wrote 310 frames (31.0 s) for the step 10 sequence at a load average of about 58</td>
+</tr>
+<tr>
+<td>The estimate's <code>end</code> differs from the truth by a constant 0.1 to 0.2 m even right after a restart</td>
+<td><code>/odom_gt</code> starts at the spawn point, <code>/odom</code> where the robot had settled; the robot slides 0.10 to 0.15 m on landing</td>
+<td>Compare displacements, or shift the estimate's start onto the truth as <code>plot_run.py</code> does</td>
+</tr>
+<tr>
+<td>The robot is somewhere you did not expect after several exercises</td>
+<td>Every run starts where the last one stopped</td>
+<td>Restart with <code>scripts/up.sh</code> to return to A</td>
+</tr>
+</tbody>
+</table></div><nav class="prevnext" aria-label="Previous and next"><a class="pn" href="../../tutorial/04-ros2-from-scratch.html"><span>Previous</span>ROS 2 from scratch</a><a class="pn next" href="../../tutorial/05-frames-and-tf2.html"><span>Next</span>Frames and TF2</a></nav><p class="source">Source: <a href="https://github.com/Armanasq/go2-nav-sim/blob/main/projects/p01_first-steps/README.md">projects/p01_first-steps/README.md</a></p></article></div>
+</main>
+<footer class="site"><div class="wrap">Simulation only. Source and issues on <a href="https://github.com/Armanasq/go2-nav-sim">GitHub</a>.</div></footer>
+<script type="module" src="../../static/js/site.js"></script>
+</body>
+</html>

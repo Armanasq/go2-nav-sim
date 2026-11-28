@@ -1,0 +1,790 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Joint and leg control · go2-nav-sim</title>
+<meta name="description" content="Joint and leg control">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../../static/css/site.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5' fill='%230a6a9c'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"><script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script><script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.querySelector('main'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false})"></script>
+</head>
+<body data-root="../../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar"><div class="inner">
+<a class="brand" href="../../index.html">go2-nav-sim</a>
+<nav aria-label="Main"><a href="../../tutorial/00-overview.html" aria-current="page">Learn</a><a href="../../tasks/index.html">Tasks</a><a href="../../modules/index.html">Deep dives</a><a href="../../reference.html">Reference</a></nav>
+<button class="theme-toggle" type="button" aria-label="Colour theme: auto">auto</button>
+</div></header>
+<main id="main">
+<div class="wrap doc"><details class="side" open><summary>Joint and leg control</summary><nav aria-label="Contents"><ol class="parts"><li><a class="part" href="../../tutorial/00-overview.html">Start</a></li><li class="open"><p class="part">The robot</p><ol><li><a href="../../tutorial/05-frames-and-tf2.html"><span class="n">5</span><span>Frames and TF2</span></a></li><li><a href="../../tutorial/06-import-the-go2.html"><span class="n">6</span><span>Import the Go2</span></a></li><li><a href="../s01_import-and-inspect/index.html"><span class="n">S1</span><span>Import and inspect the robot</span></a></li><li><a href="index.html" aria-current="page"><span class="n">S2</span><span>Joint and leg control</span></a></li><li><a href="../s03_posture-and-balance/index.html"><span class="n">S3</span><span>Posture and balance</span></a></li><li><a href="../../tutorial/07-make-it-walk.html"><span class="n">7</span><span>Make it walk</span></a></li></ol></li><li><a class="part" href="../../projects/p02_teleop-and-safety/index.html">Move it</a></li><li><a class="part" href="../../tutorial/08-robot-and-sensors.html">Sense and avoid</a></li><li><a class="part" href="../../tutorial/09-state-estimation.html">Estimate and map</a></li><li><a class="part" href="../../projects/p11_command-arbitration/index.html">Navigate</a></li><li><a class="part" href="../../projects/p14_test-the-stack/index.html">Beyond simulation</a></li></ol></nav></details><article class="prose"><p class="where">The robot · Stage 2 tasks</p><h1>Joint and leg control</h1><p>By the end of this stage you can command one Go2 joint by angle, velocity or torque, predict a PD step response from the
+joint inertia, put a foot at a Cartesian point and move it along a line, a triangle and an arc, reject a foot target the leg
+cannot reach, and move two legs with a fixed phase. Every task runs on a supported robot: the trunk is fixed in the air.</p>
+<p>Why MuJoCo: in the Gazebo stack CHAMP owns all twelve joints, so single-joint control, single-foot motion and step climbing are
+done here, where joint torques and contact forces are available.</p>
+<p><strong>The support.</strong> <code>lib.load_supported()</code> deletes the base free joint from the MJCF when the model is compiled (<code>MjSpec</code>), so the
+trunk is part of the world body at $z = 0.70$ m. The lowest foot centre then sits at least 0.27 m above the floor and no task
+has a ground contact (<code>tests/test_stage2.py::test_trunk_is_fixed_and_feet_are_free</code> checks <code>d.ncon == 0</code>). A grey post with no
+collision geometry is drawn under the trunk so the videos show the support.</p>
+<p><strong>The control interface.</strong> All twelve actuators in <code>modules/assets/unitree_go2/go2.xml</code> are <code>&lt;motor&gt;</code> elements: a torque, gear 1,
+clipped to ±23.7 N m (hip, thigh) and ±45.43 N m (knee). Each joint also has passive damping $b = 2$ N m s/rad, armature
+0.01 kg m² and friction loss $f = 0.2$ N m. Position and velocity control below are loops in <code>lib.py</code> that compute a torque every
+2 ms physics step.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Interface</th>
+<th>Used in</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>joint PD on torque, $\tau = k_p(q^*-q) + k_d(\dot q^*-\dot q) + b\,\dot q^*$ (gravity term off)</td>
+<td>2.01, 2.02</td>
+</tr>
+<tr>
+<td>velocity PI on torque</td>
+<td>2.03</td>
+</tr>
+<tr>
+<td>open-loop torque</td>
+<td>2.04</td>
+</tr>
+<tr>
+<td>joint PD + gravity compensation $g(q)$</td>
+<td>2.05, 2.06, and holding the other eleven joints everywhere</td>
+</tr>
+<tr>
+<td>foot path → closed-form IK every 2 ms → joint PD + $g(q)$</td>
+<td>2.08 to 2.14</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Run everything</strong> from this folder (one process, about 4 min on a loaded 32-core machine; wall times are in <code>results/*.json</code>):</p>
+<pre><code class="language-bash">cd tasks/s02_joint-and-leg-control
+MUJOCO_GL=glfw DISPLAY=:0 flock /tmp/go2_render.lock ../../.venv-modules/bin/python run.py all   # renders 2.11 and 2.14
+../../.venv-modules/bin/python -m pytest -q tests                                              # 6 tests, 11 s
+</code></pre>
+<p><code>run.py &lt;id&gt;</code> writes <code>results/&lt;id&gt;.json</code> with the measured values and the pass/fail of each check. The thresholds are in
+<code>acceptance.json</code>, written before the first run. Two entries there changed after it (2.04 and 2.14) and keep the old version and
+the reason under <code>changes</code>. The renders used <code>DISPLAY=:0</code> because this machine had no <code>:1</code> X server at the time.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Id</th>
+<th>Capability</th>
+<th>Status</th>
+<th>Key measured number</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2.01</td>
+<td>rotate a single hip joint</td>
+<td>verified</td>
+<td>RMS tracking error 10.8 mrad, max 13.9 mrad</td>
+</tr>
+<tr>
+<td>2.02</td>
+<td>move a joint between two angles</td>
+<td>verified</td>
+<td>0 rad beyond the knee range; 2 of 5 requests clamped</td>
+</tr>
+<tr>
+<td>2.03</td>
+<td>control joint velocity</td>
+<td>verified</td>
+<td>steady RMS velocity error 0.0056 rad/s at 0.8 rad/s</td>
+</tr>
+<tr>
+<td>2.04</td>
+<td>apply a controlled joint torque</td>
+<td>verified</td>
+<td>identified inertia 0.03355 vs 0.03357 kg m² predicted</td>
+</tr>
+<tr>
+<td>2.05</td>
+<td>PD controller</td>
+<td>verified</td>
+<td>damping ratio 0.544 measured, 0.546 predicted</td>
+</tr>
+<tr>
+<td>2.06</td>
+<td>change gains</td>
+<td>verified</td>
+<td>overshoot within 0.47 percentage points of prediction, 4 gain sets</td>
+</tr>
+<tr>
+<td>2.07</td>
+<td>foot position from joint angles</td>
+<td>verified</td>
+<td>FK vs MuJoCo max 2.6e-16 m</td>
+</tr>
+<tr>
+<td>2.08</td>
+<td>foot to a Cartesian position</td>
+<td>verified</td>
+<td>settled foot error max 0.29 mm</td>
+</tr>
+<tr>
+<td>2.09</td>
+<td>raise and lower one foot</td>
+<td>verified</td>
+<td>RMS tracking error 0.55 mm</td>
+</tr>
+<tr>
+<td>2.10</td>
+<td>foot forward and backward</td>
+<td>verified</td>
+<td>RMS tracking error 0.71 mm</td>
+</tr>
+<tr>
+<td>2.11</td>
+<td>foot along a triangle</td>
+<td>verified</td>
+<td>RMS 1.26 mm, max 3.25 mm at the corners</td>
+</tr>
+<tr>
+<td>2.12</td>
+<td>foot along an arc</td>
+<td>verified</td>
+<td>radial RMS error 0.71 mm</td>
+</tr>
+<tr>
+<td>2.13</td>
+<td>reject an unreachable foot target</td>
+<td>verified</td>
+<td>5 of 5 rejected with the expected reason</td>
+</tr>
+<tr>
+<td>2.14</td>
+<td>coordinate two legs</td>
+<td>verified</td>
+<td>phase error 0 s at 2 ms resolution; see Failure analysis</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="201-rotate-a-single-hip-joint">2.01 Rotate a single hip joint <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Move the front-left hip (abduction) joint from 0 to 0.3 rad, to −0.3 rad and back with joint-space PD, and
+measure the tracking error.</p>
+<p><strong>Prerequisites.</strong> 1.03 (joint names and axes), 1.10 (reading joint states).</p>
+<p><strong>Theory.</strong> The controller is $\tau = k_p(q^*-q) + k_d(\dot q^*-\dot q) + b\,\dot q^*$; the last term cancels the joint's
+passive damping along the reference. Gravity is not compensated here, so at rest the joint settles where
+$k_p(q^*-q) = g(q)$, that is $e = q - q^* = -g(q)/k_p$, with $g(q)$ the torque needed to hold the leg (task 2.04).</p>
+<p><strong>Implementation.</strong> <code>joint_traj</code> builds minimum-jerk segments for one joint; <code>lib.joint_controller</code> is the controller above.</p>
+<pre><code class="language-python">Q = joint_traj(HIP, [0, .3, .3, -.3, -.3, 0, 0], [1, .5, 1.5, .5, 1, .3])
+log = lib.simulate(m, d, lib.joint_controller(m, lib.array_ref(Q), kp, kd, gravity=False), (len(Q) - 1) * DT)
+</code></pre>
+<p><strong>Execution.</strong> <code>../../.venv-modules/bin/python run.py 2.01</code></p>
+<p><strong>Demonstration.</strong></p>
+<p><img loading="lazy" alt="FL hip reference and measured angle, error with the predicted hold error" src="figures/2-01_hip_tracking.png" /></p>
+<p><strong>Measurement</strong> (<code>results/2.01.json</code>, $k_p = 100$ N m/rad, $k_d = 2$ N m s/rad):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Quantity</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>RMS / max tracking error</td>
+<td>10.8 / 13.9 mrad</td>
+</tr>
+<tr>
+<td>hold at 0.3 rad: measured / predicted $-g/k_p$</td>
+<td>−13.0 / −12.3 mrad</td>
+</tr>
+<tr>
+<td>hold at −0.3 rad: measured / predicted</td>
+<td>−7.15 / −8.08 mrad</td>
+</tr>
+<tr>
+<td>peak torque</td>
+<td>2.48 N m</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Acceptance.</strong> RMS &lt; 20 mrad, max &lt; 30 mrad, hold error within 3 mrad of $-g/k_p$ (friction band $f/k_p = 2$ mrad): passed
+(0.93 mrad).</p>
+<p><strong>Failure analysis.</strong> The error is almost all gravity sag; it does not go to zero at any hold. The 0.8 to 0.9 mrad gap to the
+prediction is inside the friction band: the joint stops wherever $|k_p e + g| \le f$. Halving $k_p$ doubles both.</p>
+<p><strong>Next task.</strong> 2.02 uses the same controller on the knee and adds a limit guard.</p>
+<h3 id="202-move-a-joint-between-two-angles">2.02 Move a joint between two angles <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Move the front-left knee through five requested angles, two of them outside its range, without the joint ever
+leaving the range.</p>
+<p><strong>Prerequisites.</strong> 2.01.</p>
+<p><strong>Theory.</strong> The knee range from the MJCF is $[-2.7227, -0.83776]$ rad. A request $q_r$ becomes
+$q^* = \operatorname{clip}(q_r,\ q_{\min} + m,\ q_{\max} - m)$ with margin $m = 0.05$ rad, so PD overshoot does not reach the limit.</p>
+<p><strong>Implementation.</strong></p>
+<pre><code class="language-python">def clamp_request(q, lo, hi, margin=0.05):
+    c = float(np.clip(q, lo + margin, hi - margin))
+    return c, c != q
+</code></pre>
+<p><strong>Execution.</strong> <code>../../.venv-modules/bin/python run.py 2.02</code></p>
+<p><strong>Demonstration.</strong></p>
+<p><img loading="lazy" alt="Knee command, measured angle, range limits and the requested angles" src="figures/2-02_knee_limits.png" /></p>
+<p><strong>Measurement</strong> (<code>results/2.02.json</code>, $k_p = 150$, $k_d = 2$):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Request [rad]</th>
+<th>Command [rad]</th>
+<th>Clamped</th>
+<th>Final error [mrad]</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>−1.2</td>
+<td>−1.2</td>
+<td>no</td>
+<td>0.75</td>
+</tr>
+<tr>
+<td>−2.4</td>
+<td>−2.4</td>
+<td>no</td>
+<td>2.23</td>
+</tr>
+<tr>
+<td>−3.0</td>
+<td>−2.6727</td>
+<td>yes</td>
+<td>2.18</td>
+</tr>
+<tr>
+<td>−0.5</td>
+<td>−0.88776</td>
+<td>yes</td>
+<td>0.10</td>
+</tr>
+<tr>
+<td>−1.8</td>
+<td>−1.8</td>
+<td>no</td>
+<td>1.81</td>
+</tr>
+</tbody>
+</table></div>
+<p>Measured knee range over the run: −2.6705 to −0.8870 rad.</p>
+<p><strong>Acceptance.</strong> No sample outside the range (0 rad excess), final errors &lt; 10 mrad, exactly 2 requests clamped: passed.</p>
+<p><strong>Failure analysis.</strong> Without the clamp a −3.0 rad request drives the knee into MuJoCo's soft joint limit, which is a constraint
+force that the PD then pushes against; this was not run. The clamp only guards targets: a torque command (2.04) bypasses it.</p>
+<p><strong>Next task.</strong> 2.03 controls velocity instead of angle.</p>
+<h3 id="203-control-joint-velocity">2.03 Control joint velocity <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Make the front-left hip joint follow a ±0.8 rad/s square-wave velocity command.</p>
+<p><strong>Prerequisites.</strong> 2.01.</p>
+<p><strong>Theory.</strong> With $J\dot v = \tau - b v - g(q) - f$ and the loop $\tau = b v^* + k_v e + k_i\int e\,dt$, $e = v^* - v$,</p>
+<p>$$\frac{v}{v^*} = \frac{(k_v+b)s + k_i}{J s^2 + (k_v+b)s + k_i}.$$</p>
+<p>With $J = 0.03357$ kg m², $k_v = 2$, $k_i = 100$ the poles are at −35.7 and −83.5 rad/s, the zero at $-k_i/(k_v+b) = -25$ rad/s.
+The integral removes the constant parts of $g(q) + f$; a P-only loop ($k_i = 0$) keeps an error of $(g + f)/(k_v + b)$.</p>
+<p><strong>Implementation.</strong> A per-joint override replaces the PD torque of the hip; the other 11 joints stay on PD.</p>
+<pre><code class="language-python">def override(m, d):
+    e = v_ref(d.time) - d.qvel[j]
+    state['i'] += e * DT
+    tau = np.zeros(12)
+    tau[j] = b * v_ref(d.time) + kv * e + ki * state['i']
+    return np.arange(12) == j, tau
+</code></pre>
+<p><strong>Execution.</strong> <code>../../.venv-modules/bin/python run.py 2.03</code></p>
+<p><strong>Demonstration.</strong></p>
+<p><img loading="lazy" alt="Velocity command and response for PI and P-only, and the joint angle" src="figures/2-03_velocity.png" /></p>
+<p><strong>Measurement</strong> (<code>results/2.03.json</code>, steady windows start 0.15 s after each command change):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Loop</th>
+<th>Steady RMS error [rad/s]</th>
+<th>Steady mean error [rad/s]</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PI ($k_i = 100$)</td>
+<td>0.0056</td>
+<td>0.0002</td>
+</tr>
+<tr>
+<td>P only</td>
+<td>0.203</td>
+<td>−0.180</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Acceptance.</strong> PI steady RMS &lt; 0.03 rad/s and angle inside the hip range: passed (angle −0.311 to 0.290 rad).</p>
+<p><strong>Failure analysis.</strong> The PI response overshoots at each reversal although both poles are real: the zero at −25 rad/s is slower
+than the poles. The P-only loop drifts 0.18 rad/s slow and its angle walks to −0.88 rad by the end of the run (<code>p_only_final_angle_rad</code>), because gravity
+and friction load the joint the same way on both strokes. A velocity loop has no angle feedback, so any velocity error integrates
+into angle drift.</p>
+<p><strong>Next task.</strong> 2.04 removes the loop and applies torque directly.</p>
+<h3 id="204-apply-a-controlled-joint-torque">2.04 Apply a controlled joint torque <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Apply 2.0 N m open-loop to the front-left hip and predict the motion from the joint inertia, gravity, damping and
+friction.</p>
+<p><strong>Prerequisites.</strong> 2.01.</p>
+<p><strong>Theory.</strong> For one joint with the others held,
+$J\ddot q + b\dot q = \tau - g(q) - f\,\operatorname{sign}\dot q$. <code>LegModel</code> computes both terms from the body masses and
+inertias in the MJCF:</p>
+<p>$$g_i(q) = -z_i \cdot \sum_{b \ge i} (c_b - o_i) \times m_b\,\mathbf g, \qquad
+J_i = a_i + \sum_{b \ge i} z_i^\top R_b I_b R_b^\top z_i + m_b \lVert z_i \times (c_b - o_i)\rVert^2,$$</p>
+<p>with $z_i$, $o_i$ the joint axis and origin, $c_b$, $m_b$, $I_b$, $R_b$ the centre of mass, mass, inertia and orientation of
+body $b$, and $a_i$ the armature. Both match MuJoCo (<code>qfrc_bias</code>, diagonal of <code>mj_fullM</code>) to 1e-10 in the tests. At
+$q_0 = -0.6$ rad: $g = 0.479$ N m, $J = 0.03357$ kg m², so $\ddot q(0) = (2 - 0.479 - 0.2)/0.03357 = 39.3$ rad/s².</p>
+<p><strong>Implementation.</strong> The hip switches to torque mode between 0.3 and 0.6 s; the inertia is identified from the first 30 ms.</p>
+<pre><code class="language-python">torque = lambda m, d: (np.arange(12) == HIP if t_on &lt;= d.time &lt; t_off else np.zeros(12, bool), np.full(12, tau_cmd))
+acc = (v[ks] - v[ks - 1]) / DT
+rhs = tau_cmd - np.array([g(x) for x in log['q'][ks, HIP]]) - f - b * v[ks]
+J_hat = float(acc @ rhs / (acc @ acc))
+</code></pre>
+<p><strong>Execution.</strong> <code>../../.venv-modules/bin/python run.py 2.04</code></p>
+<p><strong>Demonstration.</strong></p>
+<p><img loading="lazy" alt="Hip angle and velocity under a 2 N m torque, MuJoCo against the model" src="figures/2-04_torque_response.png" /></p>
+<p><strong>Measurement</strong> (<code>results/2.04.json</code>):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Quantity</th>
+<th>Measured</th>
+<th>Predicted</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>inertia from the first 30 ms</td>
+<td>0.03355 kg m²</td>
+<td>0.03357 kg m²</td>
+</tr>
+<tr>
+<td>acceleration over the first 2 ms step</td>
+<td>35.12 rad/s²</td>
+<td>35.15 rad/s² ($J + h b$, see below)</td>
+</tr>
+<tr>
+<td>angle, RMS difference to the model over 0.3 s</td>
+<td>6.2e-5 rad</td>
+<td></td>
+</tr>
+<tr>
+<td>velocity in the last 0.1 s vs $(\tau - g - f)/b$</td>
+<td>1.1 % mean difference</td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Acceptance.</strong> Identified inertia within 10 %, terminal velocity within 10 %, trajectory within 0.01 rad RMS: passed.</p>
+<p><strong>Failure analysis.</strong> The first version of the check fitted $q = q_0 + \tfrac12 a t^2$ over 10 ms and read 27.0 rad/s² against
+39.3: a 31 % miss and a failed task. The model was right and the check was wrong. Damping limits the speed with time constant
+$J/b = 16.8$ ms, longer than the fit window. MuJoCo's Euler integrator also applies joint damping implicitly, so one step obeys
+$(J + hb)\,\Delta v / h = \tau - g - f - b v_k$, and the first-step acceleration is 35.1, not 39.3 rad/s². The check now
+identifies $J$ with the end-of-step velocity (threshold unchanged, old check in <code>acceptance.json</code> under <code>changes</code>). The other
+hip-leg joints are held by PD, not locked: the inertia felt with them free would be 0.03231 kg m² (<code>J_free_kgm2_mujoco_check</code>,
+from <code>mj_fullM</code>), 3.7 % lower.</p>
+<p><strong>Next task.</strong> 2.05 closes a PD loop around the same joint, using $J$ to predict it.</p>
+<h3 id="205-pd-controller">2.05 PD controller <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Predict rise time, overshoot and settling of a 0.2 rad hip step from the joint inertia, then measure them.</p>
+<p><strong>Prerequisites.</strong> 2.04.</p>
+<p><strong>Theory.</strong> With gravity compensated, $J\ddot q + (k_d + b)\dot q + k_p q = k_p q^*$, so</p>
+<p>$$\omega_n = \sqrt{k_p/J}, \qquad \zeta = \frac{k_d + b}{2\sqrt{k_p J}}, \qquad
+\text{overshoot} = e^{-\pi\zeta/\sqrt{1-\zeta^2}}.$$</p>
+<p>With $k_p = 100$, $k_d = 0$: $\omega_n = 54.6$ rad/s and $\zeta = 2/(2\sqrt{100 \cdot 0.03357}) = 0.546$: the joint's own
+damping alone makes the loop well damped. Rise (10 to 90 %), settling (±5 %) and overshoot of the prediction come from the closed
+form <code>lib.second_order_step</code>, measured by the same <code>lib.step_metrics</code> as the simulation. The measured damping ratio is
+$\zeta = -\ln OS / \sqrt{\pi^2 + \ln^2 OS}$.</p>
+<p><strong>Implementation.</strong></p>
+<pre><code class="language-python">log = lib.simulate(m, d, lib.joint_controller(m, step_ref(HIP, 0.0, step, t_step), kp, kd), t_step + T)
+y_pred, zeta, wn = lib.second_order_step(J, kd + m.dof_damping[HIP], kp, t)
+</code></pre>
+<p><strong>Execution.</strong> <code>../../.venv-modules/bin/python run.py 2.05</code></p>
+<p><strong>Demonstration.</strong></p>
+<p><img loading="lazy" alt="PD step response, MuJoCo against the second-order prediction" src="figures/2-05_pd_step.png" /></p>
+<p><strong>Measurement</strong> (<code>results/2.05.json</code>):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Measured</th>
+<th>Predicted</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>damping ratio</td>
+<td>0.544</td>
+<td>0.546</td>
+</tr>
+<tr>
+<td>overshoot</td>
+<td>13.0 %</td>
+<td>12.9 %</td>
+</tr>
+<tr>
+<td>rise time 10-90 %</td>
+<td>32 ms</td>
+<td>32 ms</td>
+</tr>
+<tr>
+<td>settling time ±5 %</td>
+<td>102 ms</td>
+<td>98 ms</td>
+</tr>
+<tr>
+<td>final error</td>
+<td>0.61 mrad</td>
+<td>0</td>
+</tr>
+<tr>
+<td>peak torque</td>
+<td>21.1 N m (limit 23.7)</td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Acceptance.</strong> $\zeta$ within 15 %, overshoot within 5 percentage points, rise within 15 %, settling within 30 %, final error
+&lt; 4 mrad: passed.</p>
+<p><strong>Failure analysis.</strong> The final error is friction: the joint stops anywhere within $f/k_p = 2$ mrad of the target. The step was
+sized so the peak torque, $k_p \cdot 0.2 + g = 21.1$ N m, stays under the 23.7 N m clip; a larger step saturates and the
+response is no longer second order.</p>
+<p><strong>Next task.</strong> 2.06 varies $k_p$ and $k_d$.</p>
+<h3 id="206-change-gains">2.06 Change gains <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Compare four gain sets on a 0.15 rad step and on a 1 Hz, 0.15 rad sine.</p>
+<p><strong>Prerequisites.</strong> 2.05.</p>
+<p><strong>Theory.</strong> $k_p$ sets the speed ($\omega_n \propto \sqrt{k_p}$) and lowers $\zeta \propto 1/\sqrt{k_p}$; $k_d$ adds damping
+without changing $\omega_n$.</p>
+<p><strong>Implementation.</strong> <code>step_trial(kp, kd, step=0.15)</code> from 2.05, then the sine with analytic $\dot q^*$:</p>
+<pre><code class="language-python">ref = lambda t: (np.r_[0.15 * np.sin(w * t), Q_HOLD[1:]], np.r_[0.15 * w * np.cos(w * t), np.zeros(11)])
+</code></pre>
+<p><strong>Execution.</strong> <code>../../.venv-modules/bin/python run.py 2.06</code></p>
+<p><strong>Demonstration.</strong></p>
+<p><img loading="lazy" alt="Step responses for four gain sets and sine tracking error" src="figures/2-06_gains.png" /></p>
+<p><strong>Measurement</strong> (<code>results/2.06.json</code>):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>$k_p$ / $k_d$</th>
+<th>$\zeta$ pred.</th>
+<th>Overshoot meas. / pred.</th>
+<th>Rise meas. / pred.</th>
+<th>Sine RMS error</th>
+<th>Peak torque</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>40 / 0</td>
+<td>0.863</td>
+<td>0.0 / 0.47 %</td>
+<td>86 / 78 ms</td>
+<td>4.71 mrad</td>
+<td>7.1 N m</td>
+</tr>
+<tr>
+<td>80 / 0</td>
+<td>0.610</td>
+<td>8.4 / 8.9 %</td>
+<td>40 / 38 ms</td>
+<td>2.13 mrad</td>
+<td>13.1 N m</td>
+</tr>
+<tr>
+<td>150 / 0</td>
+<td>0.446</td>
+<td>21.0 / 20.9 %</td>
+<td>24 / 24 ms</td>
+<td>1.07 mrad</td>
+<td>23.6 N m</td>
+</tr>
+<tr>
+<td>150 / 2</td>
+<td>0.891</td>
+<td>0.0 / 0.21 %</td>
+<td>44 / 44 ms</td>
+<td>0.87 mrad</td>
+<td>23.6 N m</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Acceptance.</strong> Every overshoot within 5 percentage points, rise time falls as $k_p$ rises, $k_d = 2$ removes &gt; 10 points of
+overshoot at $k_p = 150$, sine error falls as $k_p$ rises: passed (worst overshoot miss 0.47 points, drop 21.0 points).</p>
+<p><strong>Failure analysis.</strong> The weakest set is $k_p = 40$: rise 10 % slower than predicted and a 2.4 mrad final error, because the
+friction band $f/k_p = 5$ mrad is two thirds of the 7.5 mrad (5 %) settling band. At $k_p = 150$ the peak torque is 23.56 N m, 0.6 % under
+the clip.</p>
+<p><strong>Next task.</strong> 2.07 moves from one joint to the foot.</p>
+<h3 id="207-foot-position-from-joint-angles">2.07 Foot position from joint angles <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Check the module 04 forward kinematics against MuJoCo's body and foot positions on the supported robot.</p>
+<p><strong>Prerequisites.</strong> 2.01; module 04 (FK derivation).</p>
+<p><strong>Theory.</strong> $p_\text{foot} = p_\text{base} + \prod_i [R_i,\ p_i][\operatorname{Rot}(a_i, q_i),\ 0]\,f$ with the trunk at
+$p_\text{base} = (0, 0, 0.70)$ m and identity orientation (module 04 README for the symbols).</p>
+<p><strong>Implementation.</strong> For 500 random in-limit configurations per leg, <code>Leg.frames(q)</code> gives the hip, thigh and knee joint origins
+and the foot centre; they are compared with <code>d.xpos</code> of the <code>hip</code>, <code>thigh</code>, <code>calf</code> bodies and <code>d.geom_xpos</code> of the foot sphere
+after <code>mj_kinematics</code>.</p>
+<p><strong>Execution.</strong> <code>../../.venv-modules/bin/python run.py 2.07</code></p>
+<p><strong>Demonstration.</strong> Recorded output: <code>2.07 verified foot_max_error_m=2.633e-16, joint_origin_max_error_m=2.22e-16</code>.</p>
+<p><strong>Measurement</strong> (<code>results/2.07.json</code>, 2000 configurations): foot centre max error 2.6e-16 m, joint origins max 2.2e-16 m, all four
+legs.</p>
+<p><strong>Acceptance.</strong> Both &lt; 1e-9 m: passed.</p>
+<p><strong>Failure analysis.</strong> Agreement is at floating-point rounding. It would break if the base were rotated (base-frame vectors are
+used as world vectors here) or if a body in the MJCF had a non-identity orientation, which <code>Leg</code> asserts against.</p>
+<p><strong>Next task.</strong> 2.08 inverts it.</p>
+<h3 id="208-foot-to-a-cartesian-position">2.08 Foot to a Cartesian position <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Send each foot to 27 grid targets with the closed-form IK and measure where MuJoCo puts the foot.</p>
+<p><strong>Prerequisites.</strong> 2.05, 2.07.</p>
+<p><strong>Theory.</strong> Module 04's closed form: hip angle from the lateral offset $d$, knee from the law of cosines in the leg plane, thigh
+from the angle of the foot vector. Of the solutions inside the joint limits, <code>lib.ik_closest</code> takes the one nearest the
+current joint angles. Residual foot error after a hold is set by friction: $f/k_p = 0.2/150 = 1.3$ mrad per joint.</p>
+<p><strong>Implementation.</strong> Joint-space minimum-jerk moves of 0.3 s between successive IK solutions, then a 0.3 s hold; all four legs
+move together, each to its own grid ($\pm 60$, $\pm 30$, $\pm 50$ mm around the standing foot in $x$, $y$, $z$).</p>
+<pre><code class="language-python">q = lib.ik_closest(L, p0 + o, Q_HOLD[:3])
+alg.append(np.linalg.norm(L.fk(q) - (p0 + o)))
+</code></pre>
+<p><strong>Execution.</strong> <code>../../.venv-modules/bin/python run.py 2.08</code></p>
+<p><strong>Demonstration.</strong></p>
+<p><img loading="lazy" alt="Settled foot error per target and leg" src="figures/2-08_ik_settled.png" /></p>
+<p><strong>Measurement</strong> (<code>results/2.08.json</code>, 108 targets): $\lVert fk(ik(p)) - p\rVert$ max 3.0e-16 m; foot in MuJoCo after the hold:
+median 0.11 mm, max 0.29 mm.</p>
+<p><strong>Acceptance.</strong> Algebraic &lt; 1e-9 m, settled &lt; 2 mm: passed.</p>
+<p><strong>Failure analysis.</strong> The settled error is the friction dead band; it is 7 times below the threshold,
+set from the friction estimate before the run. FL and RL show identical numbers, as do FR and RR, because the grid is symmetric
+and each pair is mirrored.</p>
+<p><strong>Next task.</strong> 2.09 moves the foot continuously instead of point to point.</p>
+<h3 id="209-raise-and-lower-one-foot">2.09 Raise and lower one foot <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Lift the front-left foot 80 mm straight up and lower it, three times.</p>
+<p><strong>Prerequisites.</strong> 2.08.</p>
+<p><strong>Theory.</strong> The path is sampled every 2 ms with minimum-jerk timing per segment,
+$s(\tau) = 10\tau^3 - 15\tau^4 + 6\tau^5$, solved by IK at every sample; $\dot q^*$ is the central difference of the IK
+solutions. Tracking error is $\lVert p(t) - p^*(t)\rVert$ (lag counts); path error is the distance to the nearest reference
+sample (lag does not count).</p>
+<p><strong>Implementation.</strong> <code>lib.polyline</code> builds the path, <code>lib.foot_ref</code> the joint reference, <code>lib.foot_errors</code> the errors from MuJoCo's
+foot position.</p>
+<pre><code class="language-python">log, P, s = run_paths(m, d, {'FL': lambda p0: lib.polyline([p0, p0 + [0, 0, .08]], [.6, .6], cycles=3)})
+</code></pre>
+<p><strong>Execution.</strong> <code>../../.venv-modules/bin/python run.py 2.09</code></p>
+<p><strong>Demonstration.</strong></p>
+<p><img loading="lazy" alt="Vertical foot path and tracking error" src="figures/2-09_vertical.png" /></p>
+<p><strong>Measurement</strong> (<code>results/2.09.json</code>): tracking RMS 0.55 mm, max 0.78 mm; path RMS 0.20 mm; measured lift 79.9 mm.</p>
+<p><strong>Acceptance.</strong> RMS &lt; 3 mm, max &lt; 6 mm, lift within 3 mm of 80 mm: passed.</p>
+<p><strong>Failure analysis.</strong> The remaining error is lag of the PD loop behind the reference, so it is larger in tracking than in path
+error. A straight vertical line is reachable only because the standing foot sits well inside the workspace; the same stroke from
+a foot near full extension would hit <code>too_far</code> (2.13).</p>
+<p><strong>Next task.</strong> 2.10 runs the same in $x$.</p>
+<h3 id="210-foot-forward-and-backward">2.10 Foot forward and backward <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Move the front-left foot 60 mm forward and 60 mm back from its standing point, three cycles.</p>
+<p><strong>Prerequisites.</strong> 2.09.</p>
+<p><strong>Theory.</strong> As 2.09, path $p_0 \to p_0 + 60\,\hat x \to p_0 \to p_0 - 60\,\hat x$, 0.5 s per segment.</p>
+<p><strong>Implementation.</strong></p>
+<pre><code class="language-python">lib.polyline([p0, p0 + [.06, 0, 0], p0, p0 - [.06, 0, 0]], [.5] * 4, cycles=3)
+</code></pre>
+<p><strong>Execution.</strong> <code>../../.venv-modules/bin/python run.py 2.10</code></p>
+<p><strong>Demonstration.</strong></p>
+<p><img loading="lazy" alt="Horizontal foot path and tracking error" src="figures/2-10_horizontal.png" /></p>
+<p><strong>Measurement</strong> (<code>results/2.10.json</code>): tracking RMS 0.71 mm, max 1.22 mm; path RMS 0.17 mm; measured stroke 119.7 mm.</p>
+<p><strong>Acceptance.</strong> RMS &lt; 3 mm, max &lt; 6 mm, stroke within 3 mm of 120 mm: passed.</p>
+<p><strong>Failure analysis.</strong> The RMS error is 30 % larger than in 2.09 although the peak foot speed is lower (0.23 against 0.25 m/s,
+computed from the paths); the cause was not isolated. Gravity compensation uses the model; a real leg with an unmodelled payload
+would sag by $\Delta g / k_p$ per joint.</p>
+<p><strong>Next task.</strong> 2.11 joins straight segments with corners.</p>
+<h3 id="211-foot-along-a-triangle">2.11 Foot along a triangle <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Trace a triangle with the front-left foot (base 120 mm, apex 80 mm up), the shape used in Stanford CS 123 lab 3,
+at 0.3 m/s along each edge.</p>
+<p><strong>Prerequisites.</strong> 2.09, 2.10.</p>
+<p><strong>Theory.</strong> Constant speed along the edges, so the foot velocity jumps at each vertex. The PD loop cannot follow a jump, so
+expect a corner error of about $v/\omega_n$; with $\omega_n \approx 60$ rad/s, 0.3/60 = 5 mm (estimate written before the run).</p>
+<p><strong>Implementation.</strong></p>
+<pre><code class="language-python">def triangle(p0, speed=0.3):
+    V = [p0 + [-.06, 0, 0], p0 + [.06, 0, 0], p0 + [0, 0, .08]]
+    return V, lib.polyline(V, [np.linalg.norm(V[(i + 1) % 3] - V[i]) / speed for i in range(3)], smooth=False, cycles=3)
+</code></pre>
+<p><strong>Execution.</strong> <code>MUJOCO_GL=glfw DISPLAY=:0 flock /tmp/go2_render.lock ../../.venv-modules/bin/python run.py 2.11</code></p>
+<p><strong>Demonstration.</strong> Amber dots: the reference triangle; blue dots: the last 0.4 s of the foot centre.</p>
+<video controls muted playsinline src="media/2-11_triangle.mp4"></video>
+
+<p><img loading="lazy" alt="Triangle path and tracking error" src="figures/2-11_triangle.png" /></p>
+<p><strong>Measurement</strong> (<code>results/2.11.json</code>):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Quantity</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>tracking RMS / max</td>
+<td>1.26 / 3.25 mm</td>
+</tr>
+<tr>
+<td>path RMS / max</td>
+<td>0.50 / 2.23 mm</td>
+</tr>
+<tr>
+<td>closest approach to each vertex</td>
+<td>0.32, 0.30, 0.23 mm</td>
+</tr>
+<tr>
+<td>peak joint torque, FL</td>
+<td>7.7 N m</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Acceptance.</strong> Tracking RMS &lt; 4 mm, max &lt; 10 mm, path RMS &lt; 3 mm, vertex miss &lt; 5 mm: passed.</p>
+<p><strong>Failure analysis.</strong> All error peaks sit at the vertices (right panel), 3.25 mm against the 5 mm estimate. The foot rounds each
+corner (path error 2.2 mm) and then catches up. Smoothing the timing per edge (<code>smooth=True</code>, as in 2.09) removes the jumps but
+stops the foot at each vertex.</p>
+<p><strong>Next task.</strong> 2.12 replaces the triangle with a swing arc.</p>
+<h3 id="212-foot-along-an-arc">2.12 Foot along an arc <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Swing the front-left foot forward along a semicircle of radius 60 mm and return along the chord, three cycles.</p>
+<p><strong>Prerequisites.</strong> 2.11.</p>
+<p><strong>Theory.</strong> Swing: $p = p_0 + r(\cos\phi, 0, \sin\phi)$ with $\phi$ going from $\pi$ to 0 on minimum-jerk timing in 0.5 s;
+stance: chord back at constant speed in 0.5 s. The radial error is $\lvert \lVert p_{xz} - p_{0,xz}\rVert - r \rvert$ over
+the swing.</p>
+<p><strong>Implementation.</strong> <code>lib.arc_cycle(p0, r, T_swing, T_stance, cycles)</code>; this cycle is reused in 2.14 and stage 4.</p>
+<p><strong>Execution.</strong> <code>../../.venv-modules/bin/python run.py 2.12</code></p>
+<p><strong>Demonstration.</strong></p>
+<p><img loading="lazy" alt="Arc path and tracking error" src="figures/2-12_arc.png" /></p>
+<p><strong>Measurement</strong> (<code>results/2.12.json</code>): tracking RMS 1.37 mm, max 3.10 mm; radial RMS 0.71 mm, max 1.26 mm; apex height error
+0.69 mm.</p>
+<p><strong>Acceptance.</strong> Tracking RMS &lt; 4 mm, max &lt; 8 mm, radial RMS &lt; 3 mm, apex within 3 mm: passed.</p>
+<p><strong>Failure analysis.</strong> The tracking peak (3.1 mm) falls mid-swing, where the foot is fastest: the arc is
+$\pi r = 188$ mm long and minimum-jerk timing peaks at 1.875 times the mean speed, 0.71 m/s (computed from the path). The second
+peak (about 1.9 mm, read from the figure) is at the swing-to-stance switch, where the reference velocity jumps from 0 to 0.24 m/s.</p>
+<p><strong>Next task.</strong> 2.13 handles a target the IK cannot solve.</p>
+<h3 id="213-reject-an-unreachable-foot-target">2.13 Reject an unreachable foot target <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Make the IK refuse a foot target outside the workspace, say why, and keep the leg where it was.</p>
+<p><strong>Prerequisites.</strong> 2.08.</p>
+<p><strong>Theory.</strong> Relative to the hip, $(x, y, z) = p - p_\text{hip}$. The leg-plane distance is
+$\rho^2 = x^2 + y^2 + z^2 - d^2$, defined only if $y^2 + z^2 \ge d^2$ (else <code>inside_offset</code>). $\rho$ depends on the knee angle
+alone, and over the knee range it spans $[\rho_{\min}, \rho_{\max}] = [90.5, 390.0]$ mm (else <code>too_close</code> or <code>too_far</code>). Inside
+that shell, the target can still need a hip or thigh angle outside its limits (<code>joint_limit</code>).</p>
+<p><strong>Implementation.</strong></p>
+<pre><code class="language-python">def ik_checked(L, target):
+    x, y, z = np.asarray(target, float) - L.hip
+    r2 = y * y + z * z - L.d ** 2
+    if r2 &lt; 0:
+        return None, 'inside_offset'
+    rho = np.sqrt(x * x + r2)
+    if rho &gt; L.rho_max + 1e-9:
+        return None, 'too_far'
+    if rho &lt; L.rho_min - 1e-9:
+        return None, 'too_close'
+    sols = L.ik_closed_form(target)
+    return (sols[0], None) if len(sols) else (None, 'joint_limit')
+</code></pre>
+<p>On rejection the command layer keeps the last valid joint target.</p>
+<p><strong>Execution.</strong> <code>../../.venv-modules/bin/python run.py 2.13</code></p>
+<p><strong>Demonstration.</strong></p>
+<p><img loading="lazy" alt="Rejected targets on the reachable foot set, front view" src="figures/2-13_rejections.png" /></p>
+<p><strong>Measurement</strong> (<code>results/2.13.json</code>). Two independent checks: module 04's multi-start damped least squares, and the distance
+to the nearest of 100 000 random reachable foot positions.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Target (base frame) [m]</th>
+<th>Expected</th>
+<th><code>ik_checked</code></th>
+<th>DLS converged</th>
+<th>Nearest reachable sample</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>(0.192, 0.142, −0.466)</td>
+<td>too_far</td>
+<td>too_far</td>
+<td>no</td>
+<td>77 mm</td>
+</tr>
+<tr>
+<td>(0.193, 0.142, −0.060)</td>
+<td>too_close</td>
+<td>too_close</td>
+<td>no</td>
+<td>20 mm</td>
+</tr>
+<tr>
+<td>(0.193, 0.077, −0.030)</td>
+<td>inside_offset</td>
+<td>inside_offset</td>
+<td>no</td>
+<td>90 mm</td>
+</tr>
+<tr>
+<td>(0.193, 0.417, −0.050)</td>
+<td>joint_limit</td>
+<td>joint_limit</td>
+<td>no</td>
+<td>50 mm</td>
+</tr>
+<tr>
+<td>(0.193, −0.254, −0.100)</td>
+<td>joint_limit</td>
+<td>joint_limit</td>
+<td>no</td>
+<td>162 mm</td>
+</tr>
+</tbody>
+</table></div>
+<p>200 reachable targets (FK of random in-limit angles): 200 accepted. In simulation, commanding the <code>too_far</code> target after a
+reachable one moved the foot 0.035 mm (residual settling) during the 1 s it was active.</p>
+<p><strong>Acceptance.</strong> 5 of 5 rejected with the expected reason, DLS fails on all 5, all reachable targets accepted, foot motion
+&lt; 1 mm: passed.</p>
+<p><strong>Failure analysis.</strong> The checks ignore collisions: the inward <code>joint_limit</code> target would also put the foot under the trunk, and a
+target that is reachable but passes the leg through the body is accepted. The classifier reports the first reason found, so a
+target that is both too far and beyond a joint limit is reported as <code>too_far</code>.</p>
+<p><strong>Next task.</strong> 2.14 runs two legs at once.</p>
+<h3 id="214-coordinate-two-legs-on-a-supported-robot">2.14 Coordinate two legs on a supported robot <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Run the 2.12 arc cycle on the front-left and rear-right legs in phase (the trot pair), and on front-left and
+rear-left half a cycle apart, and measure the phase between the feet.</p>
+<p><strong>Prerequisites.</strong> 2.12.</p>
+<p><strong>Theory.</strong> Both legs read one reference clock; each has its own IK and PD. The phase is measured as the lag that maximises the
+cross-correlation of the two foot heights, and as the difference of the apex times per cycle. Resolution: one 2 ms sample.</p>
+<p><strong>Implementation.</strong></p>
+<pre><code class="language-python">make = lambda p0: lib.arc_cycle(p0, r, .5, .5, cycles=4)
+log, P, s = run_paths(m, d, {leg: make for leg in pair}, rec=rec)
+shifted = lambda p0: (lambda P: np.vstack([P[250], np.roll(P[1:], -250, axis=0)]))(make(p0))   # half a cycle
+</code></pre>
+<p><strong>Execution.</strong> <code>MUJOCO_GL=glfw DISPLAY=:0 flock /tmp/go2_render.lock ../../.venv-modules/bin/python run.py 2.14</code></p>
+<p><strong>Demonstration.</strong> Front-left and rear-right in phase (amber: reference arcs, blue: foot trail).</p>
+<video controls muted playsinline src="media/2-14_two_legs.mp4"></video>
+
+<p><img loading="lazy" alt="Foot heights of FL and RR against the reference" src="figures/2-14_two_legs.png" /></p>
+<p><strong>Measurement</strong> (<code>results/2.14.json</code>):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Pair</th>
+<th>Commanded offset</th>
+<th>Measured lag</th>
+<th>Apex offset per cycle</th>
+<th>Tracking RMS per leg</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>FL, RR</td>
+<td>0 s</td>
+<td>0 s</td>
+<td>0, 0, 0, 0 s</td>
+<td>1.369, 1.369 mm</td>
+</tr>
+<tr>
+<td>FL, RL</td>
+<td>0.5 s</td>
+<td>0.500 s</td>
+<td>0.5 s in all 4 cycles</td>
+<td>1.369, 1.373 mm</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Acceptance.</strong> Tracking RMS &lt; 4 mm per leg, lag and phase error ≤ 4 ms, apex offset error ≤ 10 ms, for both pairs: passed.</p>
+<p><strong>Failure analysis.</strong> The in-phase test as first written could not fail. FL and RR are point-symmetric in the model, so their
+foot heights agreed to 2.8e-16 m (<code>max_height_difference_m</code>). The FL/RL run was added after that, with its thresholds written into
+<code>acceptance.json</code> as an addition. FL and RL differ (tracking RMS 1.369 vs 1.373 mm), but the phase is still exact at 2 ms
+resolution: with one clock and lag differences far below a sample, timing cannot drift on a supported robot. On the ground,
+contact forces load the stance leg and not the swing leg, and synchronisation has to be measured again (stage 4).</p>
+<p><strong>Next task.</strong> Stage 3 puts the feet on the floor: 3.02 stands up with the same joint PD and gravity compensation, now with the
+base free.</p><nav class="prevnext" aria-label="Previous and next"><a class="pn" href="../s01_import-and-inspect/index.html"><span>Previous</span>Import and inspect the robot</a><a class="pn next" href="../s03_posture-and-balance/index.html"><span>Next</span>Posture and balance</a></nav><p class="source">Source: <a href="https://github.com/Armanasq/go2-nav-sim/blob/main/tasks/s02_joint-and-leg-control/README.md">tasks/s02_joint-and-leg-control/README.md</a></p></article></div>
+</main>
+<footer class="site"><div class="wrap">Simulation only. Source and issues on <a href="https://github.com/Armanasq/go2-nav-sim">GitHub</a>.</div></footer>
+<script type="module" src="../../static/js/site.js"></script>
+</body>
+</html>

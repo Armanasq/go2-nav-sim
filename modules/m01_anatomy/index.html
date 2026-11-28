@@ -1,0 +1,773 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Robot anatomy: bodies, joints, actuators and why the base is underactuated · go2-nav-sim</title>
+<meta name="description" content="Robot anatomy: bodies, joints, actuators and why the base is underactuated">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../../static/css/site.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5' fill='%230a6a9c'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"><script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script><script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.querySelector('main'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false})"></script>
+</head>
+<body data-root="../../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar"><div class="inner">
+<a class="brand" href="../../index.html">go2-nav-sim</a>
+<nav aria-label="Main"><a href="../../tutorial/00-overview.html">Learn</a><a href="../../tasks/index.html">Tasks</a><a href="../../modules/index.html" aria-current="page">Deep dives</a><a href="../../reference.html">Reference</a></nav>
+<button class="theme-toggle" type="button" aria-label="Colour theme: auto">auto</button>
+</div></header>
+<main id="main">
+<div class="wrap doc"><details class="side" open><summary>Robot anatomy</summary><nav aria-label="Contents"><ol class="parts"><li class="open"><a class="part" href="../index.html">All deep dives</a><ol><li><a href="../m00_math/index.html"><span class="n">00</span><span>Mathematical foundations</span></a></li><li><a href="../m01_anatomy/index.html" aria-current="page"><span class="n">01</span><span>Robot anatomy</span></a><ul class="sections"><li><a href="#objective">Objective</a></li><li><a href="#prerequisites">Prerequisites</a></li><li><a href="#theory">Theory</a></li><li><a href="#implementation">Implementation</a></li><li><a href="#experiment">Experiment</a></li><li><a href="#validation">Validation</a></li><li><a href="#failure-analysis">Failure analysis</a></li><li><a href="#references">References</a></li></ul></li><li><a href="../m02_description/index.html"><span class="n">02</span><span>Robot description</span></a></li><li><a href="../m03_simulation/index.html"><span class="n">03</span><span>Simulation</span></a></li><li><a href="../m04_kinematics/index.html"><span class="n">04</span><span>Kinematics (single leg)</span></a></li><li><a href="../m06_sensors/index.html"><span class="n">06</span><span>Sensors</span></a></li><li><a href="../m11_state_estimation/index.html"><span class="n">11</span><span>State estimation</span></a></li><li><a href="../m12_perception/index.html"><span class="n">12</span><span>Perception</span></a></li></ol></li></ol></nav></details><article class="prose"><p class="where">Deep dive · module 01</p><h1>Robot anatomy: bodies, joints, actuators and why the base is underactuated</h1><h2 id="objective">Objective</h2>
+<p>Read the Unitree Go2 model (<code>modules/assets/unitree_go2/go2.xml</code>, MuJoCo Menagerie) with our own parser and turn it into the
+quantities every later module uses: the kinematic tree, the joint and actuator tables, the generalised coordinates, and the
+actuation matrix. Then show with numbers why a legged robot is underactuated: twelve motors act on eighteen velocity directions,
+and the six directions of the floating base can only be pushed by contact forces. The module has three levels:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Level</th>
+<th>Content</th>
+<th>Applied on the Go2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Fundamental</td>
+<td>MJCF parsing with default classes; degrees of freedom; body, joint and actuator tables; kinematic tree</td>
+<td>annotated front, side and top renders with every joint axis; turntable video</td>
+</tr>
+<tr>
+<td>Intermediate</td>
+<td>forward kinematics and velocity propagation down the tree; centre of mass and centroidal momentum; transmission and armature</td>
+<td>torque needed to stand vs the motor limits; joint-space inertia with and without armature; joint-sweep video</td>
+</tr>
+<tr>
+<td>Advanced</td>
+<td>underactuation: the zero rows of $B$, momentum balance in flight and in stance, integrator drift, zero-momentum reorientation</td>
+<td>flight with flailing legs; momentum balance during a squat; the body pitching 12.4° in zero gravity with zero angular momentum</td>
+</tr>
+</tbody>
+</table></div>
+<p>After this module a reader can count the degrees of freedom of any MJCF robot, write $\tau = Bu$ for it, compute its centre of
+mass and centroidal momentum from the tree, and predict which motions the motors can produce without contact.</p>
+<p><img loading="lazy" alt="The Go2 from the front, the right side and the top, orthographic, with every hinge axis" src="figures/views_annotated.png" /></p>
+<p><a href="media/turntable.mp4">Turntable video</a> (12 s): one turn with the visual meshes and MuJoCo's joint-axis arrows, one with the
+collision geometry (red), the equivalent inertia boxes and the body centres of mass.</p>
+<p><img loading="lazy" alt="Turntable still: visual meshes and joint axes" src="media/turntable.png" />
+<img loading="lazy" alt="Turntable still: collision geometry and inertia boxes" src="media/turntable_collision_inertia.png" /></p>
+<h2 id="prerequisites">Prerequisites</h2>
+<p><a href="../m00_math/index.html">Module 00</a>: rotation matrices, quaternions (MuJoCo order w x y z), Rodrigues' formula, the cross product
+as a skew matrix. <a href="../m04_kinematics/index.html">Module 04</a> works out one leg in detail; this module covers the whole tree and
+reuses module 04's leg Jacobian only for the torque budget. Mechanics: Newton's second law for a particle and Euler's equation for a
+rigid body. Python with NumPy; MuJoCo and Pinocchio are used only to check this code.</p>
+<h2 id="theory">Theory</h2>
+<p>Notation: world frame $W$ with $z$ up; base frame $\mathcal B$ with $x$ forward, $y$ left (subscript $\mathcal B$ marks base
+quantities). $R_i, p_i$ are the orientation and origin of body $i$ in $W$; $m_i$, $c_i$ and $I_i$ its mass, centre of mass (world)
+and rotational inertia about $c_i$ (body frame). Body 0 is the base and body $i \ge 1$ carries hinge $i$. $m_{\text{tot}} = \sum_i m_i$ is the
+total mass and $c = \sum_i m_i c_i / m_{\text{tot}}$ the centre of mass of the robot. $M(q)$ is the joint-space mass matrix and $B$ the
+actuation matrix; neither is a frame. Indices: $i$ runs over bodies and hinges, $a$ over actuators, $j$ over foot contacts, and a
+superscript $(n)$ marks time step $n$. $\mathrm{Id}_{12}$ is the $12 \times 12$ identity; every $I$ with a subscript is an inertia.</p>
+<h3 id="fundamental-level">Fundamental level</h3>
+<h4 id="reading-an-mjcf-file">Reading an MJCF file</h4>
+<p>An MJCF body lists its offset in the parent (<code>pos</code>, <code>quat</code>), an <code>&lt;inertial&gt;</code> (mass, centre of mass, principal moments and their
+orientation), its joints and geoms. Values that are not written on an element come from a default class. The resolution rule,
+from the MuJoCo XML reference ("default" and "childclass"), is:</p>
+<p>$$\text{attr}(e) = \text{element}(e) \;\triangleright\; \text{class}(e) \;\triangleright\; \text{parent classes of class}(e) \;\triangleright\; \text{main} \;\triangleright\; \text{built-in},$$</p>
+<p>where $\triangleright$ means "overrides" and $\text{class}(e)$ is the element's <code>class</code> attribute, or else the <code>childclass</code> of the
+nearest enclosing body. In go2.xml the base has <code>childclass="go2"</code>; the knee joint has <code>class="knee"</code>, which inherits <code>axis="0 1 0"</code>,
+<code>damping="2"</code>, <code>armature="0.01"</code> and <code>frictionloss="0.2"</code> from <code>go2</code> and sets its own <code>range="-2.7227 -0.83776"</code>. The knee motor
+gets <code>ctrlrange="-45.43 45.43"</code> from the same class; the hip and thigh motors get $\pm 23.7$ N m from <code>go2</code>. A <code>&lt;freejoint&gt;</code>
+takes no defaults. With <code>autolimits="true"</code> a joint is limited if and only if it has a <code>range</code>.</p>
+<p>The inertia tensor about the body's centre of mass, in the body frame, is rebuilt from the principal moments $d$ and the
+inertial quaternion $q_I$:</p>
+<p>$$I_i = R(q_I)\,\mathrm{diag}(d)\,R(q_I)^T .$$</p>
+<p>MuJoCo normalises every quaternion on compile. The inertial quaternions in go2.xml are written to six digits; their norms differ
+from 1 by up to $4 \times 10^{-7}$ (FL calf). Over the same 1000 random states, the centroidal momentum differs from Pinocchio's by
+$6.5 \times 10^{-8}$ without the normalisation (<code>centroidal_momentum_vs_pinocchio_unnormalised_quat</code>, from
+<code>validate.parse_unnormalised()</code>) and by $4.3 \times 10^{-14}$ with it (<code>centroidal_momentum_vs_pinocchio</code>).</p>
+<h4 id="degrees-of-freedom">Degrees of freedom</h4>
+<p>The configuration of a floating-base robot is the base pose plus the joint angles:</p>
+<p>$$q = (p_{\mathcal B},\; \mathbf{q}_{\mathcal B},\; \mathbf q) \in \mathbb{R}^3 \times S^3 \times \mathbb{R}^{12}, \qquad \mathbf q = (q_1, \dots, q_{12}), \qquad n_q = 3 + 4 + 12 = 19,$$</p>
+<p>$$v = (v_{\mathcal B},\; \omega_{\mathcal B},\; \dot{\mathbf q}) \in \mathbb{R}^{18}, \qquad n_v = 3 + 3 + 12 = 18 .$$</p>
+<p>The base orientation is stored as a unit quaternion (4 numbers, 1 constraint) but moves with 3 angular velocities, so
+$n_q - n_v = 1$. Each MJCF joint type contributes $(n_q, n_v)$: free $(7, 6)$, ball $(4, 3)$, hinge and slide $(1, 1)$. MuJoCo's
+velocity convention for the free joint is $v_{\mathcal B}$ in the world frame and $\omega_{\mathcal B}$ in the base frame (<code>sim.py</code> docstring).</p>
+<p>For the Go2: 13 bodies, 1 free joint, 12 hinges and 12 motors.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Body</th>
+<th>Parent</th>
+<th>Mass [kg]</th>
+<th>Joint</th>
+<th>Axis</th>
+<th>Range [rad]</th>
+<th>Range [deg]</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>base</td>
+<td>world</td>
+<td>6.921</td>
+<td>free</td>
+<td>(6 DoF)</td>
+<td>none</td>
+<td>none</td>
+</tr>
+<tr>
+<td>FL/FR/RL/RR_hip</td>
+<td>base</td>
+<td>0.678</td>
+<td>hip abduction</td>
+<td>$x$</td>
+<td>$[-1.0472, 1.0472]$</td>
+<td>$[-60, 60]$</td>
+</tr>
+<tr>
+<td>FL/FR_thigh</td>
+<td>hip</td>
+<td>1.152</td>
+<td>hip flexion</td>
+<td>$y$</td>
+<td>$[-1.5708, 3.4907]$</td>
+<td>$[-90, 200]$</td>
+</tr>
+<tr>
+<td>RL/RR_thigh</td>
+<td>hip</td>
+<td>1.152</td>
+<td>hip flexion</td>
+<td>$y$</td>
+<td>$[-0.5236, 4.5379]$</td>
+<td>$[-30, 260]$</td>
+</tr>
+<tr>
+<td>FL/FR/RL/RR_calf</td>
+<td>thigh</td>
+<td>0.241352</td>
+<td>knee</td>
+<td>$y$</td>
+<td>$[-2.7227, -0.83776]$</td>
+<td>$[-156, -48]$</td>
+</tr>
+</tbody>
+</table></div>
+<p>Total mass $m_{\text{tot}} = 6.921 + 4\,(0.678 + 1.152 + 0.241352) = 15.2064$ kg (<code>total_mass_kg</code>); the legs carry 54.5% of it. Every hinge
+has damping 2 N m s/rad, armature 0.01 kg m² and friction loss 0.2 N m (<code>tables.joints</code> in results.json).</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Actuator</th>
+<th>Type</th>
+<th>Transmission</th>
+<th>Gear</th>
+<th>Torque range [N m]</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>&lt;leg&gt;_hip</code>, <code>&lt;leg&gt;_thigh</code> (8)</td>
+<td>motor</td>
+<td>joint <code>&lt;leg&gt;_hip_joint</code>, <code>&lt;leg&gt;_thigh_joint</code></td>
+<td>1</td>
+<td>$\pm 23.7$</td>
+</tr>
+<tr>
+<td><code>&lt;leg&gt;_calf</code> (4)</td>
+<td>motor</td>
+<td>joint <code>&lt;leg&gt;_calf_joint</code></td>
+<td>1</td>
+<td>$\pm 45.43$</td>
+</tr>
+</tbody>
+</table></div>
+<p>The figure below is drawn from <code>anatomy.parse()</code> output, not by hand.</p>
+<p><img loading="lazy" alt="Kinematic tree generated from go2.xml" src="figures/kinematic_tree.png" /></p>
+<p>Offsets read from the file (body <code>pos</code>): hip abduction axes at $(\pm 0.1934, \pm 0.0465, 0)$ m in the base frame, so the front and
+rear hips are 0.3868 m apart and the left and right abduction axes 0.093 m apart; the thigh joint is 0.0955 m further out along
+$y$; thigh and calf are each 0.213 m long (calf: knee to foot-sphere centre, <code>pos="-0.002 0 -0.213"</code>); the foot is a sphere of
+radius 0.022 m. All joints sit at their body origin ($\text{pos} = 0$).</p>
+<h4 id="camera-model-for-the-annotated-views">Camera model for the annotated views</h4>
+<p>To draw joint axes onto a render, a world point $P$ has to be mapped to a pixel. MuJoCo's camera has origin $o$, unit vectors
+$e_f$ (forward) and $e_u$ (up); image right is $e_r = e_f \times e_u$. With camera coordinates $X = e_r \cdot (P - o)$,
+$Y = e_u \cdot (P - o)$, $Z = e_f \cdot (P - o)$, the pixel in an image of $L_x \times L_y$ pixels is</p>
+<p>$$(x_{px}, y_{px}) = \left(\frac{X' - (x_0 - x_w)}{2x_w}\,L_x,\;\; \frac{y_t - Y'}{y_t - y_b}\,L_y\right),\qquad (X', Y') = \begin{cases}(X, Y) &amp; \text{orthographic}\\ (X, Y)\,z_n/Z &amp; \text{perspective}\end{cases}$$</p>
+<p>with frustum centre $x_0$, half-width $x_w$ (from the aspect ratio when MuJoCo stores 0), top $y_t$, bottom $y_b$ and near-plane
+distance $z_n$.
+MuJoCo renders a mono image from the average of its two eye cameras, which sit $\pm \text{ipd}/2 = \pm 0.034$ m apart. Taking
+only <code>scene.camera[0]</code> instead of the average shifts every projected point by 31.4 px in each of the three views, against a
+0.45 px bounding-box error with the average (<code>camera_eye0_only_shift_px</code>, <code>camera_projection_bbox_px</code>). The views here are
+orthographic, so the shift is the same for every point and one scale bar holds for the whole image.</p>
+<h3 id="intermediate-level">Intermediate level</h3>
+<h4 id="forward-kinematics-of-the-tree">Forward kinematics of the tree</h4>
+<p>Bodies are stored parents first. For body $i$ with parent $\pi(i)$, fixed offset $(\bar p_i, \bar R_i)$ and hinge axis $s_i$
+(body frame) through the anchor $\rho_i$ (body frame):</p>
+<p>$$R_i = R_{\pi(i)} \bar R_i\, \mathrm{Rot}(s_i, q_i), \qquad p_i = p_{\pi(i)} + R_{\pi(i)} \bar p_i + R'_i \rho_i - R_i \rho_i,\quad R'_i = R_{\pi(i)}\bar R_i .$$</p>
+<p>The joint's world anchor is $\hat\rho_i = p_{\pi(i)} + R_{\pi(i)}\bar p_i + R'_i \rho_i$ and its world axis $\hat s_i = R'_i s_i$. For the base,
+$p_{\mathcal B}$ and $R(\mathbf q_{\mathcal B})$ come straight from $q$. This is the product of exponentials (Lynch and Park, sec. 4.1), written body by body.</p>
+<h4 id="velocities-down-the-tree">Velocities down the tree</h4>
+<p>Differentiate $p_i$ and $R_i$. A hinge adds angular velocity $\hat s_i \dot q_i$, and a point $x$ on body $i$ gains velocity
+$\hat s_i \dot q_i \times (x - \hat\rho_i)$ from it:</p>
+<p>$$\omega_i = \omega_{\pi(i)} + \hat s_i \dot q_i, \qquad v_i = v_{\pi(i)} + \omega_{\pi(i)} \times (p_i - p_{\pi(i)}) + \hat s_i \dot q_i \times (p_i - \hat\rho_i),$$</p>
+<p>starting from $v_{\mathcal B}$ and $\omega_{\mathcal B}^W = R_{\mathcal B}\,\omega_{\mathcal B}$. This is the forward iteration of Newton-Euler inverse
+dynamics (Lynch and Park, sec. 8.3), written with 3-vectors instead of twists.</p>
+<h4 id="centre-of-mass-and-centroidal-momentum">Centre of mass and centroidal momentum</h4>
+<p>With $c_i = p_i + R_i\,\bar c_i$ and $\dot c_i = v_i + \omega_i \times (c_i - p_i)$:</p>
+<p>$$l = \sum_i m_i \dot c_i = m_{\text{tot}} \dot c, \qquad k = \sum_i \left[ m_i (c_i - c) \times \dot c_i + R_i I_i R_i^T \omega_i \right].$$</p>
+<p>$h_G = (l, k)$ is the centroidal momentum. It is linear in $v$: $h_G = A_G(q)\,v$, with $A_G$ the centroidal momentum matrix
+(Lee and Goswami 2012, eq. 31, who order the blocks $(k, l)$).</p>
+<h4 id="transmission-and-armature">Transmission and armature</h4>
+<p>A joint-transmission motor $a$ with gear $\gamma_a$, on the joint whose velocity has index $\text{dof}(a)$ in $v$, produces the
+generalised force (MuJoCo Computation, "Actuation model", "Transmission")</p>
+<p>$$\tau = B u, \qquad B_{\text{dof}(a),\,a} = \gamma_a, \text{ all other entries of } B \text{ zero},\qquad u_a \leftarrow \mathrm{clip}(u_a, u_a^{\min}, u_a^{\max}) .$$</p>
+<p>For the Go2, $\gamma_a = 1$ and actuator $a$ drives hinge $a$, so $B = \begin{bmatrix} 0_{6 \times 12} \\ \mathrm{Id}_{12} \end{bmatrix}$: the
+model's torques are joint-side torques and the gearbox is not modelled. Its only trace is the armature. A rotor of inertia
+$I_{\text{rot}}$ turning at $N \dot q_i$ behind an $N{:}1$ reduction stores $\tfrac12 I_{\text{rot}} (N \dot q_i)^2 = \tfrac12 (N^2 I_{\text{rot}})\,\dot q_i^2$,
+so it adds $N^2 I_{\text{rot}}$ to the joint's diagonal of the mass matrix (Lynch and Park, sec. 8.9):</p>
+<p>$$M(q) = M_{\text{links}}(q) + \mathrm{diag}(0_6,\; I_{\text{arm}} \mathbf 1_{12}), \qquad I_{\text{arm}} = N^2 I_{\text{rot}} = 0.01 \text{ kg m}^2 .$$</p>
+<p>go2.xml gives $I_{\text{arm}}$ but neither $N$ nor $I_{\text{rot}}$. The knee limit is $45.43 / 23.7 = 1.92$ times the hip limit (my inference: an
+extra reduction on the knee, not checked against a Unitree document).</p>
+<p>Worked example at the stand pose ($q = (0, 0.9, -1.8)$ per leg, <code>stand_M_diag_*</code>): the link-only diagonal is 0.0236, 0.0204
+and 0.00633 kg m² for hip, thigh and knee; armature raises it to 0.0336, 0.0304 and 0.0163. At the knee the rotor is 61% of the
+inertia the motor sees.</p>
+<h4 id="torque-budget-at-the-stand-pose">Torque budget at the stand pose</h4>
+<p>Standing still under joint PD (<code>sim.stand</code>, 1.5 s settle, base height 0.256 m), the feet carry 33.4 N (front) and 41.2 N (rear),
+which sum to $m_{\text{tot}} g = 149.2$ N. The motors hold this with (results.json <code>stand_torque_Nm</code>):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Joint</th>
+<th>Front legs [N m]</th>
+<th>Rear legs [N m]</th>
+<th>Limit [N m]</th>
+<th>Largest share</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>hip abduction</td>
+<td>0.25</td>
+<td>0.28</td>
+<td>23.7</td>
+<td>1.2%</td>
+</tr>
+<tr>
+<td>hip flexion</td>
+<td>1.33</td>
+<td>0.82</td>
+<td>23.7</td>
+<td>5.6%</td>
+</tr>
+<tr>
+<td>knee</td>
+<td>5.94</td>
+<td>7.06</td>
+<td>45.43</td>
+<td>15.5%</td>
+</tr>
+</tbody>
+</table></div>
+<p>From $u_{\text{leg}} = J_{\text{leg}}^T f_j$ with $f_j = (0, 0, f_z)$ the force on foot $j$ (module 04's foot Jacobian $J_{\text{leg}}$, base
+frame), the largest vertical force one foot can hold at this pose before one of its three actuators saturates is</p>
+<p>$$f_{z,\max} = \min_{a \in \text{leg}} \frac{u_a^{\max}}{|(J_{\text{leg}})_{z a}|} = 245.5 \text{ N (front)},\; 245.3 \text{ N (rear)} .$$</p>
+<p>That is a static upper bound of 100 kg on all four feet, or 84.9 kg beyond the robot's own mass (<code>static_payload_kg</code>). It
+ignores acceleration, motor heating, velocity limits (the model has none) and every other pose; it is a property of this model
+at this pose, not a payload rating.</p>
+<p><img loading="lazy" alt="Standing torque as a share of the limit, and joint-space inertia with and without armature" src="figures/torque_budget_and_inertia.png" /></p>
+<p><img loading="lazy" alt="Joint ranges in their planes of motion" src="figures/joint_ranges.png" /></p>
+<p><a href="media/joint_sweep.mp4">Joint-sweep video</a> (10.8 s, kinematic playback, base held 0.45 m up): all four legs sweep hip abduction
+over its full range (left and right legs mirrored), then hip flexion over 80% of its range (the full range, -90° to 200° on the front legs, would swing the
+thigh through the body), then the knee over its full range.</p>
+<p><img loading="lazy" alt="Joint sweep still: thigh at 80% of its upper limit" src="media/joint_sweep.png" /></p>
+<h3 id="advanced-level-underactuation">Advanced level: underactuation</h3>
+<h4 id="equations-of-motion-split-into-base-and-joint-rows">Equations of motion, split into base and joint rows</h4>
+<p>Foot contact $j$ ($j = 1, \dots, n_f$) acts at the point $r_j$ with force $f_j$ and, for MuJoCo's condim-6 feet, a torsional and
+rolling moment $\mu_j$. Stack the contact wrenches into $\lambda = (f_1, \mu_1, \dots, f_{n_f}, \mu_{n_f})$ with Jacobian $J_\lambda$
+($6n_f \times 18$). With the bias force $C(q, v)$ (gravity, Coriolis and centrifugal terms, joint damping), the equations of
+motion are (MuJoCo Computation, "General framework", eq. 1, whose $c$ is $C$ here)</p>
+<p>$$M(q)\,\dot v + C(q, v) = B u + J_\lambda^T \lambda .$$</p>
+<p>Split $v = (v_b, \dot{\mathbf q})$ with $v_b = (v_{\mathcal B}, \omega_{\mathcal B}) \in \mathbb R^6$; subscript $b$ marks base rows and $q$ joint rows:</p>
+<p>$$\begin{bmatrix} M_{bb} &amp; M_{bq} \\ M_{qb} &amp; M_{qq} \end{bmatrix}\begin{bmatrix}\dot v_b \\ \ddot{\mathbf q}\end{bmatrix} + \begin{bmatrix} C_b \\ C_q\end{bmatrix} = \begin{bmatrix} 0 \\ u \end{bmatrix} + \begin{bmatrix} J_{\lambda,b}^T \\ J_{\lambda,q}^T\end{bmatrix} \lambda .$$</p>
+<p>$B$ has rank 12 and 18 rows, so six directions of $\dot v$ receive no actuator force. Those six rows are the base rows, and $u$
+does not appear in them.</p>
+<p><img loading="lazy" alt="B and the mass matrix: the base rows are empty in B and full in M" src="figures/selection_and_mass_matrix.png" /></p>
+<h4 id="what-the-base-rows-say">What the base rows say</h4>
+<p>Write Newton's law for every body and add them up. Joint torques, joint damping, friction loss and joint-limit forces each act
+on a parent and a child with equal and opposite force and moment (Newton's third law), so they cancel in the sum. Gravity acts at
+each $c_i$, and the feet push on the world with $f_j$ and $\mu_j$ at $r_j$ (Lee and Goswami 2012, eqs. 1 and 2, for one contact):</p>
+<p>$$\dot l = m_{\text{tot}}\, g + \sum_j f_j, \qquad \dot k = \sum_j \left[(r_j - c) \times f_j + \mu_j\right] .$$</p>
+<p>Gravity contributes no moment about $c$ because $\sum_i m_i (c_i - c) \times g = 0$ by the definition of $c$. The base rows of the
+equations of motion carry exactly this information, expressed at the base instead of at $c$ (checked numerically below:
+<code>stance_momentum_rate_vs_wrench</code>).
+Two consequences:</p>
+<ol>
+<li>In flight ($\lambda = 0$), $\ddot c = g$ and $k$ is constant whatever the motors do. The motors can still rotate and shift the
+   base, because $M_{bq} \ddot{\mathbf q} \neq 0$: the base moves so that the total momentum does not.</li>
+<li>To accelerate the centre of mass or change $k$, the robot must push on the ground. Locomotion is the problem of choosing joint
+   torques so that the resulting contact forces produce the wanted $\dot h_G$, inside the friction cones.</li>
+</ol>
+<p><img loading="lazy" alt="Block diagram: the motors reach only the joint rows" src="figures/underactuation_diagram.png" /></p>
+<h4 id="discrete-time-does-not-conserve-momentum-exactly">Discrete time does not conserve momentum exactly</h4>
+<p>Semi-implicit Euler updates $v^{(n+1)} = v^{(n)} + \Delta t\,\dot v^{(n)}$, then $q^{(n+1)} = q^{(n)} \oplus \Delta t\, v^{(n+1)}$. MuJoCo's
+<code>mjINT_EULER</code> treats joint damping implicitly (MuJoCo Computation, "Numerical integration"): it solves
+$(M + \Delta t\,D)\,\dot v^{(n)} = F^{(n)} - D\,v^{(n)}$, with $F^{(n)}$ every generalised force except damping, so that
+$M\dot v^{(n)} = F^{(n)} - D\,v^{(n+1)}$, with $D$ = diag(0, ..., 0, 2, ..., 2) N m s/rad (zero on the six base rows, 2 on every
+hinge). The base rows of the equations of motion, which alone fix $\dot h_G$, are therefore the same as without the implicit
+term, and the argument below is unchanged. Differentiating
+$h_G = A_G(q)\,v$ gives the continuous balance $A_G(q)\,\dot v + \dot A_G(q, v)\,v = w$, with $w$ the external wrench
+($(m_{\text{tot}} g, 0)$ in flight). Suppose the integrator's $\dot v^{(n)}$ satisfies it exactly at step $n$:
+$A_G(q^{(n)})\dot v^{(n)} + \dot A_G(q^{(n)}, v^{(n)})\,v^{(n)} = w^{(n)}$. With $h_G^{(n)} = A_G(q^{(n)})\,v^{(n)}$ the momentum changes per step by</p>
+<p>$$h_G^{(n+1)} - h_G^{(n)} = \Delta t\, A_G(q^{(n)})\dot v^{(n)} + \big(A_G(q^{(n+1)}) - A_G(q^{(n)})\big)\, v^{(n+1)} = \Delta t\, w^{(n)} + \underbrace{\big(A_G(q^{(n+1)}) - A_G(q^{(n)})\big)\, v^{(n+1)} - \Delta t\,\dot A_G(q^{(n)}, v^{(n)})\, v^{(n)}}_{\text{residual}} .$$</p>
+<p>$\dot A_G(q, v)$, the rate of change of $A_G$ along a motion that passes $q$ with velocity $v$, is linear in $v$, and a Taylor
+expansion of $A_G$ about $q^{(n)}$ gives $A_G(q^{(n+1)}) - A_G(q^{(n)}) = \Delta t\,\dot A_G(q^{(n)}, v^{(n+1)}) + O(\Delta t^2)$. The residual is therefore</p>
+<p>$$\Delta t\,\big[\dot A_G(q^{(n)}, v^{(n+1)})\,v^{(n+1)} - \dot A_G(q^{(n)}, v^{(n)})\,v^{(n)}\big] + O(\Delta t^2) = O(\Delta t^2),$$</p>
+<p>because $v^{(n+1)} - v^{(n)} = \Delta t\,\dot v^{(n)}$. Over a fixed time $T$ the $T/\Delta t$ residuals add up to $O(\Delta t)$, so halving
+$\Delta t$ should halve Euler's drift.</p>
+<h4 id="reorientation-with-zero-angular-momentum">Reorientation with zero angular momentum</h4>
+<p>With $k = 0$ the base angular velocity is fixed by the joint velocities. The base's linear velocity does not enter $k$, so
+$k = I_G(q)\,\omega_{\mathcal B} + A_{kq}(q)\,\dot{\mathbf q} = 0$, with $I_G$ the inertia of the whole robot about $c$ and $A_{kq}$ the
+block of $A_G$ that maps $\dot{\mathbf q}$ to $k$, gives $\omega_{\mathcal B} = -I_G^{-1} A_{kq}\,\dot{\mathbf q}$. For a motion confined to the
+sagittal plane (all legs alike), only pitch $\theta$ changes and this reduces to $\dot\theta = \alpha(\phi)^T \dot\phi$ with
+$\phi = (q_{\text{thigh}}, q_{\text{knee}})$, the same on every leg. Over a closed loop $\Gamma$ in this plane, Stokes' theorem gives</p>
+<p>$$\Delta\theta = \oint_\Gamma \alpha(\phi)\cdot d\phi = \iint_{\text{inside }\Gamma} \left(\frac{\partial \alpha_2}{\partial \phi_1} - \frac{\partial \alpha_1}{\partial \phi_2}\right) d\phi_1\,d\phi_2 \neq 0 \text{ in general.}$$</p>
+<p>Three predictions follow: the net rotation does not depend on how fast the loop is run; running the loop backwards reverses it;
+a loop around a different region gives a different rotation. A falling cat turns over the same way; the classic model of it,
+Kane and Scher (1969), was not read for this module and is not used in the derivation.</p>
+<h2 id="implementation">Implementation</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Equation</th>
+<th>Function</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>default-class resolution, inertia tensor, quaternion normalisation</td>
+<td><code>anatomy.parse()</code></td>
+<td>ElementTree only; asserts joint transmissions and hinge gears with zero tail</td>
+</tr>
+<tr>
+<td>$n_q$, $n_v$, rank of $B$</td>
+<td><code>anatomy.dof()</code></td>
+<td></td>
+</tr>
+<tr>
+<td>$\tau = Bu$ with clipping</td>
+<td><code>anatomy.selection()</code>, <code>anatomy.actuator_force()</code></td>
+<td></td>
+</tr>
+<tr>
+<td>forward kinematics, anchors, axes</td>
+<td><code>anatomy.fk()</code></td>
+<td>general anchor $\rho_i$, not assumed zero</td>
+</tr>
+<tr>
+<td>velocity propagation</td>
+<td><code>anatomy.velocities()</code></td>
+<td></td>
+</tr>
+<tr>
+<td>$M$, $c$, $l$, $k$</td>
+<td><code>anatomy.centroidal()</code></td>
+<td></td>
+</tr>
+<tr>
+<td>$\dot h_G$ along the motion</td>
+<td><code>anatomy.momentum_rate()</code></td>
+<td>central difference in time, $\epsilon = 10^{-6}$ s: moves $q$ with <code>anatomy.integrate()</code> and $v$ by $\epsilon\dot v$</td>
+</tr>
+<tr>
+<td>external wrench</td>
+<td><code>anatomy.external_rate()</code></td>
+<td>gravity plus contact forces and moments</td>
+</tr>
+<tr>
+<td>camera projection</td>
+<td><code>validate.project()</code>, <code>validate.mono_camera()</code></td>
+<td>orthographic and perspective</td>
+</tr>
+</tbody>
+</table></div>
+<p>Design choices:</p>
+<ul>
+<li><code>anatomy.py</code> imports neither MuJoCo nor Pinocchio. The tests compare it with <code>mj_forward</code> (<code>xpos</code>, <code>xmat</code>, <code>xanchor</code>, <code>xaxis</code>),
+  <code>mj_objectVelocity</code>, <code>qfrc_actuator</code>, <code>mj_fullM</code> and with Pinocchio's <code>computeCentroidalMomentum</code>,
+  <code>computeCentroidalMomentumTimeVariation</code> and model limits.</li>
+<li>$\dot h_G$ is a finite difference of $h_G$ rather than an analytic derivative. The analytic one needs the bias accelerations of
+  every body; the difference reuses <code>centroidal()</code> and is accurate to about $10^{-8}$, enough to separate "equals $m_{\text{tot}} g$" from
+  "differs by newtons". Pinocchio's analytic $\dot h_G$ is the tighter check ($2.8 \times 10^{-11}$).</li>
+<li>The momentum checks set MuJoCo's constraint solver to tolerance 0 and 1000 iterations. At the default tolerance
+  ($10^{-8}$, 100 iterations) the solver stops before the equations of motion hold to machine precision (Failure analysis).</li>
+<li>Flight and reorientation use RK4. The flight experiment launches the robot with $v = (1.2, 0, 4.5)$ m/s from 0.6 m and stops
+  after 0.9 s, before it lands: no floor contact in any run (<code>*_floor_contacts = 0</code>).</li>
+<li><code>validate.Rec</code> extends <code>sim.Recorder</code> with slow motion and marker spheres, using the same encoder settings and limits.</li>
+</ul>
+<h2 id="experiment">Experiment</h2>
+<pre><code class="language-bash">DISPLAY=:0 .venv-modules/bin/python modules/m01_anatomy/validate.py      # any X display works; wall time depends on load: 118 s at load 67 (wall_time_s)
+.venv-modules/bin/python -m pytest -q modules/m01_anatomy
+</code></pre>
+<p>Without a live X display <code>validate.can_render()</code> fails, and the run warns and skips the two checks that need rendering
+(<code>camera_projection_bbox_px</code>, <code>media_mp4_under_6MB</code>), <code>views_annotated.png</code> and the videos. The other 28 checks still run and
+results.json lists the skipped keys under <code>skipped_checks</code>; <code>--no-media</code> skips only the videos and <code>media_mp4_under_6MB</code>.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Experiment</th>
+<th>Inputs</th>
+<th>Measured</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>parse vs compiled models</td>
+<td>go2.xml</td>
+<td>counts; every body, joint and actuator field</td>
+</tr>
+<tr>
+<td>camera model</td>
+<td>3 orthographic views (960x720), robot lifted 0.4 m so the floor hides nothing</td>
+<td>bounding box of 419,023 projected mesh vertices vs the segmentation silhouette</td>
+</tr>
+<tr>
+<td>kinematics, momentum, transmission</td>
+<td>1000 random states, seed 0: base pose $\mathcal N(0,1)$, joints $U(-\pi, \pi)$, $v \sim \mathcal N(0, 1)$, $u \sim U(-1.5, 1.5)\,u_{\max}$</td>
+<td>max abs error vs MuJoCo and Pinocchio</td>
+</tr>
+<tr>
+<td>armature</td>
+<td>50 random configurations, model with armature set to 0</td>
+<td>$M - M_0 - \mathrm{diag}(0_6, 0.01\cdot\mathbf 1_{12})$</td>
+</tr>
+<tr>
+<td>stand</td>
+<td><code>sim.stand</code>, 1.5 s</td>
+<td>actuator torques, foot forces</td>
+</tr>
+<tr>
+<td>flight identity</td>
+<td>1000 random states (seed 1) and torques $u \sim U(-1, 1)\,u_{\max}$, no floor</td>
+<td>$\dot h_G - (m_{\text{tot}} g, 0)$</td>
+</tr>
+<tr>
+<td>stance identity</td>
+<td>squat: min-jerk PD (kp 80, kd 2) from (0, 0.9, -1.8) to (0, 1.25, -2.5) and back, 1.8 s, sampled every 10 ms (180 samples)</td>
+<td>$\dot h_G -$ (gravity + contact wrenches)</td>
+</tr>
+<tr>
+<td>drift</td>
+<td>flight 0.9 s, torque $15 \sin(2\pi \nu_a t + a - 1)$ N m on actuator $a$, $\nu_a \in [0.5, 1.7]$ Hz; Euler and RK4 at 2 and 1 ms</td>
+<td>$\max_t |k(t) - k(0)|$, $\max_t |l - l_0 - m_{\text{tot}} g t|$</td>
+</tr>
+<tr>
+<td>reorientation</td>
+<td>zero gravity, RK4, PD kp 400, kd 6 on the loop below, 5 cycles at 1 Hz, reversed, at 0.5 Hz, and over a second region of the same area</td>
+<td>base pitch, $|k|$, $|l|$</td>
+</tr>
+</tbody>
+</table></div>
+<p>The reorientation loop for every leg is $q_{\text{thigh}} = 0.9 + \sigma\,0.45 \sin \omega t$, $q_{\text{knee}} = -1.8 + 0.45(\cos\omega t - 1)$:
+a circle of radius 0.45 rad through the stand pose, with $\sigma = -1$ for the reversed run.</p>
+<h2 id="validation">Validation</h2>
+<p>Thresholds were fixed in <code>validate.ACCEPT</code> before the first full run; <code>test_anatomy.py</code> asserts the same ones.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Measured</th>
+<th>Acceptance</th>
+<th>Source (<code>results.json</code>)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>counts $n_q, n_v, n_u$, bodies, joints: parsed vs MuJoCo vs Pinocchio</td>
+<td>0 mismatches (19, 18, 12, 13, 13; Pinocchio has no actuators, so $n_u$ is compared with MuJoCo only)</td>
+<td>0</td>
+<td><code>count_mismatches_vs_mujoco_pinocchio</code></td>
+</tr>
+<tr>
+<td>body offsets, masses, COM, inertia tensors vs MuJoCo, max abs</td>
+<td>0</td>
+<td>&lt; 1e-12</td>
+<td><code>parse_bodies_vs_mujoco</code></td>
+</tr>
+<tr>
+<td>joint type, axis, range, damping, armature, friction loss, addresses vs MuJoCo</td>
+<td>0</td>
+<td>&lt; 1e-12</td>
+<td><code>parse_joints_vs_mujoco</code></td>
+</tr>
+<tr>
+<td>actuator joint, gear, ctrlrange vs MuJoCo</td>
+<td>0</td>
+<td>&lt; 1e-12</td>
+<td><code>parse_actuators_vs_mujoco</code></td>
+</tr>
+<tr>
+<td>total mass vs MuJoCo <code>body_subtreemass</code></td>
+<td>0 kg (15.2064 kg)</td>
+<td>&lt; 1e-12</td>
+<td><code>total_mass_vs_mujoco_kg</code></td>
+</tr>
+<tr>
+<td>joint ranges vs Pinocchio</td>
+<td>0 rad</td>
+<td>&lt; 1e-12</td>
+<td><code>joint_limits_vs_pinocchio</code></td>
+</tr>
+<tr>
+<td>armature and damping vs Pinocchio</td>
+<td>0</td>
+<td>&lt; 1e-12</td>
+<td><code>armature_damping_vs_pinocchio</code></td>
+</tr>
+<tr>
+<td>projected bounding box vs rendered silhouette, max over 3 views</td>
+<td>0.45 px</td>
+<td>≤ 1.5 px</td>
+<td><code>camera_projection_bbox_px</code></td>
+</tr>
+<tr>
+<td>body poses vs MuJoCo, 1000 states</td>
+<td>8.9e-16</td>
+<td>&lt; 1e-12</td>
+<td><code>fk_body_pose_vs_mujoco</code></td>
+</tr>
+<tr>
+<td>joint anchors and axes vs MuJoCo</td>
+<td>1.2e-15</td>
+<td>&lt; 1e-12</td>
+<td><code>fk_joint_anchor_axis_vs_mujoco</code></td>
+</tr>
+<tr>
+<td>body angular and linear velocity vs <code>mj_objectVelocity</code></td>
+<td>2.7e-15</td>
+<td>&lt; 1e-12</td>
+<td><code>body_velocity_vs_mujoco</code></td>
+</tr>
+<tr>
+<td>centre of mass vs Pinocchio</td>
+<td>8.9e-16 m</td>
+<td>&lt; 1e-12</td>
+<td><code>com_vs_pinocchio_m</code></td>
+</tr>
+<tr>
+<td>centroidal momentum vs Pinocchio</td>
+<td>4.3e-14</td>
+<td>&lt; 1e-12</td>
+<td><code>centroidal_momentum_vs_pinocchio</code></td>
+</tr>
+<tr>
+<td>$B\,\mathrm{clip}(u)$ vs <code>qfrc_actuator</code>, a third of the commands beyond the range</td>
+<td>0 N m</td>
+<td>&lt; 1e-12</td>
+<td><code>actuator_force_vs_mujoco</code></td>
+</tr>
+<tr>
+<td>$M - M_0$ equals diag(armature), 50 configurations</td>
+<td>1.7e-18</td>
+<td>&lt; 1e-12</td>
+<td><code>armature_in_mass_matrix</code></td>
+</tr>
+<tr>
+<td>largest standing torque / limit</td>
+<td>0.155 (rear knee)</td>
+<td>&lt; 0.5</td>
+<td><code>stand_torque_utilisation_max</code></td>
+</tr>
+<tr>
+<td>base rows of $B$</td>
+<td>0</td>
+<td>≤ 0</td>
+<td><code>B_base_rows_max_abs</code></td>
+</tr>
+<tr>
+<td>base rows of MuJoCo's actuator force, 1000 random commands</td>
+<td>0</td>
+<td>≤ 0</td>
+<td><code>qfrc_actuator_base_rows_max_abs</code></td>
+</tr>
+<tr>
+<td>rank of $B$</td>
+<td>12</td>
+<td>= 12</td>
+<td><code>rank_B</code></td>
+</tr>
+<tr>
+<td>flight: $\dot h_G - (m_{\text{tot}} g, 0)$, finite difference, max</td>
+<td>1.8e-8</td>
+<td>&lt; 1e-6</td>
+<td><code>flight_momentum_rate_vs_Mg_fd</code></td>
+</tr>
+<tr>
+<td>flight: same, Pinocchio's $\dot h_G$</td>
+<td>2.8e-11</td>
+<td>&lt; 1e-8</td>
+<td><code>flight_momentum_rate_vs_Mg_pinocchio</code></td>
+</tr>
+<tr>
+<td>stance: $\dot h_G -$ (gravity + contact wrenches), 180 samples</td>
+<td>1.3e-9</td>
+<td>&lt; 1e-5</td>
+<td><code>stance_momentum_rate_vs_wrench</code></td>
+</tr>
+<tr>
+<td>Euler angular-momentum drift, 2 ms / 1 ms</td>
+<td>2.00</td>
+<td>1.6 to 2.4</td>
+<td><code>flight_drift_order_euler</code></td>
+</tr>
+<tr>
+<td>RK4 angular-momentum drift at 2 ms</td>
+<td>1.9e-6 kg m²/s</td>
+<td>&lt; 1e-4</td>
+<td><code>flight_drift_rk4_ang_kgm2s</code></td>
+</tr>
+<tr>
+<td>pitch change after 5 loops</td>
+<td>12.4°</td>
+<td>&gt; 5°</td>
+<td><code>reorient_pitch_5_cycles_deg</code></td>
+</tr>
+<tr>
+<td>largest $|k|$ in the four reorientation runs</td>
+<td>1.5e-7 kg m²/s</td>
+<td>&lt; 1e-4</td>
+<td><code>reorient_max_ang_momentum</code></td>
+</tr>
+<tr>
+<td>reversed loop / forward loop rotation</td>
+<td>-1.002</td>
+<td>-1.1 to -0.9</td>
+<td><code>reorient_reverse_ratio</code></td>
+</tr>
+<tr>
+<td>0.5 Hz / 1 Hz rotation</td>
+<td>1.030</td>
+<td>0.9 to 1.1</td>
+<td><code>reorient_half_speed_ratio</code></td>
+</tr>
+<tr>
+<td>other region / forward loop rotation, $</td>
+<td>$ratio $- 1|$</td>
+<td>0.194</td>
+<td>&gt; 0.1</td>
+</tr>
+<tr>
+<td>all MP4 files &lt; 6 MB</td>
+<td>4 files, largest 2.3 MB</td>
+<td>all</td>
+<td><code>media_mp4_under_6MB</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>All 30 checks pass in the run that wrote results.json. The last row was added after an independent review pointed out that
+the third Stokes prediction had no test; its threshold, three times the 3% speed effect, was set before the run that measured it.</p>
+<h3 id="flight-the-motors-turn-the-base-but-cannot-move-the-centre-of-mass">Flight: the motors turn the base but cannot move the centre of mass</h3>
+<p>Over 1000 random states the joint torques change the base's angular acceleration by a median of 112 rad/s² (difference between
+$u$ and $u = 0$, <code>flight_torque_effect_on_base_ang_acc_median</code>), while the centre-of-mass acceleration differs from $g$ by at most
+$1.1 \times 10^{-9}$ m/s² (<code>flight_com_acc_minus_g_max</code>). In the 0.9 s flight with flailing legs the base pitches over a range of
+8.9° and its origin leaves the ballistic parabola by up to 3.4 cm; the centre of mass stays on the parabola to $3.9 \times 10^{-7}$ m
+(<code>flight_*</code> keys).</p>
+<p><img loading="lazy" alt="Flight: COM on the parabola, base attitude moving, momentum change" src="figures/flight_momentum.png" /></p>
+<p><a href="media/flight.mp4">Flight video</a> (3.6 s, quarter speed): the robot is drawn semi-transparent so that the centre of mass, the
+near-black sphere inside the base (the colour of the simulated COM in the figure above), can be seen through it; the amber dots are
+the parabola it has to follow.</p>
+<p><img loading="lazy" alt="Flight still at t = 0.45 s" src="media/flight.png" /></p>
+<h3 id="stance-the-contacts-carry-the-weight-and-the-accelerations">Stance: the contacts carry the weight and the accelerations</h3>
+<p>During the squat the summed vertical contact force ranges from 132.7 to 168.7 N around $m_{\text{tot}} g = 149.2$ N. The momentum rate equals
+gravity plus the contact wrenches to $1.3 \times 10^{-9}$; leaving the contacts out gives an error of at least 132.7 N at every
+sample (<code>stance_error_without_contacts_min_N</code>).</p>
+<p><img loading="lazy" alt="Momentum balance during a squat" src="figures/stance_momentum_balance.png" /></p>
+<h3 id="reorientation-without-angular-momentum">Reorientation without angular momentum</h3>
+<p><img loading="lazy" alt="Pitch with zero angular momentum: forward, reversed, half-speed and other-region loops" src="figures/zero_momentum_reorientation.png" /></p>
+<p>All three predictions of the Stokes argument hold. The reversed loop gives +12.45° against -12.43° (ratio -1.002), and running it
+at half speed gives -12.80° (ratio 1.03, the 3% being the tracking error, see below). The point reflection of the circle
+through the stand pose, $q_{\text{thigh}} = 0.9 - 0.45 \sin \omega t$, $q_{\text{knee}} = -1.8 - 0.45(\cos\omega t - 1)$, has the
+same area and direction but covers the region where the knee is bent less (measured knee range -1.80 to -0.90 rad,
+<code>reorient_other_region_knee_range_rad</code>, inside the limit of -0.83776 rad). It turns the base by -14.84°, ratio 1.194 to the
+first loop (<code>reorient_other_region_ratio</code>), with a tracking error of 0.057 rad, the same as the first loop's. Area alone does
+not set the rotation; the integrand $\partial \alpha_2/\partial \phi_1 - \partial \alpha_1/\partial \phi_2$ varies over joint space. $|k|$ stays below $1.5 \times 10^{-7}$ kg m²/s.
+Within each 1 Hz cycle the pitch swings over a peak-to-peak range of 4.94° and ends 2.05° to 2.85° below where the cycle
+started (<code>reorient_pitch_swing_per_cycle_deg</code>, <code>reorient_pitch_net_per_cycle_deg</code>).</p>
+<p><a href="media/reorientation.mp4">Reorientation video</a> (5 s, real time, zero gravity, camera follows the base position).</p>
+<p><img loading="lazy" alt="Reorientation still after 4 loops" src="media/reorientation.png" /></p>
+<h2 id="failure-analysis">Failure analysis</h2>
+<h3 id="euler-drifts-and-rk4-is-not-fourth-order-here">Euler drifts, and RK4 is not fourth order here</h3>
+<p><img loading="lazy" alt="Momentum drift in flight for Euler and RK4 at 2 ms and 1 ms" src="figures/integrator_drift.png" /></p>
+<p>The continuous model conserves $k$ in flight; MuJoCo's default integrator does not. Over 0.9 s, semi-implicit Euler at 2 ms
+drifts by 0.0107 kg m²/s in angular and 0.050 kg m/s in linear momentum; at 1 ms by 0.0054 and 0.025 (<code>euler_*</code>). The ratio 2.00
+matches the first-order prediction. For scale (my estimate, not measured): the whole robot pitching at 1 rad/s has $|k|$ of
+roughly 0.5 kg m²/s, so Euler's drift over 0.9 s is about 2% of that. RK4 drifts by $1.9 \times 10^{-6}$ (2 ms) and
+$8.0 \times 10^{-7}$ (1 ms), a ratio of 2.4 rather than the 16 of a fourth-order method (<code>flight_drift_order_rk4</code>). Both RK4 curves grow in steps rather
+than smoothly (left panel): at 2 ms one step near 0.16 s, at 1 ms steps near 0.22, 0.25, 0.28 and 0.32 s, and a small step near
+0.77 s in both. The step instants differ between the two step sizes, and the Euler curves show bumps near 0.18 and 0.78 s. A possible cause, not tested: events in the non-smooth constraints (the 0.2 N m joint friction loss,
+joint limits, self-contacts) that fall inside a step at different places for different step sizes; a non-smooth right-hand
+side would limit RK4's order. Logging the active constraint set per step would test this. Any estimator
+or controller module that reads momentum from simulation should use RK4 or a 1 ms step, or expect errors of this size.</p>
+<h3 id="the-momentum-identity-holds-only-to-the-solver-tolerance">The momentum identity holds only to the solver tolerance</h3>
+<p>At MuJoCo's default solver settings (tolerance $10^{-8}$, 100 iterations) the flight identity $\dot h_G = m_{\text{tot}} g$ is off by
+$7.2 \times 10^{-5}$ (<code>flight_momentum_rate_default_solver_tol</code>); with tolerance 0 and 1000 iterations by $1.8 \times 10^{-8}$. The
+cause: MuJoCo computes $\dot v$ inside its constraint solver (friction loss, joint limits and self-contacts are all constraints,
+even in flight), and stops when the cost improvement falls below the tolerance, so the equations of motion are only approximately
+met (MuJoCo Computation, "Constraint solver"). The residual of the equations of motion, with the forces of all active constraints included,
+over the same 1000 states is at most $7.2 \times 10^{-5}$ in the base
+rows, which is the momentum error above, and 0.134 N m in the joint rows; with tolerance 0 it drops to $2.7 \times 10^{-11}$ and
+$1.8 \times 10^{-10}$ (<code>flight_eom_residual_*</code>). The joint-row residual does not enter $\dot h_G$, which is fixed by the base
+rows of the equations of motion alone.</p>
+<h3 id="reorientation-depends-on-the-loop-the-joints-actually-trace">Reorientation depends on the loop the joints actually trace</h3>
+<p><img loading="lazy" alt="Low-gain tracking shrinks the loop and makes the rotation speed dependent" src="figures/reorientation_tracking_failure.png" /></p>
+<p>An earlier full run, with PD gains kp 60, kd 2 and loop amplitude 0.5 rad, missed <code>reorient_half_speed_ratio</code> with 1.175
+(threshold 0.9 to 1.1). That run's results were not kept, so 1.175 cannot be checked against results.json. To show the cause, validate.py reruns the low
+gains on the current loop (amplitude 0.45 rad). With those gains the joints lag the command by up to 0.18 rad at 1 Hz and
+0.10 rad at 0.5 Hz (<code>reorient_lowgain_track_err_rad</code>, <code>reorient_lowgain_half_speed_track_err_rad</code>); the traced loop is smaller
+at 1 Hz, so it encloses less area and rotates the body less: -9.87° vs -11.75° over 5 cycles, ratio 1.19
+(<code>reorient_lowgain_half_speed_ratio</code>). The rotation follows the loop the joints execute, as the Stokes argument predicts, and
+the commanded loop does not enter it. With kp 400, kd 6 the tracking error is 0.057 rad at 1 Hz and 0.029 rad at 0.5 Hz, and
+the ratio is 1.03. The threshold was not changed. results.json keeps the kp 400 runs and the low-gain rerun, not the earlier
+run.</p>
+<p>The same earlier run (not kept either) also reported a reversal ratio of -1.44. The "reversed" loop then flipped the sign of the knee term, which
+traces a different circle (knee bent less instead of more), not the same circle backwards; the region differed, so the rotation
+differed. Its amplitude of 0.5 rad also drove the knee to -2.8 rad, past the -2.7227 rad limit. The loop now reverses the thigh
+term and uses 0.45 rad.</p>
+<h3 id="pinocchios-mjcf-import-drops-the-torque-limits">Pinocchio's MJCF import drops the torque limits</h3>
+<p>Pinocchio 4.1 reads go2.xml's joint ranges, armature and damping exactly (0 difference), but all 18 entries of
+<code>model.effortLimit</code> are infinite (<code>pinocchio_effort_limits_finite = 0</code>): the actuator <code>ctrlrange</code> is not imported. A controller
+that takes its torque limits from a Pinocchio model built from this file gets no limits.</p>
+<h3 id="what-the-model-leaves-out">What the model leaves out</h3>
+<p>The MJCF has no motor velocity limit, no torque-speed curve, no gear ratio and no motor electrical model; it applies the commanded
+torque at the joint instantly. The static payload bound above (84.9 kg) is a consequence: only the torque limits constrain it.
+The foot contact is a soft sphere that sinks about 13 mm into the floor at rest (MODULE_SPEC.md); the collision geometry is boxes,
+cylinders and spheres (turntable, second turn), so self-collision during the joint sweep is approximate.</p>
+<h2 id="references">References</h2>
+<ul>
+<li>MuJoCo documentation, mujoco.readthedocs.io (stable, read for MuJoCo 3.x). XML reference: <code>default</code> and <code>childclass</code>, <code>joint</code>
+  (<code>armature</code>, <code>damping</code>, <code>frictionloss</code>, <code>range</code>), <code>freejoint</code>, <code>motor</code>. Computation chapter: "General framework" eq. (1)
+  (equations of motion); "Actuation model", "Transmission"; "Numerical integration", "Integrators" (Euler's $D$ holds only
+  the joint-damping derivatives); "Constraint model", "Friction loss", "Limit", "Contact" (<code>condim</code>); "Constraint solver".</li>
+<li>K. Zakka et al., MuJoCo Menagerie, github.com/google-deepmind/mujoco_menagerie, <code>unitree_go2/go2.xml</code> and <code>scene.xml</code>.</li>
+<li>Pinocchio 4.1 Python API, the functions compared against: <code>buildModelFromMJCF</code>, <code>computeCentroidalMomentum</code>,
+  <code>computeCentroidalMomentumTimeVariation</code>, <code>model.effortLimit</code>.</li>
+<li>K. M. Lynch, F. C. Park, <em>Modern Robotics</em>, Cambridge University Press 2017: sec. 4.1 (product of exponentials formula),
+  sec. 8.3 (Newton-Euler inverse dynamics, whose forward iteration is the velocity recursion here), sec. 8.9 (actuation,
+  gearing and friction).</li>
+<li>S.-H. Lee, A. Goswami, "A momentum-based balance controller for humanoid robots on non-level and non-stationary ground",
+  Autonomous Robots, 2012, doi:10.1007/s10514-012-9294-z: sec. 1, eqs. (1) and (2) (rate of angular momentum about the CoM and of
+  linear momentum equal the external moment and force); sec. 3.5, eqs. (31) and (32) (in their notation $h = A\dot q$ with the
+  centroidal momentum matrix $A$, and $\dot h = A\ddot q + \dot A\dot q$).</li>
+</ul>
+<p>Section titles of Lynch and Park were checked against the book's companion video list (hades.mech.northwestern.edu,
+"Modern Robotics Videos"), whose titles carry the book's section numbers; the book text itself was not opened. The MuJoCo
+section names were checked on the Computation page. Lee and Goswami was read from a full-text copy at the sections and
+equations cited. Featherstone (2008), Orin, Goswami and Lee (2013) and Kane and Scher (1969) were cited by an earlier
+version of this README; none could be opened (publisher login), so they are no longer listed; the equations they were cited
+for now cite the sources above.</p><p class="source">Source: <a href="https://github.com/Armanasq/go2-nav-sim/blob/main/modules/m01_anatomy/README.md">modules/m01_anatomy/README.md</a></p></article></div>
+</main>
+<footer class="site"><div class="wrap">Simulation only. Source and issues on <a href="https://github.com/Armanasq/go2-nav-sim">GitHub</a>.</div></footer>
+<script type="module" src="../../static/js/site.js"></script>
+</body>
+</html>

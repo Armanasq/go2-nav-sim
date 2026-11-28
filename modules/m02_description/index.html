@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Robot description: the Gazebo URDF against the MuJoCo MJCF, inertia validity and mass identification · go2-nav-sim</title>
+<meta name="description" content="Robot description: the Gazebo URDF against the MuJoCo MJCF, inertia validity and mass identification">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../../static/css/site.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5' fill='%230a6a9c'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"><script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script><script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.querySelector('main'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false})"></script>
+</head>
+<body data-root="../../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar"><div class="inner">
+<a class="brand" href="../../index.html">go2-nav-sim</a>
+<nav aria-label="Main"><a href="../../tutorial/00-overview.html">Learn</a><a href="../../tasks/index.html">Tasks</a><a href="../../modules/index.html" aria-current="page">Deep dives</a><a href="../../reference.html">Reference</a></nav>
+<button class="theme-toggle" type="button" aria-label="Colour theme: auto">auto</button>
+</div></header>
+<main id="main">
+<div class="wrap doc"><details class="side" open><summary>Robot description</summary><nav aria-label="Contents"><ol class="parts"><li class="open"><a class="part" href="../index.html">All deep dives</a><ol><li><a href="../m00_math/index.html"><span class="n">00</span><span>Mathematical foundations</span></a></li><li><a href="../m01_anatomy/index.html"><span class="n">01</span><span>Robot anatomy</span></a></li><li><a href="../m02_description/index.html" aria-current="page"><span class="n">02</span><span>Robot description</span></a><ul class="sections"><li><a href="#objective">Objective</a></li><li><a href="#prerequisites">Prerequisites</a></li><li><a href="#theory">Theory</a></li><li><a href="#implementation">Implementation</a></li><li><a href="#experiment">Experiment</a></li><li><a href="#validation">Validation</a></li><li><a href="#failure-analysis">Failure analysis</a></li><li><a href="#references">References</a></li></ul></li><li><a href="../m03_simulation/index.html"><span class="n">03</span><span>Simulation</span></a></li><li><a href="../m04_kinematics/index.html"><span class="n">04</span><span>Kinematics (single leg)</span></a></li><li><a href="../m06_sensors/index.html"><span class="n">06</span><span>Sensors</span></a></li><li><a href="../m11_state_estimation/index.html"><span class="n">11</span><span>State estimation</span></a></li><li><a href="../m12_perception/index.html"><span class="n">12</span><span>Perception</span></a></li></ol></li></ol></nav></details><article class="prose"><p class="where">Deep dive · module 02</p><h1>Robot description: the Gazebo URDF against the MuJoCo MJCF, inertia validity and mass identification</h1><h2 id="objective">Objective</h2>
+<p>This repository simulates the Go2 twice: Gazebo spawns <code>src/go2_nav_sim/urdf/go2_nav.xacro</code> (<code>src/go2_nav_sim/launch/sim.launch.py</code>,
+line 17), and the modules run the MuJoCo Menagerie <code>go2.xml</code>. <code>go2_nav.xacro</code> includes the upstream <code>robot.xacro</code> from the
+<code>go2_description</code> package of <code>unitree-go2-ros2</code> and this repository's <code>sensors.xacro</code>, which hangs 5 sensor links (<code>lidar_link</code>,
+<code>lidar_visual</code>, <code>camera_link</code>, <code>camera_optical</code>, <code>chase_cam</code>) off <code>base_link</code> by fixed joints, each 1e-5 kg with inertia
+$10^{-6}\,\mathbb 1$ kg m². The "Gazebo URDF" below is the xacro output of <code>go2_nav.xacro</code>, sensor links included. This module puts the two descriptions side by side, number by number, checks that
+every inertia in them could belong to a real body, and then measures a link's mass and centre of mass from simulated joint torques,
+which is how one would settle a disagreement between two files on the real robot. The Unitree URDF that ships in the same package
+(<code>urdf/go2_description.urdf</code>, not used by the Gazebo launch) is compared as a third description.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Level</th>
+<th>Content</th>
+<th>Applied on the Go2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Fundamental</td>
+<td>URDF parsing; lumping fixed joints with the parallel-axis theorem; frames, masses, centres of mass, inertias, link lengths, joint limits and collision geometry compared</td>
+<td>side-by-side renders and video; difference bar charts; calf lumping diagram</td>
+</tr>
+<tr>
+<td>Intermediate</td>
+<td>validity of an inertia: positive definite, triangle inequality, pseudo-inertia; a size check; mirror symmetry; the gravity regressor</td>
+<td>every <code>&lt;inertial&gt;</code> in three files (57 tensors); gravity torques each URDF predicts against the MJCF</td>
+</tr>
+<tr>
+<td>Advanced</td>
+<td>identifiability of mass parameters from static torques (base parameters, rank); least-squares identification; friction bias</td>
+<td>each calf's mass and centre of mass recovered from MuJoCo torques at 60 static poses</td>
+</tr>
+</tbody>
+</table></div>
+<p>After this module a reader can turn a URDF into the bodies a simulator actually integrates, decide whether an inertia block is
+physically possible, predict which mass parameters a static experiment can and cannot measure, and run that experiment.</p>
+<p><img loading="lazy" alt="Same joint angles in the three models" src="figures/side_by_side.png" /></p>
+<p><a href="media/side_by_side.mp4">Side-by-side video</a> (16 s): a camera orbit around the three copies standing, then the same rear-thigh
+command sent to all three, each clamped to its own joint limits. The Gazebo URDF's rear thighs stop 1.047 rad earlier going
+back and travel 1.047 rad further going forward.</p>
+<p><img loading="lazy" alt="Rear thighs commanded to 4.6 rad: the Gazebo URDF (left) stops at 3.49 rad, both MJCF copies at 4.54 rad" src="media/side_by_side.png" /></p>
+<h2 id="prerequisites">Prerequisites</h2>
+<p><a href="../m01_anatomy/index.html">Module 01</a>: the MJCF parser (<code>anatomy.parse</code>), default classes, body inertia $I = R\,\mathrm{diag}(d)\,R^T$
+from <code>diaginertia</code> and <code>quat</code>, and tree forward kinematics (<code>anatomy.fk</code>), all reused here. Maths: rigid-body inertia as a
+second moment of mass, eigenvalues of a symmetric matrix, linear least squares and the singular value decomposition.</p>
+<h2 id="theory">Theory</h2>
+<p>Notation: for body $i$, $m_i$ is its mass, $c_i$ its centre of mass in the body frame, $I_i$ its rotational inertia about $c_i$ in
+the body frame, $h_i = m_i c_i$ its first moment of mass. $R_i, p_i$ are the orientation and origin of the body frame in the world.
+Hinge $k$ has world axis $s_k$ (unit) through world anchor $a_k$, angle $q_k$. $g$ is the gravity vector in the world frame
+($|g| = 9.81$ m/s²). $\mathbb 1$ is the $3\times3$ identity. $e_x, e_y, e_z$ are the unit axes.</p>
+<h3 id="fundamental-level">Fundamental level</h3>
+<h4 id="from-urdf-links-to-simulated-bodies">From URDF links to simulated bodies</h4>
+<p>A URDF lists links and joints. Each <code>&lt;inertial&gt;</code> gives $m$, an origin $(c, \mathrm{rpy})$ and six inertia entries $\bar I$ in the
+frame of that origin, so in the link frame</p>
+<p>$$I = R_{\mathrm{rpy}}\,\bar I\,R_{\mathrm{rpy}}^T, \qquad R_{\mathrm{rpy}} = R_z(\text{yaw})\,R_y(\text{pitch})\,R_x(\text{roll}) .$$</p>
+<p>A <code>fixed</code> joint welds a child link to its parent. A simulator does not integrate it: Pinocchio adds the child's inertia to the
+parent joint's body, MuJoCo's URDF importer fuses static bodies (<code>fusestatic</code>), and Gazebo merges fixed-joint links into their parent.
+To compare with the MJCF, the same merge is done here. A child at $(p, R)$ in the parent frame contributes the part
+$(m_k, c_k, I_k) = (m, p + Rc, R I R^T)$ expressed in the parent frame. For parts $k$ in one frame</p>
+<p>$$m = \sum_k m_k, \qquad c = \frac{1}{m}\sum_k m_k c_k, \qquad I_c = \sum_k \Big[ I_k + m_k\big(|d_k|^2\,\mathbb 1 - d_k d_k^T\big) \Big], \quad d_k = c_k - c ,$$</p>
+<p>the last being the parallel-axis (Steiner) theorem: $I$ about a point $d$ away from the centre of mass adds the inertia of a point
+mass $m$ at $d$.</p>
+<p>Worked example, FL calf of the Gazebo URDF (<code>const.xacro</code>): <code>lf_lower_leg_link</code> has $m = 0.154$ kg at
+$c = (5.48, -0.975, -115)$ mm, and <code>lf_foot_link</code> ($m = 0.06$ kg, centre at its origin) hangs from it by a fixed joint at
+$(0, 0, -213)$ mm. The lumped calf has $m = 0.214$ kg and</p>
+<p>$$c_x = \frac{0.154 \cdot 5.48}{0.214} = 3.94\ \text{mm}, \qquad c_z = \frac{0.154\,(-115) + 0.06\,(-213)}{0.214} = -142.5\ \text{mm},$$</p>
+<p>against the Menagerie calf body's $m = 0.241352$ kg and $c = (6.30, -0.622, -141.4)$ mm. The calf is the only leg body where the
+masses and centres differ. <code>figures/calf_lumping.png</code> shows the three centres and both collision outlines.</p>
+<p><img loading="lazy" alt="FL calf in its x-z plane: URDF parts, lumped centre, MJCF centre, collision outlines" src="figures/calf_lumping.png" /></p>
+<h4 id="same-frames-before-comparing">Same frames before comparing</h4>
+<p>A centre of mass or an inertia can only be compared in a common frame. Lumping puts each body's frame at its moving joint's
+origin. In all three files every joint origin has zero rotation, and the offsets are equal: hip at $(\pm 193.4, \pm 46.5, 0)$ mm
+from the base, thigh at $(0, \pm 95.5, 0)$ mm from the hip, knee at $(0, 0, -213)$ mm from the thigh, axes $x, y, y$. The largest
+difference over all 12 lumped body frames and both URDFs is 0 (<code>body_frames_urdf_vs_mjcf_m</code>), so the body-frame numbers below
+compare like with like.</p>
+<h3 id="intermediate-level">Intermediate level</h3>
+<h4 id="when-is-an-inertia-physically-possible">When is an inertia physically possible</h4>
+<p>With $r$ the position of a mass element relative to the centre of mass,</p>
+<p>$$I_c = \int \big(|r|^2\,\mathbb 1 - r r^T\big)\,dm, \qquad I_{xx} + I_{yy} - I_{zz} = 2 \int r_z^2\,dm \;\ge\; 0 ,$$</p>
+<p>and the same holds in the principal frame for every ordering of the principal moments $d_1, d_2, d_3$: the triangle inequality
+$d_i + d_j \ge d_k$. Equality needs all mass on a plane (a thin plate) or, for two equalities, a line (a thin rod). A matrix can be
+symmetric and positive definite and still fail it, for example $\mathrm{diag}(1, 1, 2.5)$. The margin reported here is</p>
+<p>$$\mu = \frac{d_1 + d_2 + d_3 - 2\,d_{\max}}{d_1 + d_2 + d_3} \in \Big[{-1}, \tfrac13\Big], \qquad \mu = 0 \text{ rod}, \quad \mu = \tfrac13 \text{ sphere}.$$</p>
+<p>The pseudo-inertia matrix collects mass, first and second moments about the body origin:</p>
+<p>$$J = \int \begin{bmatrix} x \\ 1 \end{bmatrix}\begin{bmatrix} x \\ 1 \end{bmatrix}^T dm = \begin{bmatrix} \Sigma &amp; h \\ h^T &amp; m \end{bmatrix},
+\qquad \Sigma = \tfrac12 \mathrm{tr}(I_o)\,\mathbb 1 - I_o, \qquad I_o = I_c + m\big(|c|^2 \mathbb 1 - c c^T\big),$$</p>
+<p>with $x$ the element position in the body frame. $J$ is an integral of outer products, so it is positive semidefinite for any
+real body; Wensing, Kim and Slotine show that $J \succ 0$ is also sufficient for a mass distribution to exist. By the Schur
+complement, $J \succ 0$ if and only if $m &gt; 0$ and $\Sigma - h h^T / m = \Sigma_c = \tfrac12 \mathrm{tr}(I_c)\,\mathbb 1 - I_c \succ 0$,
+whose eigenvalues are $\tfrac12(d_i + d_j - d_k)$: the strict triangle inequality. That equivalence is checked numerically below on
+20000 random tensors. Both tests pass $I_{\mathrm{imu}} = 10^{-4}\,\mathbb 1$ kg m² on a 1 g link, which needs a radius of gyration
+$\sqrt{d_{\max}/m} = 0.316$ m about every axis through the centre (an RMS distance of the mass from its centre of
+$\sqrt{\mathrm{tr}\,I/(2m)} = 0.387$ m). A third, plausibility test therefore compares
+the radius of gyration with the farthest corner of the link's own collision geometry from $c$; a ratio above 1 needs mass outside
+the geometry. Collision primitives are smaller than the real parts, so this test flags candidates, it does not prove an error.</p>
+<h4 id="mirror-symmetry">Mirror symmetry</h4>
+<p>A right leg is the mirror image of the left leg under $S = \mathrm{diag}(1, -1, 1)$: $c_R = S c_L$ and $I_R = S I_L S$, which
+flips the sign of $c_y$, $I_{xy}$ and $I_{yz}$.</p>
+<h4 id="the-gravity-regressor">The gravity regressor</h4>
+<p>Holding still, the motors supply the gradient of the potential energy, $\tau = \partial V / \partial q$, with</p>
+<p>$$V = -\sum_i g \cdot \big(m_i\,p_i + R_i\,h_i\big),$$</p>
+<p>which is linear in the mass parameters $\pi_i = (m_i, h_i) \in \mathbb R^4$. A hinge $k$ moves every body $i$ below it, with
+$\partial p_i / \partial q_k = s_k \times (p_i - a_k)$ and $\partial (R_i h) / \partial q_k = s_k \times R_i h$, so</p>
+<p>$$\tau = Y(q, g)\,\pi, \qquad Y_{k,\,m_i} = -g \cdot \big(s_k \times (p_i - a_k)\big), \qquad Y_{k,\,h_{i,e}} = -g \cdot \big(s_k \times R_i e_e\big),$$</p>
+<p>for $i$ at or below hinge $k$ and zero otherwise. This $Y$ (12 rows, $4 \times 13 = 52$ columns) gives the holding torques of any
+parameter set at any pose. It is checked against Pinocchio's <code>computeGeneralizedGravity</code> and MuJoCo's <code>qfrc_bias</code> at zero
+velocity.</p>
+<h3 id="advanced-level-what-static-torques-can-measure">Advanced level: what static torques can measure</h3>
+<h4 id="base-parameters-of-one-leg">Base parameters of one leg</h4>
+<p>Fix the base and take one leg: hip hinge about $e_x$ through the hip origin, thigh hinge about $e_y$ at $d\,e_y$ from it
+($d = 0.0955$ m), knee hinge about $e_y$ at $\ell\,e_z$ from the thigh origin ($\ell = -0.213$ m). With $R_h = R_x(q_1)$,
+$R_t = R_h R_y(q_2)$, $R_c = R_t R_y(q_3)$, $p_t = p_h + R_h d e_y$ and $p_c = p_t + R_t \ell e_z$, and using $R_h e_x = e_x$ and
+$R_c e_y = R_t e_y = R_h e_y$, the potential becomes</p>
+<p>$$V = \text{const} - g \cdot \Big[ R_h\big(\beta_1 e_y + \beta_2 e_z\big) + R_t\big(\beta_3 e_x + \beta_4 e_z\big) + R_c\big(\beta_5 e_x + \beta_6 e_z\big) \Big],$$</p>
+<p>$$\beta_1 = h_{h,y} + d\,(m_t + m_c) + h_{t,y} + h_{c,y}, \quad \beta_2 = h_{h,z}, \quad \beta_3 = h_{t,x}, \quad \beta_4 = h_{t,z} + \ell\,m_c, \quad \beta_5 = h_{c,x}, \quad \beta_6 = h_{c,z}.$$</p>
+<p>Of the 12 parameters of the leg, only these 6 combinations change any torque, whatever the poses and the gravity direction:
+the regressor has rank 6. Two columns are exactly zero ($m_h$, because the hip origin lies on the hip axis, and $h_{h,x}$, which
+lies along it), and 4 more are linear combinations of others. In particular no static experiment on a fixed base can tell a link's
+mass apart from its parent's first moment: the thigh sees the calf only as a point mass $m_c$ at the knee ($\beta_4$).</p>
+<h4 id="identifying-one-link-given-the-others">Identifying one link given the others</h4>
+<p>If the hip and thigh parameters are known, $\beta_4$ gives $m_c = (\beta_4 - h_{t,z})/\ell$, $\beta_1$ then gives $h_{c,y}$, and
+$\beta_5, \beta_6$ give $h_{c,x}, h_{c,z}$. So the four calf parameters are identifiable. Stack $N$ measurements $n$ (one per pose and approach side: $N$ is the
+number of poses for one-sided holds, twice that for two-sided ones) and move the known columns to the right-hand side:</p>
+<p>$$\underbrace{\begin{bmatrix} Y_u(q^{(1)}, g^{(1)}) \\ \vdots \\ Y_u(q^{(N)}, g^{(N)}) \end{bmatrix}}_{A} \pi_u = \underbrace{\begin{bmatrix} \tau^{(1)} - Y_k(q^{(1)}, g^{(1)})\,\pi_k \\ \vdots \end{bmatrix}}_{b},
+\qquad \hat\pi_u = \arg\min |A \pi_u - b|^2 = R^{-1} Q^T b, \quad A = QR,$$</p>
+<p>$$\mathrm{cov}(\hat\pi_u) = s^2 (R^T R)^{-1}, \qquad s^2 = \frac{|b - A\hat\pi_u|^2}{3N - 4}, \qquad \hat c = \hat h / \hat m .$$</p>
+<p>$Y_u$ and $Y_k$ are the unknown and known columns, using the measured joint angles $q^{(n)}$, not the commanded ones. Each measurement gives 3 rows (the leg's joints), so $A$ has
+$3N$ rows and 4 columns, and $3N - 4$ is the <code>n - p</code> of <code>lstsq_qr</code>. The
+covariance assumes independent residuals of equal variance; the friction residuals below are not independent, and the section on
+failures shows the consequence.</p>
+<p>The hip and thigh parameters of the two descriptions are identical (largest difference 0, <code>urdf_vs_mjcf_hip_thigh_params_max</code>),
+so "known" here is not an assumption one of the files would dispute. The experiment asks: the URDF says 0.214 kg for the calf, the
+MJCF says 0.241352 kg; which does a torque measurement support? In simulation the answer must be the MJCF, since MuJoCo integrates
+it, which makes the experiment a test of the method.</p>
+<h4 id="friction-biases-a-static-measurement">Friction biases a static measurement</h4>
+<p>Each MJCF joint has <code>frictionloss</code> $f_s = 0.2$ N m. At rest the measured torque is $\tau = Y\pi + f$, where the friction torque
+$|f| \le f_s$ opposes the last motion. Approaching a pose from above gives $f \approx -f_s$, from below $f \approx +f_s$. The calf's
+own holding torque has RMS 0.24 N m over the sampled poses (<code>gravity_torque_urdf_vs_mjcf.gazebo.calf.rms_mjcf_Nm</code>), the same
+size as $f_s$, so one-sided measurements are biased by about the signal. Approaching every pose from both sides and stacking both
+measurements cancels $f$ to first order.</p>
+<h2 id="implementation">Implementation</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Function (<code>description.py</code>)</th>
+<th>Equation / role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>xacro()</code></td>
+<td>runs <code>xacro</code> on <code>go2_nav.xacro</code> with <code>start_x:=-4.5 start_y:=-3.5</code> (the values in <code>sim.launch.py</code>; they only set the ground-truth plugin's offset), ROS 2 Humble and this repository's install space; the result is stored as <code>go2_gazebo.urdf</code> so the module runs without ROS</td>
+</tr>
+<tr>
+<td><code>parse_urdf()</code></td>
+<td>ElementTree reader: <code>&lt;inertial&gt;</code> with $I = R_{\mathrm{rpy}} \bar I R_{\mathrm{rpy}}^T$, collision primitives in MJCF size convention (half sizes, cylinder radius and half-length), joints, <code>&lt;gazebo reference&gt;</code> names</td>
+</tr>
+<tr>
+<td><code>rpy_R()</code></td>
+<td>$R_z R_y R_x$</td>
+</tr>
+<tr>
+<td><code>lump()</code>, <code>combine()</code></td>
+<td>fixed-joint merge, parallel-axis theorem; canonical body names (<code>lf_upper_leg_link</code> to <code>FL_thigh</code>)</td>
+</tr>
+<tr>
+<td><code>mjcf_collisions()</code>, <code>volume()</code>, <code>aabb()</code></td>
+<td>collision primitives of the compiled MJCF (read only), volumes, bounding boxes</td>
+</tr>
+<tr>
+<td><code>triangle_margin()</code>, <code>pseudo_inertia()</code>, <code>inertia_report()</code></td>
+<td>$\mu$, $J$, positive definiteness by Cholesky, radius-of-gyration size check</td>
+</tr>
+<tr>
+<td><code>mirror_error()</code></td>
+<td>$|c_R - S c_L|$, $|I_R - S I_L S|_F / |I_L|_F$</td>
+</tr>
+<tr>
+<td><code>params()</code>, <code>gravity_regressor()</code></td>
+<td>$\pi$, $Y(q, g)$ with module 01's <code>fk</code> for $R_i, p_i, s_k, a_k$</td>
+</tr>
+<tr>
+<td><code>svd_rank()</code>, <code>lstsq_qr()</code>, <code>identify_body()</code></td>
+<td>rank with column scaling (so units do not set the rank, relative tolerance 1e-9), QR least squares and covariance, known-column elimination</td>
+</tr>
+</tbody>
+</table></div>
+<p>Design choices and their reason:</p>
+<ul>
+<li>The URDF parser is written here rather than taken from Pinocchio, because the lumping is the step that decides which numbers
+  a simulator uses, and the imu example shows it can hide a bad inertia. Pinocchio and MuJoCo's URDF importer check it.</li>
+<li>Identification uses a fixed base (the free joint removed with <code>MjSpec</code>), contacts disabled and gravity tilted up to 45° in a
+  random horizontal axis per pose. A fixed base removes contact forces from the torque balance; tilting gravity is the same as
+  mounting the base on a tilting fixture. Contacts are disabled so that no pose can touch the floor or another leg.</li>
+<li>Each pose is held with joint PD ($k_p = 150$ N m/rad, $k_d = 3$ N m s/rad) from a start 0.08 rad away on every joint, for 0.5 s.
+  The torques read are <code>actuator_force</code> at the end, the joint angles <code>qpos</code>: what torque sensing and encoders would report.</li>
+<li>MuJoCo and Pinocchio are not called in <code>description.py</code> except to read collision geom sizes from a compiled model.</li>
+</ul>
+<h2 id="experiment">Experiment</h2>
+<pre><code class="language-bash">.venv-modules/bin/python modules/m02_description/validate.py          # 106 s at load average 58 (shared machine), writes everything
+.venv-modules/bin/python -m pytest -q modules/m02_description          # 7 tests, 13 s
+</code></pre>
+<p>Inputs: <code>go2_gazebo.urdf</code> (xacro output, regenerated and compared when ROS is present), <code>src/third_party/.../urdf/go2_description.urdf</code>,
+<code>modules/assets/unitree_go2/go2.xml</code>. Random generator <code>numpy.random.default_rng(2)</code>, drawn in this order: 20000 synthetic
+tensors, 200 regressor-check poses (gravity in any direction), 500 poses for the gravity-torque comparison (base level), 60
+identification poses and 30 held-out poses (gravity tilted ≤ 45°). Poses are uniform in hip $[-0.6, 0.6]$, thigh $[-0.3, 1.8]$,
+knee $[-2.5, -0.95]$ rad, inside both models' limits. Identification runs three cases on the same 60 poses: no friction loss
+(one side), friction loss with one approach side, friction loss with both sides; 0.5 s per hold, 2 ms step. A sweep repeats
+one- and two-sided identification for holds of 0.25, 0.5, 1, 2 and 4 s.</p>
+<h2 id="validation">Validation</h2>
+<p>Thresholds were fixed in <code>validate.ACCEPT</code> before the first full run; <code>test_description.py</code> asserts the same ones (the missed
+row is pinned to its measured state instead, see Failure analysis).</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Measured</th>
+<th>Acceptance</th>
+<th>Source (<code>results.json</code>)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>stored URDF equals fresh xacro output (comments ignored, absolute paths up to <code>install/</code> normalised)</td>
+<td>1</td>
+<td>1</td>
+<td><code>stored_urdf_equals_xacro</code></td>
+</tr>
+<tr>
+<td>lumped mass, COM, inertia vs Pinocchio <code>buildModelFromUrdf</code>, Gazebo URDF, max abs</td>
+<td>8.9e-16</td>
+<td>&lt; 1e-12</td>
+<td><code>lump_vs_pinocchio_gazebo</code></td>
+</tr>
+<tr>
+<td>same, Unitree URDF</td>
+<td>2.8e-17</td>
+<td>&lt; 1e-12</td>
+<td><code>lump_vs_pinocchio_unitree</code></td>
+</tr>
+<tr>
+<td>lumped bodies vs MuJoCo's URDF importer (<code>fusestatic</code>), Gazebo URDF</td>
+<td>8.3e-15</td>
+<td>&lt; 1e-10</td>
+<td><code>lump_vs_mujoco_urdf_import</code></td>
+</tr>
+<tr>
+<td>module 01's MJCF parse vs compiled MuJoCo masses, COM, inertia</td>
+<td>0</td>
+<td>&lt; 1e-12</td>
+<td><code>mjcf_parse_vs_mujoco</code></td>
+</tr>
+<tr>
+<td>URDF body frames vs MJCF body frames, both URDFs</td>
+<td>0 m</td>
+<td>&lt; 1e-9</td>
+<td><code>body_frames_urdf_vs_mjcf_m</code></td>
+</tr>
+<tr>
+<td>known cases: rod $\mu = 0$, sphere $\mu = 1/3$, $\mathrm{diag}(1, 1, 2.5)$ rejected by both tests</td>
+<td>1</td>
+<td>1</td>
+<td><code>synthetic_known_cases</code></td>
+</tr>
+<tr>
+<td>pseudo-inertia $J \succ 0$ agrees with strict triangle inequality, 20000 random tensors (50.2% valid)</td>
+<td>1.0</td>
+<td>1.0</td>
+<td><code>synthetic_pseudo_vs_triangle_agreement</code></td>
+</tr>
+<tr>
+<td>inertias failing positive definite, triangle or pseudo-inertia, all 57 in three files</td>
+<td><strong>2 (missed)</strong></td>
+<td>0</td>
+<td><code>invalid_inertias_all_files</code></td>
+</tr>
+<tr>
+<td>$Y\pi$ vs Pinocchio <code>computeGeneralizedGravity</code>, 200 poses, any gravity direction</td>
+<td>6.7e-16 N m</td>
+<td>&lt; 1e-10</td>
+<td><code>regressor_vs_pinocchio_Nm</code></td>
+</tr>
+<tr>
+<td>$Y\pi$ vs MuJoCo <code>qfrc_bias</code> at zero velocity</td>
+<td>1.4e-15 N m</td>
+<td>&lt; 1e-10</td>
+<td><code>regressor_vs_mujoco_bias_Nm</code></td>
+</tr>
+<tr>
+<td>rank of the FL-leg regressor, 12 parameters, 60 poses</td>
+<td>6 (2 zero columns)</td>
+<td>6</td>
+<td><code>full_leg_rank</code></td>
+</tr>
+<tr>
+<td>calf mass, no friction loss, max relative error over 4 legs</td>
+<td>5.3e-7</td>
+<td>&lt; 1e-3</td>
+<td><code>id_nofric_mass_rel_err_max</code></td>
+</tr>
+<tr>
+<td>calf COM, no friction loss, max error</td>
+<td>1.1e-7 m</td>
+<td>&lt; 5e-4 m</td>
+<td><code>id_nofric_com_err_max_m</code></td>
+</tr>
+<tr>
+<td>calf mass, friction loss, two-sided, max relative error</td>
+<td>4.4e-4</td>
+<td>&lt; 0.05</td>
+<td><code>id_twosided_mass_rel_err_max</code></td>
+</tr>
+<tr>
+<td>calf COM, friction loss, two-sided, max error</td>
+<td>2.4e-4 m</td>
+<td>&lt; 5e-3 m</td>
+<td><code>id_twosided_com_err_max_m</code></td>
+</tr>
+<tr>
+<td>two-sided mass error / URDF-MJCF calf gap (0.0274 kg)</td>
+<td>0.0039</td>
+<td>&lt; 0.25</td>
+<td><code>id_twosided_mass_err_over_urdf_gap</code></td>
+</tr>
+<tr>
+<td>held-out gravity-torque RMS error, identified / Gazebo URDF calf parameters, 30 poses</td>
+<td>0.0079</td>
+<td>&lt; 0.5</td>
+<td><code>holdout_rms_ratio_id_over_urdf</code></td>
+</tr>
+<tr>
+<td>both MP4 files under 6 MB</td>
+<td>1 (1.98 MB, 0.32 MB)</td>
+<td>1</td>
+<td><code>media_mp4_under_6MB</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>18 of 19 checks pass.</p>
+<h3 id="what-differs-between-the-files">What differs between the files</h3>
+<p>Body numbers from <code>fundamental.bodies</code>; MJCF values first. All four legs give the same numbers except where mirror symmetry is noted.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Quantity</th>
+<th>MJCF (Menagerie)</th>
+<th>Gazebo URDF (xacro)</th>
+<th>Unitree URDF</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>total mass (<code>fundamental.totals</code>)</td>
+<td>15.2064 kg</td>
+<td>15.09805 kg (−0.108)</td>
+<td>15.019 kg (−0.187)</td>
+</tr>
+<tr>
+<td>whole-robot COM at the stand pose, offset from MJCF</td>
+<td></td>
+<td>1.31 mm</td>
+<td>2.59 mm</td>
+</tr>
+<tr>
+<td>base mass; inertia difference $\lvert\Delta I\rvert / \lvert I \rvert$</td>
+<td>6.921 kg</td>
+<td>6.92205 kg (imu link and the 5 sensor links lumped in); 0.13%</td>
+<td>6.923 kg; 0.16%</td>
+</tr>
+<tr>
+<td>hip, thigh: mass, COM, inertia</td>
+<td>0.678, 1.152 kg</td>
+<td>identical (0 difference)</td>
+<td>identical</td>
+</tr>
+<tr>
+<td>calf (lumped): mass</td>
+<td>0.241352 kg</td>
+<td>0.214 kg (−11.3%)</td>
+<td>0.194 kg (−19.6%)</td>
+</tr>
+<tr>
+<td>calf COM offset from MJCF; inertia difference</td>
+<td></td>
+<td>2.58 mm (FR 2.90 mm); 2.8% (FR 3.2%)</td>
+<td>6.51 mm; 4.9%</td>
+</tr>
+<tr>
+<td>calf left-right mirror error $\lvert c_R - S c_L \rvert$ (<code>intermediate.mirror</code>)</td>
+<td>0</td>
+<td>1.40 mm, inertia 1.6%</td>
+<td>0</td>
+</tr>
+<tr>
+<td>rear thigh range</td>
+<td>$[-0.5236, 4.5379]$ rad</td>
+<td>$[-1.5708, 3.4907]$ rad (front range)</td>
+<td>as MJCF</td>
+</tr>
+<tr>
+<td>knee effort limit</td>
+<td>45.43 N m</td>
+<td>35.55 N m</td>
+<td>45.43 N m</td>
+</tr>
+<tr>
+<td>velocity limit hip, thigh / knee</td>
+<td>none</td>
+<td>30.1 / 20.06 rad/s</td>
+<td>30.1 / 15.7 rad/s</td>
+</tr>
+<tr>
+<td>joint damping; friction; armature</td>
+<td>2 N m s/rad; 0.2 N m; 0.01 kg m²</td>
+<td>0.01; 0.2; none</td>
+<td>none (no <code>&lt;dynamics&gt;</code>); none</td>
+</tr>
+<tr>
+<td>base collision</td>
+<td>box 376.2 × 93.5 × 114 mm, head cylinder and sphere</td>
+<td>box only (−22% volume)</td>
+<td>as MJCF</td>
+</tr>
+<tr>
+<td>hip collision cylinder centre, $y$ in hip frame</td>
+<td>±80 mm</td>
+<td>±95.5 mm (at the thigh joint)</td>
+<td>±80 mm</td>
+</tr>
+<tr>
+<td>calf collision</td>
+<td>2 tilted cylinders</td>
+<td>one 213 × 16 × 16 mm box (−29% volume)</td>
+<td>MJCF's 2 cylinders + 1 more (+18%)</td>
+</tr>
+<tr>
+<td>foot sphere: radius, centre in calf frame</td>
+<td>22 mm at $(-2, 0, -213)$ mm</td>
+<td>20 mm at $(0, 0, -213)$ mm</td>
+<td>as MJCF</td>
+</tr>
+<tr>
+<td>sole depth below the knee, $\lvert z \rvert + r$</td>
+<td>235 mm</td>
+<td>233 mm</td>
+<td>235 mm</td>
+</tr>
+</tbody>
+</table></div>
+<p><img loading="lazy" alt="URDF minus MJCF: mass, centre of mass, inertia, joint limits, effort limits, collision volume" src="figures/differences.png" /></p>
+<p>The gravity torque the Gazebo URDF's parameters predict differs from the MJCF's by an RMS of 0.028 / 0.030 / 0.026 N m at
+hip / thigh / knee over 500 level-base poses (max 0.064 / 0.075 / 0.036 N m), against MJCF holding torques of RMS 1.03 / 0.50 /
+0.24 N m (<code>intermediate.gravity_torque_urdf_vs_mjcf</code>). At the knee that is 11% of the signal. The Unitree URDF's lighter calf
+doubles the differences (0.053 / 0.058 / 0.056 N m RMS).</p>
+<p><img loading="lazy" alt="Holding torque each URDF predicts minus the MJCF's" src="figures/gravity_torque_difference.png" /></p>
+<p>Three <code>&lt;gazebo reference&gt;</code> blocks in <code>gazebo.xacro</code> name links that do not exist (<code>intermediate.gazebo_gazebo_refs_unknown</code>:
+<code>lh_hip</code>, <code>rf_hip</code>, <code>rh_hip</code>; the links are <code>*_hip_link</code>). The friction coefficients set in those blocks do not reach three
+of the four hip links. Whether Gazebo warns about it was not checked.</p>
+<h3 id="inertia-validity">Inertia validity</h3>
+<p>All 57 tensors (23 Gazebo URDF links with an <code>&lt;inertial&gt;</code>, of which 5 are the sensor links of <code>sensors.xacro</code>; 21 Unitree URDF
+links; 13 MJCF bodies) are symmetric. Every one with
+nonzero mass is positive definite, satisfies the triangle inequality and has $J \succ 0$. The smallest margin in each file is the
+calf: $\mu = 0.0058$ for the URDF calf link alone (<code>intermediate.min_triangle_margin</code>), 0.0073 once the foot is lumped in, 0.0088
+for the MJCF calf. A calf is close to a rod, so a small positive margin is expected. The size test flags the Gazebo <code>imu_link</code>
+(radius of gyration 316 mm, while the farthest corner of its 1 mm collision cube is 0.87 mm from its centre: ratio 365) and the Unitree <code>Head_upper</code> and <code>Head_lower</code> (ratios 1.17 and
+1.20, plausible for a head shell modelled by a smaller cylinder and sphere). The 5 sensor links have the same pattern as <code>imu_link</code>:
+1e-5 kg with $10^{-6}\,\mathbb 1$ kg m², a radius of gyration of $\sqrt{10^{-6}/10^{-5}} = 0.316$ m. They have no collision
+geometry, so the size test, which needs a collision outline, cannot score them; they are listed in
+<code>intermediate.inertia_reports.gazebo_links</code> without a <code>gyration_over_extent</code>. Lumped into the base they add 5e-5 kg, move its centre of mass by
+1.4e-3 mm and change its inertia by at most 1.9e-5 kg m² per entry (0.018% in Frobenius norm), mostly from <code>chase_cam</code>, 1.08 m
+from <code>base_link</code> (measured by lumping the stored URDF with and without the 5 links).</p>
+<p><img loading="lazy" alt="Triangle margin and size check of every inertia" src="figures/inertia_validity.png" /></p>
+<h3 id="identification">Identification</h3>
+<p><img loading="lazy" alt="Rank of the full-leg problem; identified calf masses with 3σ bars; calf COM errors" src="figures/identification.png" /></p>
+<p>The singular values of the column-normalised FL-leg regressor drop from 0.50 (6th) to 2e-16 (7th), with gravity tilted or upright
+(<code>advanced.full_leg_tilted</code>, <code>full_leg_upright</code>), as the base-parameter count predicts. Tilting gravity did not help the calf
+problem either: the condition number of its 4 columns is 2.90 tilted and 2.83 upright (<code>calf_cond_tilted</code>, <code>calf_cond_upright</code>),
+so a level fixture would have done.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Case (60 poses, 0.5 s holds)</th>
+<th>calf mass, 4 legs [kg]</th>
+<th>max COM error</th>
+<th>torque residual RMS</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>no friction loss</td>
+<td>0.241352 on every leg</td>
+<td>1.1e-4 mm</td>
+<td>1.3e-7 N m</td>
+</tr>
+<tr>
+<td>friction loss, two-sided</td>
+<td>0.24125 to 0.24145</td>
+<td>0.24 mm</td>
+<td>0.059 N m</td>
+</tr>
+<tr>
+<td>friction loss, one-sided</td>
+<td>0.2158 to 0.2237</td>
+<td>64.7 mm</td>
+<td>0.059 N m</td>
+</tr>
+<tr>
+<td>(truth: MJCF / Gazebo URDF)</td>
+<td>0.241352 / 0.214</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table></div>
+<p>On 30 held-out poses, the identified calves predict the gravity torque to 2.2e-4 N m RMS; the Gazebo URDF's calf parameters to
+0.028 N m (<code>holdout_rms_id_Nm</code>, <code>holdout_rms_urdf_Nm</code>).</p>
+<p><a href="media/identification.mp4">Identification video</a> (10 s): the first 10 poses, each reached from +0.08 rad and then from
+−0.08 rad and held 0.5 s. The amber arrow is the gravity direction for that pose.</p>
+<p><img loading="lazy" alt="A held identification pose with its tilted gravity" src="media/identification.png" /></p>
+<h2 id="failure-analysis">Failure analysis</h2>
+<h3 id="one-sided-static-measurements-identify-the-wrong-calf">One-sided static measurements identify the wrong calf</h3>
+<p><img loading="lazy" alt="Friction bias while settling; identification error vs settle time" src="figures/friction_failure.png" /></p>
+<p>Approaching every pose from the same side, the identified calf masses are 0.216 to 0.224 kg, 7 to 11% below the MJCF's 0.241 kg
+and within 0.010 kg of the Gazebo URDF's 0.214 kg (<code>advanced.id_single.estimates</code>). The COM is off by 36 to 58 mm in $y$
+and 25 to 28 mm in $z$. A one-sided experiment would have "confirmed" the wrong file. The cause is the friction residual: the
+left panel shows the FL hip torque minus the gravity torque for one pose, approached from both sides. It sits at the friction
+loss of ±0.2 N m while the joint slides (<code>advanced.friction_trace.plateau_Nm</code>), then decays slowly. The two sides are mirror
+images: from 0.15 s on, their mean stays within 0.001 N m of zero (<code>mean_of_sides_max_after_0p15s_Nm</code>). The $y$ component of the calf COM is worst because $h_{c,y}$ enters only through $\beta_1$, that is only through
+the hip torque, where the calf's own contribution is $m_c\,|c_y|\,|g| \approx 1.5$ mN m against a 0.2 N m friction bias.</p>
+<p>The formal standard deviations do not describe this. For the two-sided case they are 4.6 to 5.0 g on the mass
+(<code>id_twosided.estimates.*.mass_std</code>), while the actual errors are at most 0.11 g; for the one-sided case 2.1 to 2.5 g, while the
+actual errors are 18 to 26 g. The covariance formula assumes independent residuals, and friction residuals are neither independent
+(both sides of a pose are equal and opposite) nor zero-mean (one side only).</p>
+<h3 id="mujocos-friction-loss-creeps-so-waiting-longer-also-removes-the-bias">MuJoCo's friction loss creeps, so waiting longer also removes the bias</h3>
+<p>The friction residual of a one-sided hold falls from 0.134 N m RMS after 0.25 s to 0.059 N m after 0.5 s, 0.0010 N m after 2 s and
+6e-6 N m after 4 s (<code>advanced.settle_sweep</code>), and the one-sided calf mass error with it, from 17% to 9e-5%. MuJoCo implements
+friction loss as a soft constraint, so a joint held against it slides slowly until the PD torque balances gravity alone. A real
+gearbox with stiction does not do this. On hardware the two-sided approach (or a slow sinusoidal sweep through each pose) is
+needed whatever the wait, and this simulation cannot show how well it works there: the real friction may differ between the two
+directions, and nothing here models that.</p>
+<h3 id="two-zero-mass-inertias-in-the-unitree-urdf-miss-the-validity-criterion">Two zero-mass inertias in the Unitree URDF miss the validity criterion</h3>
+<p><code>invalid_inertias_all_files</code> is 2, not 0. Both are in the Unitree URDF: <code>imu</code> and <code>radar</code> are sensor frames with an <code>&lt;inertial&gt;</code>
+of mass 0 and inertia 0 (<code>intermediate.invalid_inertias_list</code>). A zero tensor is not positive definite, so the test counts them.
+Both hang from the base by fixed joints, so they add nothing after lumping, and the Unitree file's lumped bodies pass every test.
+The criterion was written as "every <code>&lt;inertial&gt;</code> block", and it stays missed.</p>
+<h3 id="what-the-comparison-does-not-cover">What the comparison does not cover</h3>
+<ul>
+<li>Visual meshes are not compared. MuJoCo cannot load the Collada files of either URDF, so the side-by-side render shows the
+  Gazebo URDF's collision geometry only.</li>
+<li>Contact parameters (Gazebo <code>mu1</code>, <code>kp</code>, <code>kd</code> vs MJCF <code>friction</code>, <code>solimp</code>, <code>condim</code>) are listed in the files but not compared
+  numerically: their meaning differs between ODE and MuJoCo's soft contact.</li>
+<li>The identification uses noise-free torque and angle readings and a fixed base. No torque-sensor noise or encoder quantisation
+  is modelled, because this repository has no measured value for either on the Go2.</li>
+<li>Where the MJCF's calf mass comes from (0.241352 kg is neither URDF's calf plus foot) is not documented in any file here; this
+  module shows which value a measurement in MuJoCo supports, not which is right for the hardware.</li>
+</ul>
+<h2 id="references">References</h2>
+<ul>
+<li>ROS URDF XML specification, wiki.ros.org/urdf/XML: <code>link</code> (<code>inertial</code> with <code>origin</code>, <code>mass</code>, <code>inertia</code>; <code>collision</code> geometry
+  <code>box</code> size as full lengths, <code>cylinder</code> along $z$), <code>joint</code> (<code>origin</code> rpy as fixed-axis roll, pitch, yaw; <code>limit</code>, <code>dynamics</code>).</li>
+<li>MuJoCo documentation, mujoco.readthedocs.io (stable, MuJoCo 3.x): Computation chapter, section "Constraint model",
+  subsection "Friction loss" (dry friction modelled as a constraint, an upper limit on the absolute value of the friction
+  force; the creep in Failure analysis comes from this constraint being soft); XML reference, <code>joint</code> element, attribute <code>frictionloss</code>; <code>compiler</code> attributes <code>fusestatic</code>, <code>discardvisual</code>; <code>geom</code>
+  size conventions.</li>
+<li>K. Zakka et al., MuJoCo Menagerie, github.com/google-deepmind/mujoco_menagerie, <code>unitree_go2/go2.xml</code>.</li>
+<li>Pinocchio 4.1 Python API, the functions compared against: <code>buildModelFromUrdf</code>, <code>buildModelFromMJCF</code>, <code>model.inertias</code>,
+  <code>computeGeneralizedGravity</code>.</li>
+<li>P. M. Wensing, S. Kim, J.-J. E. Slotine, "Linear matrix inequalities for physically consistent inertial parameter
+  identification: a statistical perspective on the mass distribution", IEEE Robotics and Automation Letters 3(1), 2018,
+  doi:10.1109/LRA.2017.2729659 (author version arXiv:1701.04395). Section IV-A, eq. (13): the triangle inequalities as
+  $\tfrac12\mathrm{tr}(\bar I_C)\mathbb 1 - \bar I_C \succeq 0$; Section IV-B, eq. (17) and Proposition 1: that matrix is the
+  density-weighted covariance $\Sigma_C$; Section IV-C, Definition 7 (pseudo-inertia matrix) and Theorem 3: the physically
+  consistent parameters are exactly those with $J(\pi) \succ 0$, proved by the Schur complement used above.</li>
+<li>M. Gautier, W. Khalil, "Direct calculation of minimum set of inertial parameters of serial robots", IEEE Transactions on
+  Robotics and Automation 6(3), pp. 368–373, 1990, doi:10.1109/70.56655: base parameters by eliminating parameters with no
+  effect and regrouping the others with the parent link, the idea used for $\beta_1 \ldots \beta_6$. The full text was not
+  accessible for this module, so no section number is given; the same regrouping rules are in Khalil and Dombre, Section 9.4.</li>
+<li>W. Khalil, E. Dombre, <em>Modeling, Identification and Control of Robots</em>, Hermes Penton 2002 (2004 printing listed
+  by Elsevier): Section 9.4, "Determination of the base inertial parameters"; Chapter 12, "Identification of the dynamic parameters",
+  Sections 12.3 (principle of the identification procedure) and 12.4 (dynamic identification model, linear in the parameters,
+  solved by least squares). Section numbers taken from the publisher's table of contents; the chapters were not reread.</li>
+</ul>
+<p>The derivations above are self-contained, and every result in them is checked numerically against Pinocchio or MuJoCo.</p><p class="source">Source: <a href="https://github.com/Armanasq/go2-nav-sim/blob/main/modules/m02_description/README.md">modules/m02_description/README.md</a></p></article></div>
+</main>
+<footer class="site"><div class="wrap">Simulation only. Source and issues on <a href="https://github.com/Armanasq/go2-nav-sim">GitHub</a>.</div></footer>
+<script type="module" src="../../static/js/site.js"></script>
+</body>
+</html>

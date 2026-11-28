@@ -1,0 +1,643 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Move in shapes: open loop vs closed loop · go2-nav-sim</title>
+<meta name="description" content="Move in shapes: open loop vs closed loop">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../../static/css/site.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5' fill='%230a6a9c'/%3E%3C/svg%3E">
+
+</head>
+<body data-root="../../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar"><div class="inner">
+<a class="brand" href="../../index.html">go2-nav-sim</a>
+<nav aria-label="Main"><a href="../../tutorial/00-overview.html" aria-current="page">Learn</a><a href="../../tasks/index.html">Tasks</a><a href="../../modules/index.html">Deep dives</a><a href="../../reference.html">Reference</a></nav>
+<button class="theme-toggle" type="button" aria-label="Colour theme: auto">auto</button>
+</div></header>
+<main id="main">
+<div class="wrap doc"><details class="side" open><summary>Move in shapes</summary><nav aria-label="Contents"><ol class="parts"><li><a class="part" href="../../tutorial/00-overview.html">Start</a></li><li><a class="part" href="../../tutorial/05-frames-and-tf2.html">The robot</a></li><li class="open"><p class="part">Move it</p><ol><li><a href="../p02_teleop-and-safety/index.html"><span class="n">P2</span><span>Teleoperation with a safety layer</span></a></li><li><a href="index.html" aria-current="page"><span class="n">P3</span><span>Move in shapes</span></a><ul class="sections"><li><a href="#goal">Goal</a></li><li><a href="#what-you-will-learn">What you will learn</a></li><li><a href="#before-you-start">Before you start</a></li><li><a href="#steps">Steps</a></li><li><a href="#how-the-code-works">How the code works</a></li><li><a href="#results">Results</a></li><li><a href="#try-this">Try this</a></li><li><a href="#if-it-goes-wrong">If it goes wrong</a></li></ul></li><li><a href="../p04_go-to-pose/index.html"><span class="n">P4</span><span>Your own go-to-pose controller</span></a></li><li><a href="../../tasks/s08_feedback-movement/index.html"><span class="n">S8</span><span>Feedback movement</span></a></li></ol></li><li><a class="part" href="../../tutorial/08-robot-and-sensors.html">Sense and avoid</a></li><li><a class="part" href="../../tutorial/09-state-estimation.html">Estimate and map</a></li><li><a class="part" href="../p11_command-arbitration/index.html">Navigate</a></li><li><a class="part" href="../p14_test-the-stack/index.html">Beyond simulation</a></li></ol></nav></details><article class="prose"><p class="where">Move it · Project 3</p><h1>Move in shapes: open loop vs closed loop</h1><h2 id="goal">Goal</h2>
+<p>Make the Go2 walk a 1.5 m square and a figure-eight in two ways. Open loop: send timed velocity commands and hope the robot
+does what it was told. Closed loop: read the pose on <code>/odom</code> and keep turning until the heading is right, keep walking until
+the distance is covered. You score both against the simulator's ground truth, find out where the open-loop error comes from
+(the robot does not reach the speed you command), and see how much of the closed-loop error is left over from the pose
+estimate itself.</p>
+<h2 id="what-you-will-learn">What you will learn</h2>
+<ul>
+<li>Writing an open-loop motion as a schedule of <code>(duration, v, w)</code> segments, timed on simulated time.</li>
+<li>Writing a closed-loop motion as a small state machine (turn, walk, settle) driven by <code>/odom</code>.</li>
+<li>Steering onto a line with a lookahead point ("carrot") instead of aiming at the goal point.</li>
+<li>Measuring commanded vs achieved speed from <code>/odom_gt</code>, and predicting the open-loop error from it.</li>
+<li>Separating controller error from estimation error by closing the loop on ground truth.</li>
+<li>Keeping the pure logic out of the ROS node so it can be unit-tested.</li>
+</ul>
+<h2 id="before-you-start">Before you start</h2>
+<p>You need <a href="../p01_first-steps/index.html">project 1</a>: starting the stack, <code>/cmd_vel</code>, the rule that CHAMP keeps walking on the
+last command, and reading a pose and heading from <code>nav_msgs/Odometry</code>.</p>
+<p>Every terminal starts with:</p>
+<pre><code class="language-bash">cd go2-nav-sim
+source env.sh
+</code></pre>
+<p>Start the stack:</p>
+<pre><code class="language-bash">scripts/up.sh
+# stack up
+</code></pre>
+<p>Run each shape right after <code>scripts/up.sh</code>. The restart puts the robot back on marker A facing +x and resets <code>/odom</code>, which
+drifts while the robot stands (see <a href="#if-it-goes-wrong">If it goes wrong</a>). Each shape starts from wherever the robot is, so
+from A there is room: the square needs 1.5 m ahead and to the left, the figure-eight 0.9 m to each side. In my eight
+closed-loop figure-eights from A, the trunk centre came no closer than 0.45 m to the inner face of the south wall, on the
+lower lobe.</p>
+<p>The scripts are plain Python files and need no build:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>File</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>shapes.py</code></td>
+<td>the shapes, the open-loop schedules and the closed-loop <code>Follower</code>; no ROS in it</td>
+</tr>
+<tr>
+<td><code>drive.py</code></td>
+<td>the node: runs one shape in one mode, publishes <code>/cmd_vel</code>, logs <code>/odom</code> and <code>/odom_gt</code> to <code>results/&lt;shape&gt;_&lt;mode&gt;.csv</code></td>
+</tr>
+<tr>
+<td><code>analyze.py</code></td>
+<td>scores the logs against ground truth, prints the tables, draws <code>figures/*.png</code></td>
+</tr>
+<tr>
+<td><code>results/repeats/</code></td>
+<td>more runs of the same shapes (<code>&lt;shape&gt;_&lt;mode&gt;_N.csv</code>), so you can see how much one run differs from the next</td>
+</tr>
+<tr>
+<td><code>record.py</code></td>
+<td>records a camera to MP4 (<code>projects/common/record_cam.py</code> with a reliable subscription)</td>
+</tr>
+<tr>
+<td><code>test_shapes.py</code></td>
+<td>unit tests for <code>shapes.py</code></td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="steps">Steps</h2>
+<h3 id="1-run-the-unit-tests">1. Run the unit tests</h3>
+<pre><code class="language-bash">python3 -m pytest -q projects/p03_move-in-shapes
+# 6 passed
+</code></pre>
+<p>The tests drive the closed-loop <code>Follower</code> on a perfect simulated robot (it does exactly what it is commanded) and check that it
+passes within 5 cm of every corner of the square and ends within 8 cm of the start of the figure-eight. If they fail, the
+simulator runs will not be better.</p>
+<p>Check: <code>6 passed</code>.</p>
+<h3 id="2-walk-the-square-open-loop">2. Walk the square open loop</h3>
+<pre><code class="language-bash">python3 projects/p03_move-in-shapes/drive.py square open
+</code></pre>
+<p>The script waits for <code>/odom</code> and <code>/odom_gt</code>, then plays this schedule four times: walk 0.25 m/s for 6.0 s (1.5 m), stand
+1.5 s, turn 0.4 rad/s for 3.93 s (90 degrees), stand 1.5 s. My run:</p>
+<pre><code>[INFO] [...] [drive_shapes]: square open: start at odom (0.00, 0.01, -0.1 deg)
+[INFO] [...] [drive_shapes]: finished after 51.8 s of simulated time
+log: .../projects/p03_move-in-shapes/results/square_open.csv
+</code></pre>
+<p>The robot comes back close to A, but the square it walks is smaller than 1.5 m and not square. Open-loop runs differ a lot
+from one to the next, so do not expect your corner and heading errors to match mine to the centimetre; <a href="#how-much-one-run-differs-from-the-next">How much one run
+differs from the next</a> gives the range over five runs.</p>
+<p>Check: <code>finished after 51.8 s</code> (the schedule is 4 × (6.0 + 1.5 + 3.93 + 1.5) = 51.7 s, plus one tick).</p>
+<h3 id="3-walk-the-square-closed-loop">3. Walk the square closed loop</h3>
+<p>Restart, then run the same shape with feedback:</p>
+<pre><code class="language-bash">scripts/up.sh
+python3 projects/p03_move-in-shapes/drive.py square closed
+</code></pre>
+<pre><code>[INFO] [...] [drive_shapes]: square closed: start at odom (0.01, 0.00, 0.1 deg)
+[INFO] [...] [drive_shapes]: finished after 50.1 s of simulated time
+</code></pre>
+<p>Here nothing is timed. At each corner the robot turns until <code>/odom</code> says the heading points along the next side (within
+2 degrees), walks until <code>/odom</code> says the side is done (within 2 cm), stands 1.5 s, and at the end turns back to its start heading.</p>
+<p>Check: the robot stops at each corner, and the CSV labels go <code>walk0, corner0, turn1, walk1, ...</code>:</p>
+<pre><code class="language-bash">cut -d, -f2 projects/p03_move-in-shapes/results/square_closed.csv | uniq | tr '\n' ' '
+# label walk0 corner0 turn1 walk1 corner1 turn2 walk2 corner2 turn3 walk3 corner3 final_turn stop
+</code></pre>
+<h3 id="4-walk-the-figure-eight-open-loop">4. Walk the figure-eight open loop</h3>
+<pre><code class="language-bash">scripts/up.sh
+python3 projects/p03_move-in-shapes/drive.py figure8 open
+# [INFO] [...] [drive_shapes]: finished after 33.0 s of simulated time
+</code></pre>
+<p>The figure-eight is two circles of radius r = 0.45 m that touch at the start: the left one counter-clockwise, then the right one
+clockwise. Open loop that is v = 0.18 m/s with w = v / r = +0.4 rad/s for 2πr / v = 15.7 s, then the same with w = -0.4 rad/s.</p>
+<p>Check: about 33 s, and the robot ends near A but not on it.</p>
+<h3 id="5-walk-the-figure-eight-closed-loop">5. Walk the figure-eight closed loop</h3>
+<pre><code class="language-bash">scripts/up.sh
+python3 projects/p03_move-in-shapes/drive.py figure8 closed
+# [INFO] [...] [drive_shapes]: finished after 39.7 s of simulated time
+</code></pre>
+<p>Closed loop, the figure-eight is 24 points, one every 30 degrees on each circle. The robot walks from point to point at
+0.18 m/s without stopping and only turns on the spot at the start (0.85 s of <code>turn0</code>).</p>
+<p>There is no turn at the end: the robot stops on the last leg, heading 2 to 11 degrees left of where it started in my eight runs
+(<a href="#results">Results</a> explains why).</p>
+<p>Check: about 40 s, and <code>cut -d, -f2 projects/p03_move-in-shapes/results/figure8_closed.csv | uniq | tr '\n' ' '</code> shows
+<code>turn0</code> once, then <code>walk0</code> to <code>walk23</code>, then <code>stop</code>.</p>
+<h3 id="6-score-the-runs-and-draw-them">6. Score the runs and draw them</h3>
+<pre><code class="language-bash">python3 projects/p03_move-in-shapes/analyze.py
+</code></pre>
+<p>It writes <code>figures/shapes.png</code> and <code>figures/commanded_vs_achieved.png</code> and prints several tables. The first one scores your
+four runs, one row each. With my logs it is:</p>
+<pre><code>| Run | Corner (square) or crossing (figure-eight) errors, m | The same on /odom, m | Final position error, m | Final heading error, deg | /odom end heading, deg | /odom displacement error at end, m | /odom yaw drift in run, deg | Time, s |
+|---|---|---|---|---|---|---|---|---|
+| square_open | 0.08 0.19 0.21 0.01 | 0.09 0.19 0.17 0.04 | 0.13 | -4.7 | -0.6 | 0.02 | 4.1 | 51.8 |
+| square_closed | 0.01 0.01 0.05 0.02 | 0.02 0.01 0.04 0.03 | 0.12 | 1.1 | -1.5 | 0.05 | -2.6 | 50.1 |
+| figure8_open | 0.06 | 0.06 | 0.17 | -0.8 | 1.5 | 0.03 | 2.2 | 33.0 |
+| figure8_closed | 0.07 | 0.07 | 0.05 | 3.9 | 6.4 | 0.02 | 2.5 | 39.7 |
+</code></pre>
+<p>The table in <a href="#results">Results</a> is columns 1, 2, 4, 5 and 9 of this one. The other columns say what <code>/odom</code> saw:</p>
+<ul>
+<li>"The same on /odom": the corner errors measured in <code>/odom</code> against a square placed at <code>/odom</code>'s start pose. This is what
+  the closed loop steers on.</li>
+<li>"/odom end heading": the heading change from start to end as <code>/odom</code> saw it.</li>
+<li>"/odom displacement error at end": how far <code>/odom</code>'s displacement since the start is from the true one.</li>
+<li>"/odom yaw drift in run": <code>/odom</code>'s heading change minus the true heading change. The final heading error is the
+  <code>/odom</code> end heading minus this drift (square, open loop: -0.6 - 4.1 = -4.7).</li>
+</ul>
+<p>Below it come a table for the <a href="#try-this">Try this</a> runs 1 and 2 (<code>square_open_calibrated</code>, <code>square_closed_on_odom_gt</code>),
+the repeat runs in <code>results/repeats/</code>, the spread over all runs of each kind, and the commanded vs achieved speeds. The repo
+ships my logs for all of these, so you see the Try this table before you have made those runs yourself; your own runs replace
+those two rows. All of it, for my logs, is in <code>results/analyze_output.txt</code>.</p>
+<p><code>drive.py</code> overwrites <code>results/&lt;shape&gt;_&lt;mode&gt;.csv</code> on every run. To keep a run as a repeat, copy it to
+<code>results/repeats/&lt;shape&gt;_&lt;mode&gt;_N.csv</code> with an unused N, and <code>analyze.py</code> adds it to the repeat and spread tables.</p>
+<p>Check: the first table has four rows, <code>square_open</code>, <code>square_closed</code>, <code>figure8_open</code>, <code>figure8_closed</code>; the next one,
+headed <code>Try this runs</code>, has the two rows that come with the repo; and the two PNG files are written.</p>
+<h3 id="7-record-a-video-of-a-run">7. Record a video of a run</h3>
+<p>Restart the stack in the first terminal, so the robot starts on A:</p>
+<pre><code class="language-bash">scripts/up.sh
+</code></pre>
+<p>In a second terminal (<code>cd go2-nav-sim</code> and <code>source env.sh</code> as always), start the recorder:</p>
+<pre><code class="language-bash">python3 projects/p03_move-in-shapes/record.py /tmp/figure8.mp4 --topic /spectator/cam/image_raw
+</code></pre>
+<p>Back in the first terminal, run the shape:</p>
+<pre><code class="language-bash">python3 projects/p03_move-in-shapes/drive.py figure8 closed
+</code></pre>
+<p>When it prints <code>finished after ...</code>, stop the recorder with Ctrl-C in the second terminal. It may print a traceback; the
+file is still complete (<a href="#if-it-goes-wrong">If it goes wrong</a>).</p>
+<p>The video is paced by simulated time at 10 frames per second, and it includes the seconds before and after the run. Count
+its frames and read its duration:</p>
+<pre><code class="language-bash">ffprobe -v error -count_frames -select_streams v:0 -show_entries stream=nb_read_frames:format=duration -of default=noprint_wrappers=1 /tmp/figure8.mp4
+# nb_read_frames=493
+# duration=49.300000
+</code></pre>
+<p>That was my run of 40.6 s with the recorder started 8 s before it and stopped 5 s after, so your numbers depend on how
+long you leave the recorder running.</p>
+<p>I cropped the robot's corner of the arena and played it at twice the speed. The last argument is the output file; this writes
+it to <code>/tmp</code>, not to the directory you are in:</p>
+<pre><code class="language-bash">ffmpeg -i /tmp/figure8.mp4 -vf &quot;crop=480:270:20:190,scale=960:540,setpts=PTS/2&quot; -r 20 -c:v libx264 -crf 26 -an /tmp/figure8_closed.mp4
+ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1 /tmp/figure8_closed.mp4
+# duration=24.650000
+</code></pre>
+<p>Check: <code>duration</code> is <code>nb_read_frames</code> divided by 10, and the cropped clip is half as long.</p>
+<h3 id="8-stop-everything">8. Stop everything</h3>
+<pre><code class="language-bash">scripts/stop.sh
+</code></pre>
+<h2 id="how-the-code-works">How the code works</h2>
+<h3 id="open-loop-a-schedule">Open loop: a schedule</h3>
+<p><code>shapes.py</code> describes the open-loop square as a list of <code>(duration, v, w, label)</code> and looks up the command for the time since
+the start:</p>
+<pre><code class="language-python">def square_schedule(side=SIDE, v=0.25, w=0.4, settle=1.5, v_real=None, w_real=None):
+    T_side, T_turn = side / (v_real or v), math.pi / 2 / (w_real or w)
+    seg = []
+    for k in range(4):
+        seg += [(T_side, v, 0.0, f'side{k}'), (settle, 0.0, 0.0, f'corner{k}'),
+                (T_turn, 0.0, w, f'turn{k}'), (settle, 0.0, 0.0, f'turned{k}')]
+    return seg
+
+def command_at(schedule, t):
+    for dur, v, w, label in schedule:
+        if t &lt; dur:
+            return v, w, label
+        t -= dur
+    return None
+</code></pre>
+<p>The whole plan rests on two products: distance d = v · T and angle θ = w · T. If the robot walks at 0.231 m/s instead of 0.25,
+6.0 s gives 1.39 m, not 1.5 m, and nothing in the program notices. <code>v_real</code> and <code>w_real</code> are for <a href="#try-this">Try this</a> 1.</p>
+<h3 id="the-node-one-timer-on-simulated-time">The node: one timer on simulated time</h3>
+<p><code>drive.py</code> runs everything from one 20 Hz timer. With <code>use_sim_time</code> the timer and <code>get_clock()</code> follow <code>/clock</code>, so a 6 s
+segment lasts 6 s of simulated time even when Gazebo runs at 0.6 of real time:</p>
+<pre><code class="language-python">def tick(self):
+    if self.done or self.odom is None or self.gt is None:
+        return
+    t = self.get_clock().now().nanoseconds * 1e-9
+    if self.t0 is None:
+        self.start(t)
+    cmd = (shapes.command_at(self.plan, t - self.t0) if self.mode == 'open' else self.plan.step(t, *self.odom))
+    if cmd is None:
+        cmd, self.done = (0.0, 0.0, 'stop'), True
+    v, w, label = cmd
+    tw = Twist(); tw.linear.x, tw.angular.z = float(v), float(w)
+    self.pub.publish(tw)
+    self.log.writerow([...])
+</code></pre>
+<p>The last command is always a zero (<code>stop</code>), and <code>stop()</code> publishes five more zeros on exit or Ctrl-C, because CHAMP keeps
+walking on whatever it heard last. The ground truth is only logged, never used for control.</p>
+<p><code>start()</code> fixes the shape at the robot's pose when the run begins: the closed-loop points are rotated by the start heading a0
+and shifted to the start position (x0, y0) in the <code>odom</code> frame, x' = x0 + x cos a0 - y sin a0, y' = y0 + x sin a0 + y cos a0.</p>
+<h3 id="closed-loop-turn-walk-settle">Closed loop: turn, walk, settle</h3>
+<p><code>Follower.step(t, x, y, yaw)</code> returns the next <code>(v, w, label)</code> from the measured pose. Each leg runs from the previous waypoint
+P to the next one T. The geometry of a leg:</p>
+<pre><code class="language-python">def leg(self, x, y, yaw):
+    (px, py), (tx, ty) = self.prev, self.pts[self.i]
+    L = math.hypot(tx - px, ty - py) or 1e-9
+    ux, uy = (tx - px) / L, (ty - py) / L
+    s = (x - px) * ux + (y - py) * uy                       # robot's projection onto the leg
+    cx, cy = px + (s + self.lookahead) * ux, py + (s + self.lookahead) * uy
+    return L - s, wrap(math.atan2(cy - y, cx - x) - yaw)
+</code></pre>
+<ul>
+<li><code>s</code> is how far along the leg the robot is: the dot product of (robot - P) with the leg's unit vector u. <code>L - s</code> is the
+  distance left. It goes negative if the robot overshoots, so the test <code>left &lt; reach_tol</code> also catches a robot that passed
+  beside the point.</li>
+<li>The heading error is measured to a carrot 0.4 m further along the line than the robot. If the robot is to the side of the
+  line, the carrot pulls it back; as it gets onto the line the carrot lies straight ahead. My first version aimed at T itself.
+  That fails near T: a 3 cm sideways offset becomes a large bearing error when T is 10 cm away, and the robot swerved
+  (<a href="#if-it-goes-wrong">If it goes wrong</a>).</li>
+<li><code>wrap</code> keeps the error in (-π, π], so the robot never turns 350 degrees one way instead of 10 degrees the other.</li>
+</ul>
+<p>The state machine around it:</p>
+<pre><code class="language-python">left, err = self.leg(x, y, yaw)
+if self.mode == 'turn':
+    if abs(err) &gt; self.turn_tol:
+        return 0.0, self._turn(err), f'turn{self.i}'
+    self.mode = 'walk'
+if left &lt; self.reach_tol:                                 # reached (or passed) this waypoint
+    self.prev, self.i = self.pts[self.i], self.i + 1
+    if self.stop_each:
+        self.mode, self.t_mode = 'settle', t
+    elif self.i &lt; len(self.pts) and abs(self.leg(x, y, yaw)[1]) &gt; self.pass_tol:
+        self.mode = 'turn'
+    return self.step(t, x, y, yaw)
+v = min(self.v, max(0.1, left)) if self.stop_each else self.v     # slow down only before a stop
+return v, clip(self.k_head * err, self.w_max), f'walk{self.i}'
+</code></pre>
+<ul>
+<li>Turn on the spot with w = 1.5 · err, clipped to 0.5 rad/s, with a floor of 0.12 rad/s so the last degrees do not crawl,
+  until the error is under 2 degrees.</li>
+<li>Walk at 0.25 m/s, slowing to <code>left</code> m/s over the last 0.25 m (but not below 0.1) so the robot does not overshoot much, and
+  steer with w = 1.0 · err.</li>
+<li>For the square (<code>stop_each=True</code>) stand for 1.5 s at each corner, then turn. For the figure-eight go straight on to the next
+  leg; turn on the spot only if the next leg is more than 45 degrees off.</li>
+</ul>
+<p>Every decision uses <code>/odom</code>. If <code>/odom</code> is wrong, the robot ends exactly where the wrong estimate says the corner is.</p>
+<h2 id="results">Results</h2>
+<p>All runs on one machine with other simulations running (Gazebo at 0.57 to 0.90 of real time in the runs where I measured
+it), each right after a fresh <code>scripts/up.sh</code>. Produced by <code>python3 projects/p03_move-in-shapes/analyze.py</code>; the full output is in
+<code>results/analyze_output.txt</code> and the logs in <code>results/*.csv</code>, so you can re-score them without the simulator.</p>
+<p><img loading="lazy" alt="Square and figure-eight, open and closed loop: ground truth grey, /odom blue, intended shape dashed, corners as crosses" src="figures/shapes.png" /></p>
+<p>Ground truth is grey, <code>/odom</code> blue, the intended shape dashed and anchored at the robot's true start pose. Grey dots are where
+the corners were measured. <code>/odom</code> is drawn in its own frame, which starts up to 8 cm from the true start because the
+robot slides when it lands after spawning.</p>
+<p>One run of each shape (<code>results/&lt;shape&gt;_&lt;mode&gt;.csv</code>). Single runs vary; the spread over repeats is in
+<a href="#how-much-one-run-differs-from-the-next">How much one run differs from the next</a>.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Run</th>
+<th>Corner errors, m</th>
+<th>Final position error, m</th>
+<th>Final heading error, deg</th>
+<th>Time, s</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Square, open loop</td>
+<td>0.08, 0.19, 0.21, 0.01</td>
+<td>0.13</td>
+<td>-4.7</td>
+<td>51.8</td>
+</tr>
+<tr>
+<td>Square, closed loop on <code>/odom</code></td>
+<td>0.01, 0.01, 0.05, 0.02</td>
+<td>0.12</td>
+<td>1.1</td>
+<td>50.1</td>
+</tr>
+<tr>
+<td>Figure-eight, open loop</td>
+<td>0.06 (crossing)</td>
+<td>0.17</td>
+<td>-0.8</td>
+<td>33.0</td>
+</tr>
+<tr>
+<td>Figure-eight, closed loop on <code>/odom</code></td>
+<td>0.07 (crossing)</td>
+<td>0.05</td>
+<td>3.9</td>
+<td>39.7</td>
+</tr>
+</tbody>
+</table></div>
+<p>How the errors are defined:</p>
+<ul>
+<li>A square corner is the true position (<code>/odom_gt</code>) at the end of the 1.5 s stand after each side, compared with the
+  corner of a perfect 1.5 m square placed at the true start pose. The fourth corner is back at the start.</li>
+<li>The figure-eight crossing is the true position when the first lobe ends, compared with the start.</li>
+<li>The final errors are taken when the script stops: the square has turned back to its start heading by then, the figure-eight has
+  not turned at all.</li>
+</ul>
+<p>Read the open-loop square row carefully: its fourth corner is 1 cm from the start, yet corners two and three are 0.19 and
+0.21 m off. Short sides and short turns produce a smaller, skewed square that still closes. The final error alone would hide
+that; the corners show it.</p>
+<p>The closed-loop square's corners are within 5 cm, but its final error is 0.12 m: the last corner is 2 cm from the start, and
+the turn on the spot back to the start heading then moved the trunk 0.13 m (from the first to the last <code>final_turn</code> row of
+<code>/odom_gt</code>; 0.125 to 0.137 m in all seven closed-loop squares, on <code>/odom</code> and on ground truth). The two errors are not the
+same thing: the final error adds that arc to whatever was left at the last corner, so it was 0.12 to 0.17 m. Every 90-degree
+turn on the spot moved the trunk 0.17 to 0.18 m along a small arc in the open-loop run (table below). The gait turns about a
+point that is not the trunk origin.</p>
+<p><code>/odom</code> itself was good over these short runs: over all 29 runs that steered on <code>/odom</code> or on nothing (the table above plus
+<code>results/repeats/</code>), its displacement from the start differed from the truth by 0.00 to 0.07 m at the end, and its heading
+drifted -4.6 to +9.1 degrees relative to the truth (<code>analyze_output.txt</code>, last columns). In the open-loop squares the drift
+was +2.8 to +9.1 degrees in all five runs, and it made the final heading error larger than what <code>/odom</code> reported.</p>
+<p>The closed-loop figure-eight's final heading error (3.9 degrees here, 2.2 to 11.2 over eight runs) comes from the controller.
+The figure-eight has no final turn. Its last leg is the chord from the 330-degree point of the right lobe back to the start,
+and a chord across 30 degrees of a circle points 15 degrees off the circle's tangent at either end: here 15 degrees left of
+the start heading. The robot follows that chord, not the circle. It enters the leg still turned along the previous chord (the
+<code>yaw</code> of the first <code>walk23</code> row in <code>results/figure8_closed.csv</code> is 41 degrees left of the start, 36 to 43 in the other runs),
+the leg is 0.23 m long, and it stops 5 cm before the end (<code>reach_tol</code>) while the carrot is still swinging it onto the line.
+<code>/odom</code> put the end heading at +3.3 to +12.3 degrees in eight runs (column "/odom end heading"). The drift then adds or
+removes some: in this run 6.4 - 2.5 = 3.9, in <code>repeats/figure8_closed_2</code> 12.3 - 1.1 = 11.2. In my eight figure-eights the
+drift was -2.1 to +4.0 degrees, but that is a sample, not a limit: in one 52 s open-loop square (<code>repeats/square_open_3</code>) it
+reached +9.1 degrees, so a figure-eight's final heading can be off by that much more or less than its "/odom end heading"
+while the controller does the same thing. To end on the start heading, the figure-eight's <code>Follower</code> in <code>drive.py</code> would need
+<code>final_yaw=a0</code>, as the square has; I did not run that.</p>
+<h3 id="how-much-one-run-differs-from-the-next">How much one run differs from the next</h3>
+<p>The table above is one run of each. I repeated the runs that vary most, each after a fresh <code>scripts/up.sh</code>; the logs are in
+<code>results/repeats/</code>, and <code>analyze.py</code> prints each repeat and then the spread over all runs of a kind, as mean (min to max):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Runs</th>
+<th>Corner or crossing errors, m</th>
+<th>Final position error, m</th>
+<th>Final heading error, deg</th>
+<th><code>/odom</code> yaw drift, deg</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Square, open loop, 5 runs</td>
+<td>0.07 (0.05 to 0.08); 0.18 (0.16 to 0.20); 0.18 (0.15 to 0.21); 0.07 (0.01 to 0.15)</td>
+<td>0.17 (0.13 to 0.26)</td>
+<td>-9.2 (-14.4 to -4.7)</td>
+<td>5.5 (2.8 to 9.1)</td>
+</tr>
+<tr>
+<td>Square, open loop calibrated (Try this 1), 5 runs</td>
+<td>0.04 (0.02 to 0.07); 0.10 (0.05 to 0.14); 0.15 (0.08 to 0.21); 0.09 (0.06 to 0.16)</td>
+<td>0.08 (0.05 to 0.13)</td>
+<td>-4.8 (-7.1 to -3.5)</td>
+<td>3.3 (2.7 to 4.0)</td>
+</tr>
+<tr>
+<td>Square, closed loop, 5 runs</td>
+<td>0.01 (0.01 to 0.03); 0.02 (0.01 to 0.03); 0.03 (0.01 to 0.05); 0.02 (0.01 to 0.04)</td>
+<td>0.15 (0.12 to 0.17)</td>
+<td>2.2 (0.1 to 4.3)</td>
+<td>-2.8 (-4.6 to -1.2)</td>
+</tr>
+<tr>
+<td>Figure-eight, open loop, 6 runs</td>
+<td>0.05 (0.02 to 0.08)</td>
+<td>0.18 (0.13 to 0.21)</td>
+<td>-0.5 (-6.5 to 4.6)</td>
+<td>-0.5 (-3.0 to 2.2)</td>
+</tr>
+<tr>
+<td>Figure-eight, closed loop, 8 runs</td>
+<td>0.07 (0.05 to 0.10)</td>
+<td>0.06 (0.03 to 0.09)</td>
+<td>6.7 (2.2 to 11.2)</td>
+<td>1.2 (-2.1 to 4.0)</td>
+</tr>
+</tbody>
+</table></div>
+<p>Read the ranges as what my runs did, not as limits. Each is the smallest and largest of five to eight runs, and the next run
+often lands a little outside. When I added three closed-loop squares and two open-loop figure-eights to the earlier two and
+four, new values fell outside the old ranges: closed-loop square final heading 2.1, 3.3 and 4.3 degrees against 0.1 to 1.1, a
+corner of 0.01 m against 0.04 to 0.05, open-loop figure-eight final error 0.20 and 0.21 m against 0.13 to 0.19, and final
+heading -6.5 degrees against -0.8 to 4.6. A few centimetres or degrees outside is normal. Far outside, for example a
+closed-loop corner several times the largest here, means something else went wrong (see <a href="#if-it-goes-wrong">If it goes
+wrong</a>). The open-loop square's first three corners vary by 3 to 6 cm between runs. Its fourth corner
+(0.01 to 0.15 m) and its final heading (-4.7 to -14.4 degrees) vary much more: they collect the veer of all four sides and
+the shortfall of all four turns. The run in the table above has the smallest final heading error of the five, so it is not a
+typical run. The closed-loop corners stay within 5 cm in every run.</p>
+<h3 id="where-the-open-loop-error-comes-from">Where the open-loop error comes from</h3>
+<p>Commanded vs achieved, from ground truth, for every segment of the open-loop runs (rows from <code>analyze_output.txt</code>,
+"mean" over the whole segment, "steady" without its first 1.5 s and last 0.5 s):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Segment</th>
+<th>Commanded</th>
+<th>Achieved, mean</th>
+<th>Achieved, steady</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Square side, 4 × 6.0 s</td>
+<td>v 0.25 m/s</td>
+<td>0.229 to 0.238 m/s</td>
+<td>0.238 to 0.247 m/s</td>
+<td>1.365 to 1.413 m walked instead of 1.5</td>
+</tr>
+<tr>
+<td>Stand after a side, 1.5 s</td>
+<td>0</td>
+<td>0.021 to 0.025 m/s</td>
+<td></td>
+<td>0.030 to 0.036 m of coasting</td>
+</tr>
+<tr>
+<td>Square side, heading</td>
+<td>w 0</td>
+<td></td>
+<td></td>
+<td>veered 3.3 to 8.1 degrees left per side</td>
+</tr>
+<tr>
+<td>Square turn, 4 × 3.93 s</td>
+<td>w 0.40 rad/s</td>
+<td>0.370 to 0.390 rad/s</td>
+<td>0.377 to 0.400 rad/s</td>
+<td>81.6 to 87.2 degrees instead of 90</td>
+</tr>
+<tr>
+<td>Square turn, trunk</td>
+<td>v 0</td>
+<td>0.044 to 0.047 m/s</td>
+<td></td>
+<td>trunk moved 0.17 to 0.18 m</td>
+</tr>
+<tr>
+<td>Figure-eight lobe, 2 × 15.7 s</td>
+<td>v 0.18, w ±0.40</td>
+<td>v 0.153 to 0.154, w ±0.409</td>
+<td></td>
+<td>367.5 and -366.9 degrees per lobe</td>
+</tr>
+</tbody>
+</table></div>
+<p><img loading="lazy" alt="Open-loop square: commanded vs achieved speed and yaw rate over time" src="figures/commanded_vs_achieved.png" /></p>
+<p>So the first side came out at 1.374 m + 0.036 m of coasting = 1.41 m, and the first corner was 0.08 m short, which is the
+first corner error. After that, each corner adds a turn that is 3 to 8 degrees short and a side that veers a few degrees left,
+and the shape skews. The gait takes up to a second to reach speed (the ramps in the figure), and turning while walking
+slows it: on the figure-eight the robot walked at 85 % of the commanded 0.18 m/s while turning slightly faster than commanded.
+Its radius was therefore v / w = 0.153 / 0.409 = 0.37 m instead of 0.45 m: lobes 0.77 m tall instead of 0.90 m, which is what
+the figure shows.</p>
+<p>The closed loop does not need to know any of this. It keeps going until <code>/odom</code> says the target is reached, so the remaining
+error is set by <code>/odom</code> and by the trunk moving when the robot turns on the spot.</p>
+<h3 id="video">Video</h3>
+<p>The closed-loop figure-eight from the spectator camera, cropped and played at 2× speed (21 s):</p>
+<video controls muted playsinline src="media/figure8_closed.mp4"></video>
+
+<p>The closed-loop square, 2.5× speed (22 s):</p>
+<video controls muted playsinline src="media/square_closed.mp4"></video>
+
+<h2 id="try-this">Try this</h2>
+<ol>
+<li>Calibrate the open loop. Time the square with the speeds the robot really reached (mean over a side and over a turn from
+   the table: 0.233 m/s and 0.379 rad/s). <code>drive.py</code> takes them as two extra arguments; the commands stay 0.25 and 0.4, only
+   the durations change (6.44 s per side, 4.14 s per turn):</li>
+</ol>
+<p><code>bash
+   scripts/up.sh
+   python3 projects/p03_move-in-shapes/drive.py square open 0.233 0.379
+   python3 projects/p03_move-in-shapes/analyze.py      # adds a square_open_calibrated row</code></p>
+<p>One run is not enough to judge this, because single open-loop runs vary by up to 14 cm at a corner
+   (<a href="#how-much-one-run-differs-from-the-next">How much one run differs from the next</a>). Make three or more of each and
+   compare the means. Over my five runs of each, as mean (min to max):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Corner</th>
+<th>1</th>
+<th>2</th>
+<th>3</th>
+<th>4</th>
+<th>Final heading, deg</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Uncalibrated, m</td>
+<td>0.07 (0.05 to 0.08)</td>
+<td>0.18 (0.16 to 0.20)</td>
+<td>0.18 (0.15 to 0.21)</td>
+<td>0.07 (0.01 to 0.15)</td>
+<td>-9.2 (-14.4 to -4.7)</td>
+</tr>
+<tr>
+<td>Calibrated, m</td>
+<td>0.04 (0.02 to 0.07)</td>
+<td>0.10 (0.05 to 0.14)</td>
+<td>0.15 (0.08 to 0.21)</td>
+<td>0.09 (0.06 to 0.16)</td>
+<td>-4.8 (-7.1 to -3.5)</td>
+</tr>
+</tbody>
+</table></div>
+<p>On average the calibration helped corner 2 by 8 cm, corners 1 and 3 by 3 cm, made corner 4 worse by 2 cm, and halved the
+   final heading error. In single runs it can look worse: one calibrated run had corners 0.03, 0.12, 0.21, 0.16 m, against
+   0.19 m at corner 3 in a typical uncalibrated run. The speeds differ from side to side and turn to turn (0.229 to 0.238 m/s,
+   0.370 to 0.390 rad/s in one run), and the 3 to 8 degrees of veer on each straight side is not in the timing at all.
+   Calibration removes the average error, not the variation.</p>
+<ol start="2">
+<li>Close the loop on ground truth. Remap the topic the controller reads, so it steers on the simulator's true pose:</li>
+</ol>
+<p><code>bash
+   scripts/up.sh
+   python3 projects/p03_move-in-shapes/drive.py square closed --ros-args -r odom:=odom_gt
+   python3 projects/p03_move-in-shapes/analyze.py      # adds a square_closed_on_odom_gt row</code></p>
+<p>Answer from my run: corners 0.02, 0.01, 0.01, 0.01 m, final error 0.13 m, final heading -1.9 degrees. With perfect sensing
+   the controller itself is good to 1 to 2 cm; on <code>/odom</code> the corners were 0.01 to 0.05 m, so up to about 4 cm of that is
+   estimation error. The final 0.13 m is the trunk moving during the last turn on the spot, and it is there with perfect
+   sensing too. To end on the start position, finish with the turn and then walk back, or end the square without the final
+   turn.</p>
+<ol start="3">
+<li>Predict the open-loop figure-eight from the speeds. Using only the figure-eight rows of the speed table (v 0.153 m/s,
+   w 0.409 rad/s, 15.7 s per lobe), predict the lobe height and the heading at the crossing, then check them in
+   <code>results/figure8_open.csv</code>. Measure each lobe on its own rows: the rows labelled <code>lobe0</code> are the left lobe, <code>lobe1</code> the
+   right one. Over the whole file, max minus min of <code>gt_y</code> is the height of both lobes together. The heading at the crossing
+   is <code>gt_yaw</code> on the last <code>lobe0</code> row minus <code>gt_yaw</code> on the first row:</li>
+</ol>
+<p><code>bash
+   python3 - &lt;&lt;'EOF'
+   import csv, math
+   rows = list(csv.DictReader(open('projects/p03_move-in-shapes/results/figure8_open.csv')))
+   for lobe in ('lobe0', 'lobe1'):
+       y = [float(r['gt_y']) for r in rows if r['label'] == lobe]
+       print(lobe, 'height', f'{max(y) - min(y):.3f} m')
+   end0 = [r for r in rows if r['label'] == 'lobe0'][-1]
+   d = math.degrees(float(end0['gt_yaw']) - float(rows[0]['gt_yaw']))
+   print('heading at the crossing', f'{(d + 180) % 360 - 180:+.1f} deg')
+   EOF</code></p>
+<p>Answer: radius 0.153 / 0.409 = 0.374 m, so each lobe is 0.75 m tall instead of 0.90 m. Each lobe turns
+   0.409 × 15.7 = 6.42 rad = 368 degrees, so the robot crosses the start heading 8 degrees left of where it began. Measured in
+   my <code>results/figure8_open.csv</code>: lobes 0.765 and 0.770 m tall, heading at the crossing +7.5 degrees. The lobe heights repeat
+   well, the crossing heading does not: in the five runs in <code>results/repeats/figure8_open_*.csv</code> the lobes were 0.746 to
+   0.786 m tall and the crossing heading was +2.5, +6.4, +12.7, +7.7 and +5.3 degrees. A yaw rate that is 0.01 rad/s off for 15.7 s
+   already moves the heading by 9 degrees.</p>
+<h2 id="if-it-goes-wrong">If it goes wrong</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Cause</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>projects/common/record_cam.py</code> writes a video of 1 or 2 frames</td>
+<td>It subscribes best effort. A 960 × 540 image is 1.5 MB and goes out in many UDP fragments; on a loaded machine one lost fragment loses the image and best effort does not resend it. With it, 25 s of recording gave 17 frames and 60 s gave 2; with <code>record.py</code>, 25 s gave 222 frames, one per 0.1 s of simulated time</td>
+<td>Use <code>record.py</code> from this project, which swaps in a reliable QoS profile and otherwise runs <code>record_cam.py</code> unchanged</td>
+</tr>
+<tr>
+<td>Closed loop: the robot swerves just before each corner and arrives at an angle</td>
+<td>Steering at the corner point itself: near the point a small sideways offset becomes a large bearing error. My first version arrived at the first corner 31.8 degrees off the side's heading (on <code>/odom</code>) and took 9.6 s for a 1.5 m side, creeping at the minimum speed while it turned</td>
+<td>Steer at a carrot on the leg's line, ahead of the robot's projection (<code>Follower.leg</code>). After the change the side took 7.7 s and the heading at the corner was 3.1 degrees off</td>
+</tr>
+<tr>
+<td>The closed-loop shape comes out rotated, or <code>drive.py</code> reports a start heading far from 0 right after a restart was minutes ago</td>
+<td><code>/odom</code> drifts while the robot stands. In one session where I left the robot standing for 5 to 6 minutes of wall-clock time after <code>up.sh</code>, <code>/odom</code> gave a heading of -18.7 degrees while the true heading was -0.9 degrees (<a href="../../tutorial/04-ros2-from-scratch.html#check-it-against-ground-truth">chapter 4</a> measures the gyro drift behind this)</td>
+<td>Run <code>scripts/up.sh</code> just before each shape. Closed-loop runs start from the robot's own pose, so a constant offset does no harm; drift during the run does</td>
+</tr>
+<tr>
+<td>Closed-loop square: corners within a few cm, final error over 0.1 m</td>
+<td>The final turn on the spot moves the trunk: 0.125 to 0.137 m in all seven closed-loop squares I ran</td>
+<td>Judge the square by its corners, or see Try this 2</td>
+</tr>
+<tr>
+<td>Ctrl-C on the recorder prints a traceback ending in <code>RCLError: failed to initialize wait set: the given context is not valid</code> or in <code>rclpy.executors.ExternalShutdownException</code></td>
+<td><code>record_cam.py</code> catches <code>KeyboardInterrupt</code>, but rclpy's own Ctrl-C handler shuts the context down first, so the exit is not clean. Both endings have turned up</td>
+<td>Harmless: ffmpeg still closes the file. My recorder exited the first way once and the MP4 played back at its full 58.2 s. <code>kill -INT &lt;pid&gt;</code> or <code>kill -TERM &lt;pid&gt;</code> from another terminal exits cleanly and prints the frame count: my last figure-eight recording ended with <code>484 frames</code> this way</td>
+</tr>
+<tr>
+<td>Your open-loop corner or heading errors are twice mine</td>
+<td>Single open-loop runs vary: over five open-loop squares the fourth corner was 0.01 to 0.15 m off and the final heading -4.7 to -14.4 degrees</td>
+<td>Compare with the spread in <a href="#how-much-one-run-differs-from-the-next">How much one run differs from the next</a>, not with the single run in the first table. Outside that range, check that you ran <code>scripts/up.sh</code> right before the shape</td>
+</tr>
+<tr>
+<td><code>drive.py</code> prints its usage and exits</td>
+<td>Wrong arguments: shape is <code>square</code> or <code>figure8</code>, mode <code>open</code> or <code>closed</code>, and the two calibration speeds go only after <code>square open</code></td>
+<td><code>python3 projects/p03_move-in-shapes/drive.py square open</code></td>
+</tr>
+</tbody>
+</table></div><nav class="prevnext" aria-label="Previous and next"><a class="pn" href="../p02_teleop-and-safety/index.html"><span>Previous</span>Teleoperation with a safety layer</a><a class="pn next" href="../p04_go-to-pose/index.html"><span>Next</span>Your own go-to-pose controller</a></nav><p class="source">Source: <a href="https://github.com/Armanasq/go2-nav-sim/blob/main/projects/p03_move-in-shapes/README.md">projects/p03_move-in-shapes/README.md</a></p></article></div>
+</main>
+<footer class="site"><div class="wrap">Simulation only. Source and issues on <a href="https://github.com/Armanasq/go2-nav-sim">GitHub</a>.</div></footer>
+<script type="module" src="../../static/js/site.js"></script>
+</body>
+</html>

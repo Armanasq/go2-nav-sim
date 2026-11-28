@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Record and visualise (optional video appendix) · go2-nav-sim</title>
+<meta name="description" content="Record and visualise (optional video appendix)">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../static/css/site.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5' fill='%230a6a9c'/%3E%3C/svg%3E">
+
+</head>
+<body data-root="../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar"><div class="inner">
+<a class="brand" href="../index.html">go2-nav-sim</a>
+<nav aria-label="Main"><a href="../tutorial/00-overview.html" aria-current="page">Learn</a><a href="../tasks/index.html">Tasks</a><a href="../modules/index.html">Deep dives</a><a href="../reference.html">Reference</a></nav>
+<button class="theme-toggle" type="button" aria-label="Colour theme: auto">auto</button>
+</div></header>
+<main id="main">
+<div class="wrap doc"><details class="side" open><summary>Record and visualise (optional video appendix)</summary><nav aria-label="Contents"><ol class="parts"><li><a class="part" href="00-overview.html">Start</a></li><li><a class="part" href="05-frames-and-tf2.html">The robot</a></li><li><a class="part" href="../projects/p02_teleop-and-safety/index.html">Move it</a></li><li><a class="part" href="08-robot-and-sensors.html">Sense and avoid</a></li><li class="open"><p class="part">Estimate and map</p><ol><li><a href="09-state-estimation.html"><span class="n">9</span><span>State estimation</span></a></li><li><a href="11-record-and-visualise.html" aria-current="page"><span class="n">11</span><span>Record and visualise (optional video appendix)</span></a><ul class="sections"><li><a href="#task-1-record-and-score-a-mission">Task 1: Record and score a mission</a></li><li><a href="#task-2-render-the-video">Task 2: Render the video</a></li><li><a href="#measured-runs">Measured runs</a></li><li><a href="#exercise">Exercise</a></li><li><a href="#further-reading">Further reading</a></li></ul></li><li><a href="10-mapping-and-navigation.html"><span class="n">10</span><span>Mapping and navigation</span></a></li></ol></li><li><a class="part" href="../projects/p11_command-arbitration/index.html">Navigate</a></li><li><a class="part" href="../projects/p14_test-the-stack/index.html">Beyond simulation</a></li></ol></nav></details><article class="prose"><p class="where">Estimate and map · Chapter 11</p><h1>Record and visualise (optional video appendix)</h1><div class="table-wrap"><table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Goal</td>
+<td>Record one mission to a bag with one command and render the dashboard video from the bag alone. Optional: no later chapter needs it. Scoring a bag is core and is taught in <a href="09-state-estimation.html">chapter 9</a>, Task 4.2.</td>
+</tr>
+<tr>
+<td>Time</td>
+<td>1 h, optional (most of it waiting for the mission and the render)</td>
+</tr>
+<tr>
+<td>Before you start</td>
+<td><a href="09-state-estimation.html">Chapter 9</a>, Task 4.2, which explains the numbers.</td>
+</tr>
+<tr>
+<td>You will learn</td>
+<td>why the video is rendered from a bag and not from the live simulator; which topics the recording holds; what each dashboard panel is drawn from.</td>
+</tr>
+</tbody>
+</table></div>
+<p>The stack records to a rosbag and renders the dashboard from the bag. That keeps the simulator out of the rendering path, so the
+same run can be re-rendered or re-analysed later.</p>
+<p><img loading="lazy" alt="Pipeline from run_mission.sh to the bag, then to bag_metrics.py, render_dashboard.py and export_run.py and their outputs" src="../img/c09-ch11-pipeline.png" />
+<em>One recording feeds three offline tools; the topic count is from <code>scripts/record_bag.sh</code>.</em></p>
+<h2 id="task-1-record-and-score-a-mission">Task 1: Record and score a mission</h2>
+<h3 id="11-run-the-mission-script">1.1 Run the mission script</h3>
+<p>Objective: a fresh stack, a bag and a drive from A to B in one command.</p>
+<pre><code class="language-bash">scripts/run_mission.sh bags/run1      # fresh stack, record, drive A to B, stop (about 3 minutes)
+</code></pre>
+<pre><code>RESULT SUCCEEDED  sim_time 54.8 s  ground-truth final error 0.21 m  final pos (3.79, 2.99)
+</code></pre>
+<p>(That output is from the same three steps run by hand: <code>scripts/up.sh</code>, <code>scripts/record_bag.sh</code>, <code>go_to_goal.py</code>.) The script
+starts its recorder with <code>setsid</code>, so the recorder leads its own process group, and at the end it stops only that group
+(<code>kill -INT -- -"$REC"</code>). A recording you run beside it in another terminal keeps running.</p>
+<p>The bag is MCAP with zstd chunk compression. Topics are listed in <code>scripts/record_bag.sh</code>; the timestamps that matter are in the
+message headers (simulation time). The 124 s recording above (75 s of mission, then standing) took 785.5 MiB (<code>Bag size</code> in <code>ros2 bag info</code>).</p>
+<pre><code class="language-bash">ros2 bag info bags/run1 | grep -E &quot;Duration|Messages&quot;
+</code></pre>
+<pre><code>Duration:          123.555770692s
+Messages:          64093
+</code></pre>
+<p>Check: <code>RESULT SUCCEEDED</code>, and <code>ros2 bag info</code> lists the 18 topics of <code>record_bag.sh</code>.</p>
+<h3 id="12-score-it">1.2 Score it</h3>
+<p>Objective: the ATE, RPE and AMCL numbers for this run.</p>
+<pre><code class="language-bash">python3 src/go2_nav_sim/scripts/bag_metrics.py bags/run1 --json results/run1.json
+</code></pre>
+<p>The output, its definitions and a comparison with the three reference runs are in
+<a href="09-state-estimation.html#42-from-a-bag-for-a-whole-mission">chapter 9, Task 4.2</a>.</p>
+<p>Check: <code>goal_error_m</code> close to the 0.25 m <code>goal_tolerance_m</code>. Above it means AMCL was off when Nav2 stopped, as in run w3
+(0.34 m, <a href="09-state-estimation.html#42-from-a-bag-for-a-whole-mission">chapter 9</a>).</p>
+<h2 id="task-2-render-the-video">Task 2: Render the video</h2>
+<h3 id="21-render-the-dashboard-from-the-bag">2.1 Render the dashboard from the bag</h3>
+<p>Objective: a 1080p video and a still, with no simulator running.</p>
+<pre><code class="language-bash">python3 src/go2_nav_sim/scripts/render_dashboard.py bags/run1 videos/run1.mp4 --cards --still videos/run1.png
+</code></pre>
+<pre><code>wrote videos/run1.mp4: 1848 frames
+</code></pre>
+<p>Rendering run w2 (a 97.4 s bag, <code>ros2 bag info bags/w2</code>) into <code>media/go2_a2b_dashboard.mp4</code> (103.5 s at 15 fps and
+1920 × 1080, from <code>ffprobe</code>) took about three minutes on an idle machine. The 124 s bag above took about 7 minutes on a
+machine running seven other simulators. Fonts are Roboto and DejaVu Sans Mono if present, with a fallback.</p>
+<p><img loading="lazy" alt="Dashboard with each panel numbered and labelled with the topic it is drawn from" src="../img/c09-ch11-dashboard.png" />
+<em>The dashboard still of run w2 (<code>docs/img/dashboard.png</code>), each panel labelled with the topics <code>render_dashboard.py</code> draws it from.</em></p>
+<p>Panels: the external camera, the onboard RGB image, depth in a turbo colour map with its range, a perspective view of the current
+lidar sweep coloured by height, the map with the plan, the lidar scan and both trajectories, run metrics, and the IMU over the last
+eight seconds. <code>--cards</code> adds a title card and a closing card with the run summary. The metrics panel uses ground truth and says
+so.</p>
+<video controls muted playsinline src="../media/c09-ch11-dashboard.mp4"></video>
+
+<p><em>Twelve seconds of the run w2 video (<code>media/go2_a2b_dashboard.mp4</code>, scaled to 1280 × 720) in the middle of the mission.</em></p>
+<p>Check: <code>ffprobe -v error -show_entries stream=width,height -of csv=p=0 videos/run1.mp4</code> prints <code>1920,1080</code>, and the still shows
+the robot between A and B.</p>
+<h2 id="measured-runs">Measured runs</h2>
+<div class="table-wrap"><table><thead><tr><th>Run</th><th>Nav2</th><th class="n">Time (s)</th><th class="n">Path (m)</th><th class="n">To B (m)</th><th class="n">ATE (cm)</th><th class="n">RPE (%)</th><th class="n">AMCL (cm)</th></tr></thead><tbody><tr><td>w1</td><td class="good">succeeded</td><td class="n">54.4</td><td class="n">11.56</td><td class="n">0.25</td><td class="n">1.4</td><td class="n">1.83</td><td class="n">8.3</td></tr><tr><td>w2</td><td class="good">succeeded</td><td class="n">54.8</td><td class="n">11.59</td><td class="n">0.21</td><td class="n">1.1</td><td class="n">1.64</td><td class="n">10.8</td></tr><tr><td>w3</td><td class="good">succeeded</td><td class="n">83.1</td><td class="n">13.79</td><td class="n">0.34</td><td class="n">1.7</td><td class="n">2.41</td><td class="n">18.7</td></tr></tbody></table></div><p>3 consecutive runs of <code>scripts/run_mission.sh</code> from a fresh start, scored by <code>bag_metrics.py</code> (<a href="https://github.com/Armanasq/go2-nav-sim/blob/main/results">results/run_*.json</a>). Every estimate is paired with ground truth interpolated at its own timestamp. ATE is the RMSE of odometry position after the best rigid SE(2) alignment; RPE is its translational error over 1 m of path; AMCL is the RMSE of AMCL position, scored only at AMCL's own updates. To B is where the robot stopped, measured from B. Nav2 stops once its own estimate is within 0.25 m of B, so that distance mostly reflects the tolerance and the AMCL error at that moment.</p>
+<h2 id="exercise">Exercise</h2>
+<p>You only want the numbers of chapter 9, Task 4.2, not the video. Record the smallest bag that <code>bag_metrics.py</code> can score.</p>
+<p>Answer: <code>bag_metrics.py</code> reads only <code>/odom</code>, <code>/odom_gt</code> and <code>/amcl_pose</code> (the topic filter in its <code>main()</code>), and it opens the bag
+as MCAP. So</p>
+<pre><code class="language-bash">ros2 bag record -s mcap -o bags/small /odom /odom_gt /amcl_pose
+</code></pre>
+<p>is enough. Without <code>-s mcap</code> the recorder writes SQLite on Humble and <code>bag_metrics.py</code> cannot open it.</p>
+<h2 id="further-reading">Further reading</h2>
+<ul>
+<li>Frey et al., "GrandTour": 49 ANYmal-D missions with lidar, cameras and proprioception against RTK-GNSS and total-station reference trajectories, used to benchmark 63 open-source estimators under one protocol: https://arxiv.org/abs/2602.18164</li>
+<li>Yang et al., "Cerberus": visual-inertial-leg odometry with bags from a Unitree A1 (260 m) and a Go1 (350 m) that include joint encoders and contact sensors: https://arxiv.org/abs/2209.07654</li>
+</ul><nav class="prevnext" aria-label="Previous and next"><a class="pn" href="09-state-estimation.html"><span>Previous</span>State estimation</a><a class="pn next" href="10-mapping-and-navigation.html"><span>Next</span>Mapping and navigation</a></nav><p class="source">Source: <a href="https://github.com/Armanasq/go2-nav-sim/blob/main/docs/11-record-and-visualise.md">docs/11-record-and-visualise.md</a></p></article></div>
+</main>
+<footer class="site"><div class="wrap">Simulation only. Source and issues on <a href="https://github.com/Armanasq/go2-nav-sim">GitHub</a>.</div></footer>
+<script type="module" src="../static/js/site.js"></script>
+</body>
+</html>

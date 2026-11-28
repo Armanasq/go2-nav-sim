@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Toward the real Go2 · go2-nav-sim</title>
+<meta name="description" content="Toward the real Go2">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../static/css/site.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5' fill='%230a6a9c'/%3E%3C/svg%3E">
+
+</head>
+<body data-root="../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar"><div class="inner">
+<a class="brand" href="../index.html">go2-nav-sim</a>
+<nav aria-label="Main"><a href="../tutorial/00-overview.html" aria-current="page">Learn</a><a href="../tasks/index.html">Tasks</a><a href="../modules/index.html">Deep dives</a><a href="../reference.html">Reference</a></nav>
+<button class="theme-toggle" type="button" aria-label="Colour theme: auto">auto</button>
+</div></header>
+<main id="main">
+<div class="wrap doc"><details class="side" open><summary>Toward the real Go2</summary><nav aria-label="Contents"><ol class="parts"><li><a class="part" href="00-overview.html">Start</a></li><li><a class="part" href="05-frames-and-tf2.html">The robot</a></li><li><a class="part" href="../projects/p02_teleop-and-safety/index.html">Move it</a></li><li><a class="part" href="08-robot-and-sensors.html">Sense and avoid</a></li><li><a class="part" href="09-state-estimation.html">Estimate and map</a></li><li><a class="part" href="../projects/p11_command-arbitration/index.html">Navigate</a></li><li class="open"><p class="part">Beyond simulation</p><ol><li><a href="../projects/p14_test-the-stack/index.html"><span class="n">P14</span><span>Test the stack</span></a></li><li><a href="13-toward-the-real-go2.html" aria-current="page"><span class="n">13</span><span>Toward the real Go2</span></a><ul class="sections"><li><a href="#task-1-find-out-which-go2-you-have">Task 1: Find out which Go2 you have</a></li><li><a href="#task-2-reach-the-robot-on-the-network">Task 2: Reach the robot on the network</a></li><li><a href="#task-3-use-one-control-level-at-a-time">Task 3: Use one control level at a time</a></li><li><a href="#task-4-read-the-safety-page-before-any-motion">Task 4: Read the safety page before any motion</a></li><li><a href="#task-5-map-the-simulators-topics-to-the-robots">Task 5: Map the simulator&#x27;s topics to the robot&#x27;s</a></li><li><a href="#task-6-replay-the-chapter-9-estimator-on-robot-data">Task 6: Replay the chapter 9 estimator on robot data</a></li><li><a href="#exercise">Exercise</a></li><li><a href="#further-reading">Further reading</a></li></ul></li></ol></li></ol></nav></details><article class="prose"><p class="where">Beyond simulation · Chapter 13</p><h1>Toward the real Go2</h1><div class="table-wrap"><table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Goal</td>
+<td>Know what changes between this simulation and a real Go2 before you touch one: which robot you have, how to reach it on the network, which control level to use, the safety rules, the topic names, a tested <code>/cmd_vel</code> bridge, and how to run the chapter 9 estimator on recorded robot data.</td>
+</tr>
+<tr>
+<td>Time</td>
+<td>2.5 h, no hardware needed.</td>
+</tr>
+<tr>
+<td>Before you start</td>
+<td><a href="10-mapping-and-navigation.html">Chapter 10</a> done; <a href="../reference.html#troubleshooting">chapter 12</a> read, in particular the QoS rows.</td>
+</tr>
+<tr>
+<td>You will learn</td>
+<td>EDU vs AIR/PRO; the 192.168.123.x network and <code>CYCLONEDDS_URI</code>; sport mode vs <code>/lowcmd</code> and why you never mix them; Damp as the emergency stop; how this stack's topics map to the robot's; a bridge whose clamp and timeout logic is tested without ROS; the frame of the L1 lidar.</td>
+</tr>
+</tbody>
+</table></div>
+<p>No real Go2 was used for this chapter. Every hardware statement cites its section in
+<a href="https://github.com/Armanasq/go2-nav-sim/blob/main/research/go2-real-robot.md"><code>research/go2-real-robot.md</code></a>, with the tag used there: <strong>V</strong> the source was opened and read,
+<strong>S</strong> search snippet only, <strong>U</strong> not verified. Unitree's own developer pages (support.unitree.com) block automated clients and
+were not read (<strong>U</strong>, §1.1). Check every <strong>S</strong> and <strong>U</strong> item in a browser before you rely on it. The commands below that run
+without a robot were run here; the ones that need a robot are marked "not run".</p>
+<h2 id="task-1-find-out-which-go2-you-have">Task 1: Find out which Go2 you have</h2>
+<h3 id="11-read-the-model-firmware-and-lidar">1.1 Read the model, firmware and lidar</h3>
+<p>Objective: write down the three facts that decide every later step.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th></th>
+<th>EDU</th>
+<th>AIR, PRO</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Developer access</td>
+<td>DDS over Ethernet, through <code>unitree_ros2</code> and <code>unitree_sdk2</code> (V §1.2, §1.3)</td>
+<td>WebRTC over Wi-Fi, the phone app's protocol, through <code>go2_ros2_sdk</code> or <code>unitree_webrtc_connect</code> (V §1.6, §1.7)</td>
+</tr>
+<tr>
+<td>Foot force sensors</td>
+<td>yes (V §1.9)</td>
+<td>no (V §1.9)</td>
+</tr>
+<tr>
+<td>Rates over WebRTC</td>
+<td></td>
+<td>lidar about 7 Hz, joint states 1 Hz on firmware 1.1.7 (V §1.6)</td>
+</tr>
+<tr>
+<td>Firmware matters because</td>
+<td>the sport interface needs EDU software 1.1.6 or later (S §1.1)</td>
+<td>1.1.15 and later need a per-device AES-128 key for the WebRTC handshake (V §1.6, §1.7)</td>
+</tr>
+</tbody>
+</table></div>
+<p>Record the lidar too. The product page now lists the L2 (360° × 96°), while most guides describe the L1 (360° × 90°, 11 Hz,
+21,600 points/s) (V §1.9). Units in the field may carry either (my inference, §1.9).</p>
+<p>This chapter follows the EDU path: it is the one where this course's ROS 2 nodes talk to the robot directly.</p>
+<p>Check: you have the model, the firmware version and the lidar model written down. Not run: no robot.</p>
+<h2 id="task-2-reach-the-robot-on-the-network">Task 2: Reach the robot on the network</h2>
+<h3 id="21-give-the-pc-a-static-address">2.1 Give the PC a static address</h3>
+<p>Objective: a wired link to the robot's 192.168.123.0/24 network.</p>
+<p>The Go2 has no DHCP server, so the PC needs a static address (V §1.11). Unitree uses 192.168.123.99/24 (V §1.2); labs also use
+.100 (V §1.8) and .222 (V §1.11). Never take 192.168.123.161 or 192.168.123.18. The ACRE Lab wiki gives .161 as the onboard computer
+and .18 as the Jetson (V §1.12, §1.11); that .161 is the motion-control board comes from search snippets only (S §1.12). Not run: no robot.</p>
+<pre><code class="language-bash">sudo nmcli con add type ethernet ifname enp3s0 con-name go2 ipv4.method manual ipv4.addresses 192.168.123.99/24
+sudo nmcli con up go2
+ping -c 3 192.168.123.161
+</code></pre>
+<p>Replace <code>enp3s0</code> with your wired interface (<code>ip -br link</code>).</p>
+<p>Check: the ping answers. Over Wi-Fi, <code>ros2 topic echo</code> can hang because point clouds saturate the link (V §1.11); map on Ethernet.</p>
+<h3 id="22-point-cyclone-dds-at-that-interface">2.2 Point Cyclone DDS at that interface</h3>
+<p>Objective: ROS 2 traffic on the robot's network, in the robot's DDS domain.</p>
+<p>The robot runs Cyclone DDS 0.10.2; Humble's <code>rmw_cyclonedds_cpp</code> works with it without a source build, which is why Unitree
+recommends Humble (V §1.2). This is <code>unitree_ros2</code>'s <code>setup.sh</code> without its hard-coded Foxy path (V §1.2):</p>
+<pre><code class="language-bash">export RMW_IMPLEMENTATION=rmw_cyclonedds_cpp
+export ROS_DOMAIN_ID=0
+export CYCLONEDDS_URI='&lt;CycloneDDS&gt;&lt;Domain&gt;&lt;General&gt;&lt;Interfaces&gt;
+  &lt;NetworkInterface name=&quot;enp3s0&quot; priority=&quot;default&quot; multicast=&quot;default&quot; /&gt;
+&lt;/Interfaces&gt;&lt;/General&gt;&lt;/Domain&gt;&lt;/CycloneDDS&gt;'
+ros2 daemon stop; ros2 daemon start
+</code></pre>
+<p>The robot stays on domain 0 (V §1.11). Keep the simulator on another domain so a forgotten simulator cannot command the robot.
+<code>unitree_ros2</code>'s <code>setup_local.sh</code> does the same with <code>lo</code> for simulation (V §1.2).</p>
+<p>What the two outcomes look like, run on this PC. With <code>lo</code>, which exists and has an address:</p>
+<pre><code>ros2: selected interface &quot;lo&quot; is not multicast-capable: disabling multicast
+/parameter_events
+/rosout
+</code></pre>
+<p>With <code>enp3s0</code> while its cable is unplugged (<code>ip -br link</code> shows <code>NO-CARRIER</code>):</p>
+<pre><code>ros2: enp3s0: does not match an available interface.
+[ERROR] [...] [rmw_cyclonedds_cpp]: rmw_create_node: failed to create domain, error Error
+</code></pre>
+<p>Check: <code>ros2 topic list</code> runs without the <code>failed to create domain</code> error. If you see it, the interface in <code>CYCLONEDDS_URI</code> is
+wrong, down or has no address.</p>
+<h3 id="23-see-the-robots-state">2.3 See the robot's state</h3>
+<p>Objective: one message from the robot before anything moves.</p>
+<pre><code class="language-bash">ros2 topic echo --once /sportmodestate --field position
+</code></pre>
+<p>Not run: no robot. <code>sportmodestate</code> carries mode, gait type, position, velocity, yaw speed, body height, foot forces and an IMU
+state (V §1.2); the frame of <code>position</code> is not documented in what I could read (U, §1.1). If nothing arrives, check QoS first
+(<a href="../reference.html#troubleshooting">chapter 12</a> Task 1). The sources disagree: <code>unitree_ros2</code>'s open PR #29 gives telemetry subscribers
+best-effort (sensor-data) QoS (V §1.2), while Southampton's guide says to use Reliable on its driver's <code>/scan</code> if nothing arrives
+(V §1.11). Subscribe Best Effort: a Best Effort subscriber matches a publisher of either kind, a Reliable one only a Reliable
+publisher.</p>
+<p>Check: one message prints. Do not continue to Task 3 until it does.</p>
+<h2 id="task-3-use-one-control-level-at-a-time">Task 3: Use one control level at a time</h2>
+<h3 id="31-choose-high-level-for-everything-in-this-course">3.1 Choose high level for everything in this course</h3>
+<p>Objective: know the two ways to command the robot and the rule between them.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th></th>
+<th>High level (sport mode)</th>
+<th>Low level</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Topic and type</td>
+<td><code>/api/sport/request</code>, <code>unitree_api/msg/Request</code>; replies on <code>/api/sport/response</code> (V §1.2)</td>
+<td><code>/lowcmd</code>, <code>unitree_go/msg/LowCmd</code> (V §1.2)</td>
+</tr>
+<tr>
+<td>What you send</td>
+<td>an API ID and JSON parameters: Damp 1001, BalanceStand 1002, StopMove 1003, StandUp 1004, StandDown 1005, RecoveryStand 1006, Move 1008, SwitchAvoidMode 2058 (V §1.2)</td>
+<td>per motor q, dq, tau, kp and kd, plus a CRC (V §1.2)</td>
+</tr>
+<tr>
+<td>Who balances</td>
+<td>Unitree's controller</td>
+<td>you</td>
+</tr>
+<tr>
+<td>Use it for</td>
+<td>walking, Nav2, this course</td>
+<td>joint-level research only</td>
+</tr>
+</tbody>
+</table></div>
+<p>Never send low-level commands while the built-in motion service runs: both would command the same motors. Unitree's low-level
+example switches the motion service off first (<code>MotionSwitcherClient::ReleaseMode()</code>, or in the app) (V §1.3, §1.4). Then, and only
+then:</p>
+<ul>
+<li>the robot is hung up or lying on the ground; the SDK example prints exactly this warning and waits for Enter (V §1.3);</li>
+<li>every motor starts passive (<code>q = PosStopF</code>, <code>kp = 0</code>) and ramps to a low gain; Unitree's examples use kp 5 to 10 and kd 1 (V §1.3, §1.4);</li>
+<li><code>sportmodestate</code> stops publishing on the real robot once sport mode is off, although <code>unitree_mujoco</code> keeps publishing it (V §1.5).</li>
+</ul>
+<p>Check: you can name the topic each level uses. Everything later in this chapter uses <code>/api/sport/request</code> only.</p>
+<h2 id="task-4-read-the-safety-page-before-any-motion">Task 4: Read the safety page before any motion</h2>
+<h3 id="41-go-through-the-checklist">4.1 Go through the checklist</h3>
+<p>Objective: a checklist you read aloud before the robot moves.</p>
+<ul>
+<li>The area is clear and no one is within reach. <code>/cmd_vel</code> on the robot has no collision avoidance (V §1.11).</li>
+<li>One person holds the Unitree remote the whole time.</li>
+<li>Damp (1001) is the emergency stop (V §1.11). Map your own stop key to it.</li>
+<li>StandDown (1005) before power-off (V §1.11).</li>
+<li>No flips and no "wallow" (V §1.11).</li>
+<li>Built-in obstacle avoidance is a separate switch (SwitchAvoidMode 2058, <code>ObstaclesAvoidClient</code>). Do not assume it is on (V §1.2).</li>
+<li>Follow the robot on the first autonomous runs; pick it up when it is about to do something silly (V §1.6).</li>
+<li>Bluetooth off and the robot on an isolated network: the UniPwn exploit gains root through the BLE Wi-Fi setup and affects the
+  Go2 (V §1.15). DDS has no authentication, so any host on the robot's network can publish <code>/lowcmd</code>, and the SDK does not clamp
+  torque (V §1.15).</li>
+</ul>
+<p>Check: before each session, the remote is in a hand and the Damp key is tested with the robot lying down. Not run: no robot.</p>
+<h2 id="task-5-map-the-simulators-topics-to-the-robots">Task 5: Map the simulator's topics to the robot's</h2>
+<h3 id="51-read-the-topic-map">5.1 Read the topic map</h3>
+<p>Objective: know what replaces each topic this stack uses.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>This stack (sim)</th>
+<th>Real Go2 EDU</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/cmd_vel</code> (<code>Twist</code>) → CHAMP</td>
+<td><code>/api/sport/request</code>, Move 1008</td>
+<td>no merged <code>Twist</code> bridge in <code>unitree_ros2</code>; PRs #17 and #21 were still open on 2026-11-28 (V §1.2, rechecked); 5.2 is one</td>
+</tr>
+<tr>
+<td><code>/lidar/points</code>, frame <code>lidar_link</code></td>
+<td><code>utlidar/cloud</code>, frame <code>utlidar_lidar</code></td>
+<td>mounted inverted and tilted; CMU rotates it by pitch 2.8782 rad (V §1.8)</td>
+</tr>
+<tr>
+<td><code>/imu/data</code></td>
+<td><code>utlidar/imu</code> (in the lidar frame), or the IMU in <code>sportmodestate</code> and <code>lowstate</code></td>
+<td>the L1's IMU needs a one-time calibration (V §1.8)</td>
+</tr>
+<tr>
+<td><code>/joint_states</code></td>
+<td><code>lowstate</code>, <code>motor_state</code> (q, dq, tau_est)</td>
+<td>(V §1.2)</td>
+</tr>
+<tr>
+<td><code>/camera/image_raw</code></td>
+<td>an H.264 stream</td>
+<td>needs a republisher to <code>sensor_msgs/Image</code> (V §1.8)</td>
+</tr>
+<tr>
+<td><code>/odom</code> from the EKF; <code>/odom_gt</code></td>
+<td><code>sportmodestate</code> position and velocity; no ground truth</td>
+<td>the robot publishes no tf (V §1.2)</td>
+</tr>
+<tr>
+<td>TF from <code>robot_state_publisher</code> and the EKF</td>
+<td>none</td>
+<td>you publish <code>odom</code> → <code>base_link</code> and the lidar mount yourself (V §1.2)</td>
+</tr>
+</tbody>
+</table></div>
+<p>Check: for each row you know which node of this stack would have to change. <code>scan.yaml</code>'s height band (chapter 10, 5.2) also
+assumes the simulated lidar's mount; it has to be redone for <code>utlidar_lidar</code>.</p>
+<h3 id="52-write-the-cmd_vel-bridge">5.2 Write the cmd_vel bridge</h3>
+<p>Objective: Nav2's <code>/cmd_vel</code> turned into sport-mode Move requests, clamped, and stopped when commands stop.</p>
+<p><code>src/go2_tutorials/go2_tutorials/sport_bridge.py</code>. The decision is a pure function, <code>decide()</code>, so it can be tested without ROS
+or the robot. <code>main()</code> is the ROS side.</p>
+<pre><code class="language-python">API_MOVE, API_STOPMOVE = 1008, 1003
+LIMITS = (0.3, 0.25, 0.5)  # vx, vy (m/s), vyaw (rad/s): this course's CHAMP limits; far inside the Move range (that range is S)
+TIMEOUT = 0.5              # s without /cmd_vel before StopMove; the robot itself holds a Move for about 1 s (S)
+
+
+def decide(cmd, age, stopped, limits=LIMITS, timeout=TIMEOUT):
+    &quot;&quot;&quot;cmd = last (vx, vy, vyaw) or None; age = s since it arrived; stopped = StopMove already sent.
+    Returns ('move', clamped cmd), ('stop', None), or (None, None) when there is nothing to send.&quot;&quot;&quot;
+    if cmd is None or age &gt; timeout or not all(math.isfinite(v) for v in cmd):
+        return (None, None) if stopped else ('stop', None)
+    return 'move', tuple(max(-lim, min(lim, v)) for v, lim in zip(cmd, limits))
+
+
+def main():
+    import rclpy
+    from geometry_msgs.msg import Twist
+    from unitree_api.msg import Request   # from unitree_ros2 (cyclonedds_ws); not part of this course's install
+
+    rclpy.init()
+    node = rclpy.create_node('sport_bridge')
+    pub = node.create_publisher(Request, '/api/sport/request', 10)
+    st = {'cmd': None, 't': 0.0, 'stopped': True}
+    now = lambda: node.get_clock().now().nanoseconds * 1e-9
+
+    def on_twist(m):
+        st['cmd'], st['t'] = (m.linear.x, m.linear.y, m.angular.z), now()
+
+    def tick():
+        kind, v = decide(st['cmd'], now() - st['t'], st['stopped'])
+        if kind is None:
+            return
+        req = Request()
+        req.header.identity.api_id = API_MOVE if kind == 'move' else API_STOPMOVE
+        if v:
+            req.parameter = json.dumps({'x': v[0], 'y': v[1], 'z': v[2]})
+        pub.publish(req)
+        st['stopped'] = kind == 'stop'
+
+    node.create_subscription(Twist, '/cmd_vel', on_twist, 10)
+    node.create_timer(0.05, tick)   # 20 Hz
+    rclpy.spin(node)
+</code></pre>
+<p>What it targets, and how sure that is:</p>
+<ul>
+<li>The message, topic and API IDs are from <code>unitree_ros2</code>: <code>example/src/include/common/ros2_sport_client.h</code> (Move 1008, StopMove
+  1003, publisher on <code>/api/sport/request</code>) and <code>ros2_sport_client.cpp</code>, whose <code>Move()</code> writes <code>{"x": vx, "y": vy, "z": vyaw}</code> into
+  <code>parameter</code> and sets <code>header.identity.api_id</code> (V §1.2; both files read at commit 668d1ec for this chapter).</li>
+<li>The Move ranges (vx about −2.5 to 3.8 m/s, vy −1 to 1, vyaw −4 to 4) and the roughly 1 s that a Move stays in effect are <strong>S</strong>
+  (§1.1). <code>LIMITS</code> are this course's CHAMP limits (0.3 m/s forward, 0.25 m/s sideways, 0.5 rad/s), far inside them, and the 0.5 s
+timeout stops the robot before its own hold would run out.</li>
+<li>The ROS side was never run against a robot. It cannot run here: <code>unitree_api</code> is not installed.</li>
+</ul>
+<pre><code class="language-bash">cd src/go2_tutorials &amp;&amp; python3 -m go2_tutorials.sport_bridge
+</code></pre>
+<pre><code>ModuleNotFoundError: No module named 'unitree_api'
+</code></pre>
+<p>The logic is tested without ROS (<code>test/test_sport_bridge.py</code>: clamping on each axis, one StopMove on timeout and none after it,
+nothing before the first command, and a stop on NaN or infinity):</p>
+<pre><code class="language-bash">cd src/go2_tutorials &amp;&amp; python3 -m pytest -q test/test_sport_bridge.py
+</code></pre>
+<pre><code>....                                                                     [100%]
+4 passed in 0.49s
+</code></pre>
+<p>Check: the 4 tests pass. With <code>TIMEOUT</code> changed to 2.0, <code>test_timeout_sends_one_stop</code> fails (run here: <code>1 failed, 3 passed</code>), so the test does watch the timeout.</p>
+<p>Common mistakes: <code>unitree_mujoco</code> cannot test this bridge. It simulates only the low-level interface (<code>LowCmd</code>, <code>LowState</code>,
+<code>SportModeState</code>) and has no sport-mode service (V §1.5). The course plan (<code>research/gap-plan.md</code>) asked for a <code>unitree_mujoco</code> test of the
+bridge; this chapter drops it on purpose for that reason and tests the logic with the unit tests above instead. The first test of the ROS side is on the real robot, lying down or hung
+up, with the remote in hand and a single 0.1 m/s command.</p>
+<h2 id="task-6-replay-the-chapter-9-estimator-on-robot-data">Task 6: Replay the chapter 9 estimator on robot data</h2>
+<h3 id="61-record-on-the-robot">6.1 Record on the robot</h3>
+<p>Objective: a bag of the robot's own lidar and IMU, to test the estimator before the robot walks under autonomy.</p>
+<pre><code class="language-bash">ros2 bag record /utlidar/cloud /utlidar/imu /sportmodestate
+</code></pre>
+<p>Not run: no robot. This is CMU's recording command plus the robot's state (V §1.8). Drive with the remote while recording. I found
+no public Go2 bag of these topics, so there is nothing to download in place of this step (U).</p>
+<h3 id="62-publish-the-l1s-mount">6.2 Publish the L1's mount</h3>
+<p>Objective: a transform from <code>base_link</code> to <code>utlidar_lidar</code>, which the robot does not publish.</p>
+<pre><code class="language-bash">ros2 run tf2_ros static_transform_publisher --frame-id base_link --child-frame-id utlidar_lidar --pitch 2.8782 &amp;
+ros2 run tf2_ros tf2_echo base_link utlidar_lidar
+</code></pre>
+<pre><code>At time 0.0
+- Translation: [0.000, 0.000, 0.000]
+- Rotation: in Quaternion (xyzw) [0.000, 0.991, 0.000, 0.131]
+- Rotation: in RPY (radian) [3.142, 0.263, 3.142]
+- Rotation: in RPY (degree) [180.000, 15.091, 180.000]
+- Matrix:
+ -0.966  0.000  0.260  0.000
+  0.000  1.000  0.000  0.000
+ -0.260  0.000 -0.966  0.000
+  0.000  0.000  0.000  1.000
+</code></pre>
+<p><code>tf2_echo</code> repeats this block once per second; stop it with Ctrl+C.</p>
+<p>The pitch is CMU's (V §1.8); the translation is left at zero because neither source in my notes gives it. tf2 prints the same
+rotation as roll 180°, pitch 15.1°, yaw 180°: the lidar is upside down and tilted by 15°.</p>
+<p>Check: the lidar's z axis points down in <code>base_link</code>. The columns of the 3 × 3 rotation block are the lidar's axes in <code>base_link</code>,
+so its z axis is the third column, (0.260, 0, −0.966): mostly −z, tilted forward by 15°. Then check it in RViz: with Fixed Frame <code>base_link</code>, the floor in <code>utlidar/cloud</code> must lie flat under the robot.</p>
+<h3 id="63-replay-with-the-robots-topic-names">6.3 Replay with the robot's topic names</h3>
+<p>Objective: the chapter 9 lidar odometry reading a bag whose topics have the robot's names.</p>
+<p><code>lidar_odom.py</code> subscribes to <code>lidar/points</code> and <code>imu/data</code>, so remap them. Here the same command runs on the simulator bag <code>bags/w2</code>,
+renamed on playback to the robot's names, to check the remapping:</p>
+<pre><code class="language-bash">ros2 run go2_nav_sim lidar_odom.py --ros-args -r lidar/points:=/utlidar/cloud -r imu/data:=/utlidar/imu -p use_sim_time:=true &amp;
+ros2 bag play bags/w2 --clock --topics /lidar/points /imu/data /tf /tf_static \
+  --remap /lidar/points:=/utlidar/cloud /imu/data:=/utlidar/imu
+</code></pre>
+<pre><code>[lidar_odom]: #50 pose=(0.02,-0.03,0deg) matches=282 rms=0.029 map=273 fails=0
+[lidar_odom]: #100 pose=(-0.11,-0.06,22deg) matches=320 rms=0.043 map=380 fails=0
+...
+[lidar_odom]: #250 pose=(1.59,2.61,44deg) matches=250 rms=0.034 map=631 fails=0
+</code></pre>
+<p>On a robot bag, play only <code>/utlidar/cloud</code> and <code>/utlidar/imu</code>, keep 6.2's transform running, and add
+<code>-p lidar_frame:=utlidar_lidar -p base_frame:=base_link</code>. The estimator's height band (0.30 m, <a href="10-mapping-and-navigation.html">chapter 10</a>
+5.2) is measured from this simulator's <code>base_footprint</code>; set it again for your base frame. Disconnect from the robot first, or its live topics mix with the bag
+(V §1.8). Robot stamps are not host time; CMU shifts them by a one-off offset (V §1.8).</p>
+<p><code>lidar_odom.py</code> reads the gyro's z axis and the IMU's roll and pitch straight from the message, without TF. In simulation the IMU
+is level in the trunk. The L1's IMU is in the inverted lidar frame, so its z rate has the opposite sign and its roll and pitch
+are wrong (my inference from the code and 6.2). Rotate <code>utlidar/imu</code> into <code>base_link</code> before the estimator, as CMU's
+<code>transform_everything.py</code> does (V §1.8).</p>
+<p>Check: <code>pose=</code> lines appear and <code>fails=0</code>. On robot data, turn the robot left by hand during recording: the replayed yaw must increase.</p>
+<h2 id="exercise">Exercise</h2>
+<p>The bridge has been forwarding <code>/cmd_vel</code> at 0.8 m/s forward. Nav2 crashes and the topic goes silent. What does the bridge send in
+the next second, and what would happen if <code>decide()</code> had no <code>age &gt; timeout</code> check?</p>
+<p>Answer: <code>decide()</code> clamps 0.8 to 0.3 m/s, so the bridge keeps sending Move(0.3, 0, 0) at 20 Hz while the last command is at most
+0.5 s old, then one StopMove (1003), then nothing (<code>test_timeout_sends_one_stop</code>). Without the age check, the 20 Hz timer would
+resend the last command, Move(0.3, 0, 0), forever. The robot's own hold of about 1 s (S §1.1) never runs out, because a new Move
+arrives every 0.05 s, so the robot walks on at 0.3 m/s until someone uses the remote or Damp.</p>
+<h2 id="further-reading">Further reading</h2>
+<ul>
+<li><code>unitreerobotics/unitree_ros2</code>: https://github.com/unitreerobotics/unitree_ros2</li>
+<li><code>abizovnuralem/go2_ros2_sdk</code>, slam_toolbox and Nav2 on the real robot: https://github.com/abizovnuralem/go2_ros2_sdk</li>
+<li>Southampton robot guides, Go2 ROS control: https://robots.ecs.soton.ac.uk/go2/ros_control</li>
+<li>Context for UniPwn: https://arxiv.org/abs/2509.14139 (the paper studies Unitree's humanoid; the Go2 claim is from §1.15)</li>
+</ul><nav class="prevnext" aria-label="Previous and next"><a class="pn" href="../projects/p14_test-the-stack/index.html"><span>Previous</span>Test the stack: a launch smoke test</a><span></span></nav><p class="source">Source: <a href="https://github.com/Armanasq/go2-nav-sim/blob/main/docs/13-toward-the-real-go2.md">docs/13-toward-the-real-go2.md</a></p></article></div>
+</main>
+<footer class="site"><div class="wrap">Simulation only. Source and issues on <a href="https://github.com/Armanasq/go2-nav-sim">GitHub</a>.</div></footer>
+<script type="module" src="../static/js/site.js"></script>
+</body>
+</html>

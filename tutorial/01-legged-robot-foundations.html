@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Legged robot foundations · go2-nav-sim</title>
+<meta name="description" content="Legged robot foundations">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../static/css/site.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5' fill='%230a6a9c'/%3E%3C/svg%3E">
+
+</head>
+<body data-root="../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar"><div class="inner">
+<a class="brand" href="../index.html">go2-nav-sim</a>
+<nav aria-label="Main"><a href="../tutorial/00-overview.html" aria-current="page">Learn</a><a href="../tasks/index.html">Tasks</a><a href="../modules/index.html">Deep dives</a><a href="../reference.html">Reference</a></nav>
+<button class="theme-toggle" type="button" aria-label="Colour theme: auto">auto</button>
+</div></header>
+<main id="main">
+<div class="wrap doc"><details class="side" open><summary>Legged robot foundations</summary><nav aria-label="Contents"><ol class="parts"><li class="open"><p class="part">Start</p><ol><li><a href="00-overview.html"><span class="n">0</span><span>What you will build</span></a></li><li><a href="01-legged-robot-foundations.html" aria-current="page"><span class="n">1</span><span>Legged robot foundations</span></a><ul class="sections"><li><a href="#task-1-read-the-robot-description">Task 1: Read the robot description</a></li><li><a href="#task-2-see-how-a-trot-moves-the-feet-and-the-trunk">Task 2: See how a trot moves the feet and the trunk</a></li><li><a href="#task-3-place-champ-in-the-control-stack">Task 3: Place CHAMP in the control stack</a></li><li><a href="#task-4-find-where-the-trunk-frame-sits">Task 4: Find where the trunk frame sits</a></li><li><a href="#exercise">Exercise</a></li><li><a href="#further-reading">Further reading</a></li></ul></li><li><a href="02-prerequisites.html"><span class="n">2</span><span>Prerequisites</span></a></li><li><a href="03-install-and-first-run.html"><span class="n">3</span><span>Install and first run</span></a></li><li><a href="04-ros2-from-scratch.html"><span class="n">4</span><span>ROS 2 from scratch</span></a></li><li><a href="../projects/p01_first-steps/index.html"><span class="n">P1</span><span>First steps</span></a></li></ol></li><li><a class="part" href="05-frames-and-tf2.html">The robot</a></li><li><a class="part" href="../projects/p02_teleop-and-safety/index.html">Move it</a></li><li><a class="part" href="08-robot-and-sensors.html">Sense and avoid</a></li><li><a class="part" href="09-state-estimation.html">Estimate and map</a></li><li><a class="part" href="../projects/p11_command-arbitration/index.html">Navigate</a></li><li><a class="part" href="../projects/p14_test-the-stack/index.html">Beyond simulation</a></li></ol></nav></details><article class="prose"><p class="where">Start · Chapter 1</p><h1>Legged robot foundations</h1><p>Most ROS 2 tutorials assume a wheeled base. Its pose changes only when the wheels turn, wheel encoders give odometry, and a
+diff-drive controller turns <code>/cmd_vel</code> into wheel speeds. A quadruped breaks each of these assumptions. This chapter finds the
+differences in the Go2 files and maps them onto the layers of this stack.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Goal</td>
+<td>Read the Go2's joints, gait and frames from its files, and place its gait controller among the other ways to make a quadruped walk.</td>
+</tr>
+<tr>
+<td>Time</td>
+<td>1.5 h</td>
+</tr>
+<tr>
+<td>Before you start</td>
+<td>Tasks 1 to 3 read files that <code>scripts/setup.sh</code> fetches (<a href="03-install-and-first-run.html">chapter 3</a>, task 1). Without them, read the outputs shown here and run the commands later. Task 4.2 needs the running stack.</td>
+</tr>
+<tr>
+<td>You will learn</td>
+<td>what a floating base and switching contacts mean for ROS; what CHAMP reads and what it ignores; how CHAMP compares with model-predictive control and a learned policy; why <code>base_footprint</code> sits 0.426 m below <code>base_link</code> here.</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="task-1-read-the-robot-description">Task 1: Read the robot description</h2>
+<h3 id="11-count-the-joints-and-the-mass">1.1 Count the joints and the mass</h3>
+<p>Objective: see from the URDF that the trunk is not attached to anything and the legs have 12 motors.</p>
+<pre><code class="language-bash">source env.sh
+xacro src/go2_nav_sim/urdf/go2_nav.xacro &gt; /tmp/go2.urdf
+python3 - &lt;&lt;'EOF'
+import xml.etree.ElementTree as ET
+r = ET.parse('/tmp/go2.urdf').getroot()
+j = [x for x in r.findall('joint') if x.get('type') == 'revolute']
+print(len(j), 'revolute,', sum(x.get('type') == 'fixed' for x in r.findall('joint')), 'fixed')
+for x in j[:3]:
+    l = x.find('limit'); print(x.get('name'), x.find('axis').get('xyz'), l.get('lower'), l.get('upper'), l.get('effort'))
+print('mass %.2f kg' % sum(float(i.find('mass').get('value')) for i in r.iter('inertial')))
+EOF
+</code></pre>
+<pre><code>12 revolute, 11 fixed
+rf_hip_joint 1 0 0 -1.0472 1.0472 23.7
+rf_upper_leg_joint 0 1 0 -1.5708 3.4907 23.7
+rf_lower_leg_joint 0 1 0 -2.7227 -0.83776 35.55
+mass 15.10 kg
+</code></pre>
+<p>Check: 12 revolute joints, 15.10 kg.</p>
+<p>The root link, <code>base_link</code>, has no parent joint, so the simulator (or an estimator, on hardware) supplies all six degrees of
+freedom of the trunk pose. The joint called <code>floating_base</code>, between <code>base_link</code> and <code>trunk</code>, is fixed despite its name; Gazebo
+gives every root link six free degrees of freedom. Each leg has three revolute joints. The left front leg, from <code>const.xacro</code>
+and <code>leg.xacro</code> (the right legs mirror the hip limits):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Joint</th>
+<th>Name here</th>
+<th>Axis</th>
+<th>Range (rad)</th>
+<th>Effort limit (N·m)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>hip abduction / adduction</td>
+<td><code>lf_hip_joint</code></td>
+<td>x</td>
+<td>-1.047 to 1.047</td>
+<td>23.7</td>
+</tr>
+<tr>
+<td>hip flexion (thigh)</td>
+<td><code>lf_upper_leg_joint</code></td>
+<td>y</td>
+<td>-1.571 to 3.491</td>
+<td>23.7</td>
+</tr>
+<tr>
+<td>knee (calf)</td>
+<td><code>lf_lower_leg_joint</code></td>
+<td>y</td>
+<td>-2.723 to -0.838</td>
+<td>35.55</td>
+</tr>
+</tbody>
+</table></div>
+<p>The legs are <code>lf</code>, <code>rf</code>, <code>lh</code> and <code>rh</code> (left/right, front/hind). Unitree's own files call the same joints <code>FL_hip_joint</code>,
+<code>FL_thigh_joint</code> and <code>FL_calf_joint</code>; a leftover <code>config/_robot_control.yaml</code> in <code>go2_description</code> still uses those names. The
+foot is a fixed joint to a sphere of 2 cm radius.</p>
+<p><img loading="lazy" alt="Go2 render with each leg coloured, the joint axes of the front left leg and the base frame" src="../img/c00-01-go2-joints.png" /></p>
+<p><em>The MuJoCo Menagerie Go2 with one colour per leg, the three joint axes of the front left leg and the base frame (x red, y green, z blue). Menagerie uses Unitree's leg names; the URDF in this stack uses <code>lf</code>, <code>rf</code>, <code>lh</code>, <code>rh</code>.</em></p>
+<p><img loading="lazy" alt="Side and front sketch of one leg with link lengths, joint ranges and effort limits" src="../img/c00-01-leg-geometry.png" /></p>
+<p><em>One leg of the URDF: link lengths and hip offset from <code>const.xacro</code>, the allowed range of each joint shaded, with its effort limit from the table. The pose drawn is only an example.</em></p>
+<p>Common mistakes: <code>xacro: command not found</code> means the shell has not sourced <code>env.sh</code>.</p>
+<p>Forward and inverse kinematics of one leg, checked against MuJoCo and Pinocchio, are in
+<a href="../modules/m04_kinematics/index.html">module 04</a>; why the floating base cannot be actuated directly is in
+<a href="../modules/m01_anatomy/index.html">module 01</a>.</p>
+<h2 id="task-2-see-how-a-trot-moves-the-feet-and-the-trunk">Task 2: See how a trot moves the feet and the trunk</h2>
+<h3 id="21-read-the-gait-parameters">2.1 Read the gait parameters</h3>
+<p>Objective: find the numbers that set the stride.</p>
+<pre><code class="language-bash">grep -E 'max_|swing_height|stance_depth|stance_duration|nominal_height' \
+  src/third_party/unitree-go2-ros2/robots/configs/go2_config/config/gait/gait.yaml
+</code></pre>
+<pre><code>      max_linear_velocity_x : 0.3
+      max_linear_velocity_y : 0.25
+      max_angular_velocity_z : 0.5
+      swing_height : 0.04
+      stance_depth : 0.01
+      stance_duration : 0.25
+      nominal_height : 0.225
+</code></pre>
+<p>Check: <code>stance_duration</code> is 0.25 s. CHAMP clips <code>/cmd_vel</code> to the three <code>max_</code> values.</p>
+<p>A foot is either in stance (on the ground, carrying load) or in swing, and each switch changes which constraints act on the
+body, several times per second. CHAMP walks with a trot: the diagonal pairs <code>lf</code>+<code>rh</code> and <code>rf</code>+<code>lh</code> swing together
+(<code>phase_generator.h</code>). One stride is 0.25 s of stance plus 0.25 s of swing. The trunk height oscillates at 4.0 Hz while walking,
+twice per stride (measured on <code>/odom_gt</code>).</p>
+<p><img loading="lazy" alt="Trot timing diagram: lf and rh in stance together, then rf and lh" src="../img/c00-01-trot-gait.png" /></p>
+<p><em>Trot timing from <code>phase_generator.h</code> and <code>gait.yaml</code>: each diagonal pair is in stance for 0.25 s while the other pair swings. The trunk-height line is a sketch of the 4.0 Hz oscillation, not data.</em></p>
+<video controls muted playsinline src="../media/c00-01-trot-kinematic.mp4"></video>
+
+<p><em>The same trot played back on the MuJoCo Go2 at quarter speed, pairs coloured as above: CHAMP's foot path at 0.2 m/s turned into joint angles with the closed-form IK of <code>modules/m04_kinematics</code>. Kinematics only; no physics and no CHAMP code runs here.</em></p>
+<p><img loading="lazy" alt="Foot trajectory: a Bezier swing arc above the ground line and a shallow stance curve below it" src="../img/c00-01-foot-trajectory.png" /></p>
+<p><em>One foot's path at 0.2 m/s, computed from the control points in <code>trajectory_planner.h</code> and the Go2 <code>gait.yaml</code> (swing_height 0.04 m, stance_depth 0.01 m, stance_duration 0.25 s). The swing overshoots the 5 cm stroke at both ends.</em></p>
+<h3 id="22-note-what-the-sensors-on-the-trunk-feel">2.2 Note what the sensors on the trunk feel</h3>
+<p>Objective: know why sensor data from a legged robot shakes.</p>
+<p><code>site/data/runs/w2/imu.json</code> holds the IMU of recorded run w2 at about 20 samples per second, timed in seconds from the start
+of the recording. The robot stood until about 10 s and walked from then on. This compares 6 s of standing with 20 s of walking:</p>
+<pre><code class="language-bash">python3 - &lt;&lt;'EOF'
+import json
+d = json.load(open('site/data/runs/w2/imu.json')); f = d['fields']
+for name, t0, t1 in (('standing', 2, 8), ('walking', 20, 40)):
+    rows = [r for r in d['rows'] if t0 &lt;= r[0] &lt; t1]
+    print(name, '  '.join('%s %.1f to %.1f' % (k, min(r[f.index(k)] for r in rows), max(r[f.index(k)] for r in rows))
+                         for k in ('az', 'gy', 'pitch_deg')))
+EOF
+</code></pre>
+<pre><code>standing az 7.0 to 12.4  gy -0.1 to 0.2  pitch_deg -0.5 to 0.0
+walking az 4.6 to 18.8  gy -0.8 to 0.6  pitch_deg -2.8 to 1.1
+</code></pre>
+<p>Check: walking, the vertical acceleration <code>az</code> (m/s²) spans 14.2 m/s² against 5.4 m/s² standing, and the pitch rate <code>gy</code>
+(rad/s) and the pitch angle span several times their standing range.</p>
+<p>Walking at 0.2 m/s, the trunk height varied between 0.206 and 0.219 m, roll between -2.1 and 3.6 degrees and pitch between -2.0
+and 1.9 degrees (<a href="07-make-it-walk.html#44-measure-how-the-trunk-moves-while-walking">chapter 7</a> has the command). A sensor bolted to the trunk sees all
+of that.</p>
+<video controls muted playsinline src="../media/c00-01-trunk-motion.mp4"></video>
+
+<p><em>Ten seconds of the dashboard (<code>media/go2_a2b_dashboard.mp4</code> from 0:40) while walking: the bottom row is the IMU on the trunk, and every step shows up in acceleration, angular rate and attitude.</em></p>
+<p>There is no wheel odometry either. Joint encoders tell you where the feet are relative to the trunk; they tell you how the
+trunk moved only if you know which feet are on the ground and that they did not slip. That needs contact sensing, which this
+Gazebo setup does not have. <a href="09-state-estimation.html">Chapter 9</a> measures how far off CHAMP's leg odometry is here and what
+replaces it.</p>
+<h2 id="task-3-place-champ-in-the-control-stack">Task 3: Place CHAMP in the control stack</h2>
+<h3 id="31-find-what-champ-reads">3.1 Find what CHAMP reads</h3>
+<p>Objective: see from the source that the gait controller gets no feedback about the trunk.</p>
+<pre><code class="language-bash">grep -n -A1 'create_subscription' src/third_party/unitree-go2-ros2/champ/champ_base/src/quadruped_controller.cpp
+grep -n 'double loop_rate' src/third_party/unitree-go2-ros2/champ/champ_base/src/quadruped_controller.cpp
+</code></pre>
+<pre><code>69:    cmd_vel_subscription_ = this-&gt;create_subscription&lt;geometry_msgs::msg::Twist&gt;(
+70-        &quot;cmd_vel/smooth&quot;, 10, std::bind(&amp;QuadrupedController::cmdVelCallback_, this,  std::placeholders::_1));
+71:    cmd_pose_subscription_ = this-&gt;create_subscription&lt;geometry_msgs::msg::Pose&gt;(
+72-        &quot;body_pose&quot;, 1,  std::bind(&amp;QuadrupedController::cmdPoseCallback_, this,  std::placeholders::_1));
+49:    double loop_rate = 200.0;
+</code></pre>
+<p>Check: two subscriptions only. <code>cmd_vel/smooth</code> is remapped to <code>/cmd_vel</code> in <code>champ_bringup/launch/bringup.launch.py</code>
+(line 179).</p>
+<p>CHAMP reads no IMU, no contact forces and no joint feedback, and it does not plan the motion of the centre of mass. Each cycle it
+advances a phase clock per leg, places the next footstep with the Raibert heuristic, draws a Bezier swing curve, presses the
+stance foot down by <code>stance_depth</code>, and solves inverse kinematics for each leg. The 12 joint positions go to the
+<code>joint_trajectory_controller</code>, which turns position error into effort with the PID gains in <code>ros_control.yaml</code>. On flat ground
+in simulation that is enough; a push, a slope or a slippery floor is not corrected. <a href="07-make-it-walk.html">Chapter 7</a> changes the
+gait parameters and measures the result.</p>
+<p><img loading="lazy" alt="The five layers as blocks with their rates and the direction of commands and measurements" src="../img/c00-01-layers.png" /></p>
+<p><em>The layers of this stack: commands go up from Nav2 to the joints, joint states and sensor data come back down. In ros2_control, <code>gazebo_ros2_control/GazeboSystem</code> offers <code>effort</code> commands and <code>position</code> and <code>velocity</code> states; on a physical robot a driver plugin takes its place and the layers above stay the same (<a href="06-import-the-go2.html">chapter 6</a>).</em></p>
+<p><img loading="lazy" alt="Block diagram of CHAMP: phase clock, Raibert foot placement, swing and stance trajectories, leg IK, joint PID, Gazebo" src="../img/c00-01-champ-loop.png" /></p>
+<p><em>CHAMP's loop. The node also subscribes to <code>/body_pose</code> (not drawn). The inputs in red are never read, so the only feedback in the loop is joint position and velocity into the PID.</em></p>
+<h3 id="32-compare-champ-with-other-controllers">3.2 Compare CHAMP with other controllers</h3>
+<p>Objective: know what would replace CHAMP, and what would stay the same.</p>
+<pre><code class="language-bash">grep -n update_rate src/third_party/unitree-go2-ros2/robots/configs/go2_config/config/ros_control/ros_control.yaml
+</code></pre>
+<pre><code>4:    update_rate: 250  # Hz
+</code></pre>
+<p><img loading="lazy" alt="Four columns behind one /cmd_vel: CHAMP, convex MPC, MPC with WBIC, and an RL policy, each with what it reads, computes and sends to the joints" src="../img/c00-01-controllers.png" /></p>
+<p><em>Four ways to turn <code>/cmd_vel</code> into joint commands. CHAMP from its source (task 3.1); convex MPC from Di Carlo et al., IROS 2018; MPC with whole-body impulse control from Kim et al., arXiv 1909.06586; the RL policy from Rudin et al., CoRL 2021. Generated by <code>docs/img/c00-01-controllers.py</code>.</em></p>
+<p>Convex MPC plans ground reaction forces for a single rigid body over a horizon of up to 0.5 s, solved as a convex QP in under
+1 ms at 20 to 30 Hz. WBIC adds a faster whole-body QP on the full model that turns those forces into joint torques. An RL policy
+is a neural network trained in simulation that maps the command and proprioception to joint targets. All three read the trunk
+state, which CHAMP does not. All four take the same <code>/cmd_vel</code> and drive the same ros2_control joints, so Nav2 and everything
+above it would not change. None of the other three is part of this repository.</p>
+<p>Check: <code>update_rate</code> is 250 Hz. At that rate ros2_control runs the joint PID under every column of the figure; CHAMP sends new
+joint targets at 200 Hz (<code>loop_rate</code> in 3.1) and, in the figure, is the only column that reads nothing about the trunk.</p>
+<h2 id="task-4-find-where-the-trunk-frame-sits">Task 4: Find where the trunk frame sits</h2>
+<h3 id="41-read-the-frame-table">4.1 Read the frame table</h3>
+<p>Objective: know which node publishes each frame.</p>
+<p>The fixed frames come from the URDF you made in 1.1. This prints each fixed joint as parent and child, without the four feet:</p>
+<pre><code class="language-bash">python3 - &lt;&lt;'EOF'
+import xml.etree.ElementTree as ET
+r = ET.parse('/tmp/go2.urdf').getroot()
+for j in r.findall('joint'):
+    if j.get('type') == 'fixed' and 'foot' not in j.get('name'):
+        print(j.find('parent').get('link'), '-&gt;', j.find('child').get('link'))
+EOF
+</code></pre>
+<pre><code>base_link -&gt; trunk
+trunk -&gt; imu_link
+base_link -&gt; lidar_link
+lidar_link -&gt; lidar_visual
+base_link -&gt; camera_link
+camera_link -&gt; camera_optical
+base_link -&gt; chase_cam
+</code></pre>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Frame</th>
+<th>Meaning</th>
+<th>Published by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>map</code></td>
+<td>fixed, globally consistent</td>
+<td>AMCL (<code>map</code> to <code>odom</code>)</td>
+</tr>
+<tr>
+<td><code>odom</code></td>
+<td>continuous, drifts slowly</td>
+<td><code>gt_odom.py</code> with <code>odom:=gt</code>, or the EKF in <code>estimation.launch.py</code></td>
+</tr>
+<tr>
+<td><code>base_footprint</code></td>
+<td>the trunk projected onto the ground, yaw only</td>
+<td>CHAMP's <code>base_to_footprint_ekf</code> (<code>base_footprint</code> to <code>base_link</code>)</td>
+</tr>
+<tr>
+<td><code>base_link</code></td>
+<td>trunk origin, root of the URDF</td>
+<td></td>
+</tr>
+<tr>
+<td><code>trunk</code>, <code>imu_link</code>, <code>lidar_link</code>, ...</td>
+<td>fixed children of <code>base_link</code></td>
+<td><code>robot_state_publisher</code></td>
+</tr>
+<tr>
+<td>leg links</td>
+<td>follow the 12 joints</td>
+<td><code>robot_state_publisher</code> from <code>/joint_states</code></td>
+</tr>
+</tbody>
+</table></div>
+<p><img loading="lazy" alt="TF tree from map through odom, base_footprint and base_link to the sensors and the legs" src="../img/c00-01-tf-tree.png" /></p>
+<p><em>The TF tree drawn from <code>go2_nav.xacro</code>, <code>sensors.xacro</code> and the upstream <code>robot.xacro</code>, with who publishes each moving edge. <code>imu_link</code> and the legs hang from <code>trunk</code>, the sensors from <code>base_link</code>.</em></p>
+<p>The usual split is that <code>odom</code> to <code>base_footprint</code> carries x, y and yaw, and <code>base_footprint</code> to <code>base_link</code> carries the trunk
+height, roll and pitch, so that TF can level a lidar mounted on <code>base_link</code>.</p>
+<p>Check: <code>imu_link</code> hangs from <code>trunk</code>, and the lidar and camera from <code>base_link</code>, as in the figure. No line contains <code>map</code>,
+<code>odom</code> or <code>base_footprint</code>: those edges move, so a node publishes them (the table), not the URDF.</p>
+<h3 id="42-measure-base_footprint-to-base_link">4.2 Measure base_footprint to base_link</h3>
+<p>Objective: see that the second transform does not move in this simulation. Run it with the stack up
+(<a href="03-install-and-first-run.html">chapter 3</a>, task 2).</p>
+<pre><code class="language-bash">ros2 run tf2_ros tf2_echo base_footprint base_link
+ros2 topic info /foot_contacts
+</code></pre>
+<pre><code>At time 16.720000000
+- Translation: [0.000, 0.000, 0.426]
+- Rotation: in Quaternion (xyzw) [0.000, 0.000, 0.000, 1.000]
+Type: champ_msgs/msg/ContactsStamped
+Publisher count: 0
+Subscription count: 1
+</code></pre>
+<p>Check: the translation stays at 0.426 m whether the robot stands or walks, and <code>/foot_contacts</code> has no publisher.</p>
+<p>This is a known open issue of the stack. CHAMP's <code>state_estimation_node</code> synchronises <code>/joint_states</code> with <code>/foot_contacts</code>, and
+nothing publishes <code>/foot_contacts</code> here: the patch removed the Gazebo contact node, and the controller publishes contacts only
+when <code>publish_foot_contacts</code> is true and <code>gazebo</code> is false. The 0.426 m is the pose with all joint angles at zero, legs straight
+down, 0.213 + 0.213 m (thigh and calf lengths in <code>const.xacro</code>). The real trunk is about 0.217 m above the floor, so
+<code>base_footprint</code> lies 0.209 m below the floor. Trunk roll and pitch do not reach TF, and <code>gt_odom.py</code> publishes x, y and yaw
+only. Code that needs gravity alignment should take roll and pitch from <code>/imu/data</code>. In this simulator the IMU orientation
+equals ground truth (RMS difference 0.000 degrees against <code>/odom_gt</code> over 252 samples while walking), which a real IMU will not
+do.</p>
+<p><img loading="lazy" alt="Side sketch: base_link 0.217 m above the floor, base_footprint 0.426 m below base_link and 0.209 m below the floor" src="../img/c00-01-footprint-offset.png" /></p>
+<p><em>Where <code>base_footprint</code> ends up in this simulation; vertical distances to scale.</em></p>
+<h2 id="exercise">Exercise</h2>
+<p><code>src/go2_nav_sim/config/scan.yaml</code> turns the 3D lidar into the 2D <code>/scan</code> and keeps only points with <code>min_height: 0.30</code> to
+<code>max_height: 0.90</code>, measured in <code>target_frame: base_footprint</code>. Using 4.2, which band above the real floor is that? What would a
+value of <code>min_height: 0.05</code>, common on wheeled robots, do here?</p>
+<p>Answer: the floor is 0.209 m above <code>base_footprint</code> (0.426 − 0.217 m), so the band is about 0.09 to 0.69 m above the floor. With
+<code>min_height: 0.05</code> the floor itself, at 0.21 m in <code>base_footprint</code>, falls inside the band, and every floor return becomes an
+obstacle in <code>/scan</code>. The comment at the top of <code>scan.yaml</code> gives the same numbers.</p>
+<p><img loading="lazy" alt="Heights in base_footprint: the real floor at 0.209 m, the scan.yaml band 0.30 to 0.90 m above it, and a 0.05 m band that contains the floor" src="../img/c00-01-scan-band.png" /></p>
+<p><em>The two bands of the exercise drawn in <code>base_footprint</code>, with the floor where 4.2 puts it.</em></p>
+<h2 id="further-reading">Further reading</h2>
+<ul>
+<li>R. Tedrake, <em>Underactuated Robotics</em>: https://underactuated.csail.mit.edu/</li>
+<li>M. Raibert, <em>Legged Robots That Balance</em>, MIT Press, 1986: https://books.google.com/books?id=EXRiBnQ37RwC</li>
+<li>P. Wensing et al., "Optimization-based control for dynamic legged robots", T-RO 2024: https://arxiv.org/abs/2211.11644</li>
+</ul><nav class="prevnext" aria-label="Previous and next"><a class="pn" href="00-overview.html"><span>Previous</span>What you will build</a><a class="pn next" href="02-prerequisites.html"><span>Next</span>Prerequisites</a></nav><p class="source">Source: <a href="https://github.com/Armanasq/go2-nav-sim/blob/main/docs/01-legged-robot-foundations.md">docs/01-legged-robot-foundations.md</a></p></article></div>
+</main>
+<footer class="site"><div class="wrap">Simulation only. Source and issues on <a href="https://github.com/Armanasq/go2-nav-sim">GitHub</a>.</div></footer>
+<script type="module" src="../static/js/site.js"></script>
+</body>
+</html>

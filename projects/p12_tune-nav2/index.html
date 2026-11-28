@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tune Nav2 with evidence · go2-nav-sim</title>
+<meta name="description" content="Tune Nav2 with evidence">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../../static/css/site.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5' fill='%230a6a9c'/%3E%3C/svg%3E">
+
+</head>
+<body data-root="../../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar"><div class="inner">
+<a class="brand" href="../../index.html">go2-nav-sim</a>
+<nav aria-label="Main"><a href="../../tutorial/00-overview.html" aria-current="page">Learn</a><a href="../../tasks/index.html">Tasks</a><a href="../../modules/index.html">Deep dives</a><a href="../../reference.html">Reference</a></nav>
+<button class="theme-toggle" type="button" aria-label="Colour theme: auto">auto</button>
+</div></header>
+<main id="main">
+<div class="wrap doc"><details class="side" open><summary>Tune Nav2 with evidence</summary><nav aria-label="Contents"><ol class="parts"><li><a class="part" href="../../tutorial/00-overview.html">Start</a></li><li><a class="part" href="../../tutorial/05-frames-and-tf2.html">The robot</a></li><li><a class="part" href="../p02_teleop-and-safety/index.html">Move it</a></li><li><a class="part" href="../../tutorial/08-robot-and-sensors.html">Sense and avoid</a></li><li><a class="part" href="../../tutorial/09-state-estimation.html">Estimate and map</a></li><li class="open"><p class="part">Navigate</p><ol><li><a href="../p11_command-arbitration/index.html"><span class="n">P11</span><span>Command arbitration</span></a></li><li><a href="index.html" aria-current="page"><span class="n">P12</span><span>Tune Nav2 with evidence</span></a><ul class="sections"><li><a href="#task-1-prepare-the-settings">Task 1: Prepare the settings</a></li><li><a href="#task-2-inspect-the-footprint-nav2-uses">Task 2: Inspect the footprint Nav2 uses</a></li><li><a href="#task-3-score-the-settings">Task 3: Score the settings</a></li><li><a href="#task-4-test-the-explanation">Task 4: Test the explanation</a></li><li><a href="#how-the-code-works">How the code works</a></li><li><a href="#results">Results</a></li><li><a href="#exercise">Exercise</a></li><li><a href="#if-it-goes-wrong">If it goes wrong</a></li><li><a href="#further-reading">Further reading</a></li></ul></li><li><a href="../p13_behaviour-trees/index.html"><span class="n">P13</span><span>Behaviour trees</span></a></li></ol></li><li><a class="part" href="../p14_test-the-stack/index.html">Beyond simulation</a></li></ol></nav></details><article class="prose"><p class="where">Navigate · Project 12</p><h1>Tune Nav2 with evidence</h1><div class="table-wrap"><table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Goal</td>
+<td>Change one Nav2 setting at a time, drive the Go2 from marker A to marker B three times per setting, and score every run from its bag. Seven settings: three inflation radii, three cost scaling factors, a rectangular footprint instead of the 0.33 m circle, and Smac Hybrid-A* + MPPI instead of NavFn + Regulated Pure Pursuit (RPP). The runs point at one cause of lost time, and an eighth setting tests it. At the end you pick the settings the numbers support and say why, in the terms the Nav2 tuning guide uses.</td>
+</tr>
+<tr>
+<td>Time</td>
+<td>About 2.5 h of your own work, plus about 75 min of unattended simulation for the 24 runs (64 min for the first 21 here, at a load average between 40 and 99).</td>
+</tr>
+<tr>
+<td>Before you start</td>
+<td><a href="../../tutorial/10-mapping-and-navigation.html">Chapter 10</a> (Nav2, AMCL, the arena, the 0.33 m footprint compromise) and <code>scripts/up.sh</code> working.</td>
+</tr>
+<tr>
+<td>You will learn</td>
+<td>what <code>inflation_radius</code> and <code>cost_scaling_factor</code> do to the costmap, predicted with Nav2's formula before you run anything; how to run Nav2 from project-local copies of the stack's parameter file; how to record a small bag per run and score it with <code>src/go2_nav_sim/scripts/bag_metrics.py</code> plus a few tuning metrics; why a polygon footprint changes nothing measurable with NavFn, and when it starts to matter; how to tell a setting's effect from run-to-run noise (three runs, ranges instead of single numbers, and "leaving A" split from "the rest of the way").</td>
+</tr>
+</tbody>
+</table></div>
+<video controls muted playsinline src="media/smac_mppi_a_to_b.mp4"></video>
+
+<p><em>One Smac Hybrid-A</em> + MPPI run from A (green disc) to B (red disc), spectator camera: 58.5 s of simulated time (49.2 s of
+navigation) shown at 2.5 times speed.*</p>
+<p>Every terminal starts with:</p>
+<pre><code class="language-bash">cd go2-nav-sim
+source env.sh
+</code></pre>
+<p>Nothing here is built and nothing under <code>src/</code> is changed. The project's files:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>File</th>
+<th>What it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>make_params.py</code></td>
+<td>writes <code>params/&lt;setting&gt;.yaml</code>: the stack's <code>config/nav2_params.yaml</code> with the setting's changes</td>
+</tr>
+<tr>
+<td><code>up_tuned.sh</code></td>
+<td><code>scripts/up.sh</code> with your params file (<code>nav.launch.py params_file:=...</code>), without the passive mapper</td>
+</tr>
+<tr>
+<td><code>run_ab.sh</code></td>
+<td>one scored run: fresh stack, small bag, <code>go_to_goal.py</code>, stop the robot, close the bag, <code>score.py</code></td>
+</tr>
+<tr>
+<td><code>run_all.sh</code></td>
+<td>3 runs of every setting, interleaved, with a retry when the stack does not come up</td>
+</tr>
+<tr>
+<td><code>score.py</code></td>
+<td><code>bag_metrics.py</code> on the bag plus the outcome, plans, time to leave A and clearances; writes <code>&lt;run&gt;.json</code> and <code>.npz</code></td>
+</tr>
+<tr>
+<td><code>tuning.py</code></td>
+<td>the logic without ROS: Nav2's inflation cost, the map distance grid, footprint clearance, log parsing</td>
+</tr>
+<tr>
+<td><code>plot.py</code></td>
+<td>the results table and <code>figures/*.png</code></td>
+</tr>
+<tr>
+<td><code>results/</code></td>
+<td>my 24 scored runs (<code>.json</code>), first costmap and paths (<code>.npz</code>) and mission logs; your runs never overwrite them</td>
+</tr>
+<tr>
+<td><code>tests/</code></td>
+<td>unit tests for <code>tuning.py</code> and <code>make_params.py</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>A run needs a fresh stack because the robot has to start on A. Each run therefore restarts the simulator, which is most of
+the hour.</p>
+<h2 id="task-1-prepare-the-settings">Task 1: Prepare the settings</h2>
+<h3 id="11-run-the-unit-tests">1.1 Run the unit tests</h3>
+<p>Objective: know that the formula, the map reader and the parameter writer are right before you trust any number.</p>
+<pre><code class="language-bash">python3 -m pytest -q projects/p12_tune-nav2
+</code></pre>
+<pre><code>..........                                                               [100%]
+10 passed in 0.73s
+</code></pre>
+<p>The tests check the inflation formula against chapter 10's number (cost 172 at 0.425 m from an obstacle), that the
+arena map is read the right way up (an obstacle at the brick box centre (1.0, 0.0), free space at A), that the body
+clearance depends on heading, that <code>make_params.py</code> changes only what a setting names, and that my recorded polygon
+costmap matches the formula with the padded inscribed radius of Task 1.3.</p>
+<p>Check: <code>10 passed</code>.</p>
+<h3 id="12-write-the-parameter-files">1.2 Write the parameter files</h3>
+<p>Objective: one Nav2 params file per setting, each differing from the stack's file only in what the setting names.</p>
+<pre><code class="language-bash">python3 projects/p12_tune-nav2/make_params.py
+</code></pre>
+<pre><code>params/base.yaml: unchanged
+params/infl_r045.yaml: inflation_radius=0.45
+params/infl_r150.yaml: inflation_radius=1.5
+params/scale_1.yaml: cost_scaling_factor=1.0
+params/scale_10.yaml: cost_scaling_factor=10.0
+params/polygon.yaml: footprint=[[0.325, 0.15], [0.325, -0.15], [-0.325, -0.15], [-0.325, 0.15]]
+params/smac_mppi.yaml: footprint=[[0.325, 0.15], [0.325, -0.15], [-0.325, -0.15], [-0.325, 0.15]], nav2_smac_planner/SmacPlannerHybrid, nav2_mppi_controller::MPPIController
+params/polygon_norot.yaml: footprint=[[0.325, 0.15], [0.325, -0.15], [-0.325, -0.15], [-0.325, 0.15]], {'use_rotate_to_heading': False}
+</code></pre>
+<p>Each change goes into both the local and the global costmap. The polygon is the 0.65 × 0.30 m body from chapter 10,
+centred on <code>base_footprint</code>. <code>smac_mppi</code> keeps the polygon, so compare it with <code>polygon</code>, not with <code>base</code>: then only the
+planner and the controller differ. <code>polygon_norot</code> is for Task 4.</p>
+<p>Check: <code>diff projects/p12_tune-nav2/params/polygon.yaml src/go2_nav_sim/config/nav2_params.yaml</code> shows only the
+<code>footprint</code> / <code>robot_radius</code> lines, twice.</p>
+<h3 id="13-predict-the-costmaps-before-you-run">1.3 Predict the costmaps before you run</h3>
+<p>Objective: write down the cost each setting gives a cell at a few distances from an obstacle.</p>
+<p>Nav2's inflation layer gives a cell at distance d from the nearest obstacle cell a cost that depends on three numbers (see
+<a href="#how-the-code-works">How the code works</a>). <code>tuning.inflation_cost</code> is that formula. Evaluate it at a few distances:</p>
+<pre><code class="language-bash">cd projects/p12_tune-nav2
+python3 -c &quot;
+from tuning import inflation_cost as c
+for lab,ins,r,k in [('r0.45 k4',.33,.45,4),('r0.75 k4',.33,.75,4),('r1.50 k4',.33,1.5,4),('r0.75 k1',.33,.75,1),('r0.75 k10',.33,.75,10),('polygon r0.75 k4',.16,.75,4)]:
+  print(lab, [c(d,ins,r,k) for d in (0.2,0.43,0.6,1.0,1.4)])
+&quot;
+cd ../..
+</code></pre>
+<pre><code>r0.45 k4 [253, 168, 0, 0, 0]
+r0.75 k4 [253, 168, 85, 0, 0]
+r1.50 k4 [253, 168, 85, 17, 3]
+r0.75 k1 [253, 228, 192, 0, 0]
+r0.75 k10 [253, 92, 16, 0, 0]
+polygon r0.75 k4 [214, 85, 43, 0, 0]
+</code></pre>
+<p>0.43 m is the middle of the narrowest gap in the arena (0.86 m, chapter 10). Read the table as a prediction:</p>
+<ul>
+<li>The radius only decides where the field is cut off. Up to 0.45 m all three radii give the same cost.</li>
+<li>Scale 1 makes every cell within 0.6 m of an obstacle cost 192 or more (165 at 0.75 m), so the whole middle of the
+  arena is expensive.</li>
+<li>The polygon's inscribed radius is 0.16 m: half the body width, 0.15 m, plus Nav2's <code>footprint_padding</code> of 0.01 m (Task
+  2.1). The "centre in collision" band (253) shrinks from 0.33 m to 0.16 m and every cost drops. Without the padding the
+  prediction is 206 at 0.2 m; my recorded polygon costmap holds 209 to 214 there.</li>
+</ul>
+<p><img loading="lazy" alt="Inflation cost against distance for the six costmap settings" src="figures/inflation_profile.png" /></p>
+<p><em>Nav2's inflation cost against distance from the nearest obstacle cell. At or above the red line (253) the robot centre
+counts as in collision and NavFn will not plan through.</em></p>
+<p>Check: <code>r0.75 k4</code> at 0.43 m is 168, close to chapter 10's 172 at 0.425 m.</p>
+<h2 id="task-2-inspect-the-footprint-nav2-uses">Task 2: Inspect the footprint Nav2 uses</h2>
+<h3 id="21-read-the-footprint-from-a-running-costmap">2.1 Read the footprint from a running costmap</h3>
+<p>Objective: confirm that the costmap uses the polygon, with its padding, and that NavFn is still the planner.</p>
+<pre><code class="language-bash">projects/p12_tune-nav2/up_tuned.sh projects/p12_tune-nav2/params/polygon.yaml
+ros2 param get /global_costmap/global_costmap footprint
+ros2 param get /global_costmap/global_costmap robot_radius
+ros2 param get /global_costmap/global_costmap footprint_padding
+ros2 topic echo --once /global_costmap/published_footprint
+ros2 param get /planner_server GridBased.plugin
+</code></pre>
+<pre><code>stack: ROS_DOMAIN_ID=42 GAZEBO_MASTER_URI=http://localhost:11345 params=.../go2-nav-sim/projects/p12_tune-nav2/params/polygon.yaml
+stack up
+String value is: [[0.325, 0.15], [0.325, -0.15], [-0.325, -0.15], [-0.325, 0.15]]
+Double value is: 0.1
+Double value is: 0.009999999776482582
+header:
+  stamp:
+    sec: 27
+    nanosec: 46000000
+  frame_id: map
+polygon:
+  points:
+  - x: -4.18604040145874
+    y: -3.302074670791626
+    z: 0.0
+  - x: -4.1908860206604
+    y: -3.622037887573242
+    z: 0.0
+  - x: -4.860809326171875
+    y: -3.6118922233581543
+    z: 0.0
+  - x: -4.855963230133057
+    y: -3.291928768157959
+    z: 0.0
+---
+String value is: nav2_navfn_planner/NavfnPlanner
+</code></pre>
+<p><code>robot_radius</code> reads 0.1, Nav2's default: once <code>footprint</code> is set the radius is ignored. The published footprint is
+0.67 × 0.32 m in the <code>map</code> frame around A: the body plus the 0.01 m <code>footprint_padding</code> on each side.</p>
+<p>Check: the corners are about 0.67 m apart in x and 0.32 m in y.</p>
+<h3 id="22-check-the-live-costmaps-grid">2.2 Check the live costmap's grid</h3>
+<p>Objective: know the grid the predictions of Task 1.3 are drawn on.</p>
+<pre><code class="language-bash">ros2 topic echo --once /global_costmap/costmap --field info --qos-durability transient_local --qos-reliability reliable
+bash scripts/stop.sh
+</code></pre>
+<pre><code>map_load_time:
+  sec: 0
+  nanosec: 0
+resolution: 0.05000000074505806
+width: 260
+height: 220
+origin:
+  position:
+    x: -6.5
+    y: -5.5
+...
+</code></pre>
+<p>A 13 × 11 m grid of 5 cm cells. At this resolution the band between 0.16 m and 0.33 m that the polygon frees is three to
+four cells wide. To look at the costmap itself, run <code>rviz2 -d src/go2_nav_sim/rviz/go2.rviz --ros-args -p
+use_sim_time:=true</code> as in chapter 10 before <code>stop.sh</code>: its <code>GlobalCostmap</code> display shows this topic. <code>score.py</code> records
+the same costmap as <code>costmap_raw</code>, and Task 3.3 draws it for every setting.</p>
+<p>Check: <code>resolution</code> 0.05 and <code>width</code> 260.</p>
+<h2 id="task-3-score-the-settings">Task 3: Score the settings</h2>
+<h3 id="31-one-scored-run-by-hand">3.1 One scored run by hand</h3>
+<p>Objective: one A-to-B run on the stack's own settings, scored from its bag.</p>
+<pre><code class="language-bash">projects/p12_tune-nav2/run_ab.sh base ~/p12_runs/try/base_1
+</code></pre>
+<p><code>run_ab.sh</code> starts a fresh stack on <code>params/base.yaml</code>, records a bag without images (<code>/clock /tf /tf_static /odom
+/odom_gt /amcl_pose /plan /cmd_vel /global_costmap/costmap_raw</code>, 36 MB for one run), runs <code>go_to_goal.py</code> (AMCL started
+from the true pose, then a goal at B), publishes a zero <code>/cmd_vel</code> so the robot stops, closes the bag and scores it.
+<code>scripts/record_bag.sh</code> is not used here: it records the cameras (about 8 MB/s) and not the costmap. My first run:</p>
+<pre><code>stack: ROS_DOMAIN_ID=42 GAZEBO_MASTER_URI=http://localhost:11345 params=.../go2-nav-sim/projects/p12_tune-nav2/params/base.yaml
+stack up
+[INFO] [...] [basic_navigator]: goal -&gt; (4.00, 3.00, yaw 0.65)
+[INFO] [...] [basic_navigator]: Navigating to goal: 4.0 3.0...
+[INFO] [...] [basic_navigator]: distance remaining 11.35 m, recoveries 0
+...
+[INFO] [...] [basic_navigator]: distance remaining 0.32 m, recoveries 0
+RESULT SUCCEEDED  sim_time 55.2 s  ground-truth final error 0.24 m  final pos (3.77, 2.91)
+{&quot;setting&quot;: &quot;base&quot;, &quot;run&quot;: &quot;base_1&quot;, &quot;result&quot;: &quot;SUCCEEDED&quot;, &quot;nav_time_s&quot;: 55.2, &quot;recoveries&quot;: 0, &quot;duration_s&quot;: 65.9, &quot;path_m&quot;: 11.61, &quot;mean_speed_ms&quot;: 0.176, &quot;odom_ate_aligned_cm&quot;: 1.2, &quot;odom_ate_anchored_cm&quot;: 1.3, &quot;odom_final_err_cm&quot;: 3.8, &quot;odom_drift_pct&quot;: 0.33, &quot;odom_rpe_1m_pct&quot;: 1.6, &quot;amcl_rmse_cm&quot;: 9.4, &quot;amcl_max_cm&quot;: 21.9, &quot;amcl_updates&quot;: 171, &quot;goal_error_m&quot;: 0.24, &quot;goal_tolerance_m&quot;: 0.25, &quot;leave_A_s&quot;: 9.0, &quot;plans&quot;: 83, &quot;first_plan_m&quot;: 11.35, &quot;min_centre_clearance_m&quot;: 0.636, &quot;min_body_clearance_m&quot;: 0.424, &quot;first_plan_min_clearance_m&quot;: 0.602}
+</code></pre>
+<p>The fields from <code>duration_s</code> to <code>goal_tolerance_m</code> are <code>bag_metrics.py</code>'s; the rest are <code>score.py</code>'s. You can score any
+bag again without the simulator: <code>python3 projects/p12_tune-nav2/score.py ~/p12_runs/try/base_1 --setting base</code>.</p>
+<p>Check: <code>RESULT SUCCEEDED</code>, <code>nav_time_s</code> between about 50 and 70, and <code>~/p12_runs/try/base_1.json</code> exists.</p>
+<h3 id="32-run-every-setting-three-times">3.2 Run every setting three times</h3>
+<p>Objective: 21 scored runs, interleaved so that a slow spell on the machine is spread over all settings.</p>
+<pre><code class="language-bash">projects/p12_tune-nav2/run_all.sh
+</code></pre>
+<p>It runs round 1 of all seven settings, then round 2, then round 3. A stack that does not come up is retried; a run that
+does not reach B would be kept as a result. My log:</p>
+<pre><code>base run 1: RESULT SUCCEEDED  sim_time 55.2 s  ground-truth final error 0.24 m  final pos (3.77, 2.91)
+infl_r045 run 1: RESULT SUCCEEDED  sim_time 54.9 s  ground-truth final error 0.26 m  final pos (3.83, 2.81)
+infl_r150 run 1: RESULT SUCCEEDED  sim_time 68.7 s  ground-truth final error 0.33 m  final pos (3.84, 2.72)
+scale_1 run 1: RESULT SUCCEEDED  sim_time 115.3 s  ground-truth final error 0.23 m  final pos (3.92, 2.78)
+scale_10 run 1: RESULT SUCCEEDED  sim_time 58.3 s  ground-truth final error 0.29 m  final pos (3.81, 2.79)
+polygon run 1: RESULT SUCCEEDED  sim_time 54.9 s  ground-truth final error 0.26 m  final pos (3.76, 2.88)
+smac_mppi run 1: stack did not come up (attempt 1): TIMEOUT waiting for: gazebo
+smac_mppi run 1: RESULT SUCCEEDED  sim_time 49.9 s  ground-truth final error 0.23 m  final pos (3.78, 2.95)
+base run 2: RESULT SUCCEEDED  sim_time 67.0 s  ground-truth final error 0.28 m  final pos (3.85, 2.76)
+...
+smac_mppi run 3: RESULT SUCCEEDED  sim_time 50.7 s  ground-truth final error 0.19 m  final pos (3.82, 2.97)
+</code></pre>
+<p>The full log is 22 lines; all 21 runs reached B. <code>ground-truth final error</code> is at most 0.33 m because Nav2 stops within
+its 0.25 m <code>xy_goal_tolerance</code> of where AMCL thinks the robot is, and AMCL is off by about 0.1 m.</p>
+<p>Everything stays in <code>~/p12_runs/all/</code>: bags, <code>.json</code>, <code>.npz</code> and the mission logs (<code>.log</code>). <code>results/</code> keeps my runs, so
+you can compare yours with them. To replace mine with yours, run it with <code>P12_COPY_RESULTS=1</code>.</p>
+<p>Check: 21 <code>.json</code> files in <code>~/p12_runs/all/</code>. Interrupted? Run it again: scored runs are skipped.</p>
+<h3 id="33-make-the-table-and-the-figures">3.3 Make the table and the figures</h3>
+<p>Objective: one table row per setting over its three runs, and the costmap and paths of each setting side by side.</p>
+<pre><code class="language-bash">python3 projects/p12_tune-nav2/plot.py --dir ~/p12_runs/all
+</code></pre>
+<p>It prints the table of <a href="#results">Results</a> for your runs and writes <code>inflation_sweep.png</code>, <code>footprint_planners.png</code>,
+<code>inflation_profile.png</code> and <code>start.png</code> into <code>~/p12_runs/all/</code>. Without <code>--dir</code> it reads my runs in <code>results/</code> and
+rewrites <code>figures/</code>.</p>
+<p><img loading="lazy" alt="Global costmap and paths for the inflation radius sweep (top) and the cost scaling sweep (bottom)" src="figures/inflation_sweep.png" /></p>
+<p><em>The first global costmap of run 1 for each setting (grey = cost, red = the 253 contour), the first plan (amber) and
+the three walked paths (grey). Top: radius 0.45, 0.75, 1.50 m at scale 4. Bottom: scale 1, 4, 10 at radius 0.75 m.</em></p>
+<p>Check: in the scale 1 panel two of the three walked paths leave along the south wall and come up the east side to B,
+while the first plan goes through the middle.</p>
+<h2 id="task-4-test-the-explanation">Task 4: Test the explanation</h2>
+<h3 id="41-run-rpp-without-the-turn-on-the-spot">4.1 Run RPP without the turn on the spot</h3>
+<p>Objective: check whether the time lost at A comes from RPP turning on the spot.</p>
+<p><a href="#what-the-numbers-say">Results</a> shows that the NavFn + RPP runs lose their time standing at A while RPP is in its
+rotate-to-heading mode. If that is the cause, switching the mode off should remove most of the difference to MPPI:</p>
+<pre><code class="language-bash">SETTINGS=polygon_norot projects/p12_tune-nav2/run_all.sh
+</code></pre>
+<pre><code>polygon_norot run 1: RESULT SUCCEEDED  sim_time 52.0 s  ground-truth final error 0.27 m  final pos (3.80, 2.83)
+polygon_norot run 2: RESULT SUCCEEDED  sim_time 53.0 s  ground-truth final error 0.25 m  final pos (3.84, 2.80)
+polygon_norot run 3: RESULT SUCCEEDED  sim_time 52.0 s  ground-truth final error 0.25 m  final pos (3.82, 2.83)
+</code></pre>
+<p>Check: three <code>polygon_norot_*.json</code> files in <code>~/p12_runs/all/</code>.</p>
+<h3 id="42-compare-it-with-the-other-settings">4.2 Compare it with the other settings</h3>
+<p>Objective: put the new setting in the same table.</p>
+<pre><code class="language-bash">python3 projects/p12_tune-nav2/plot.py --dir ~/p12_runs/all
+</code></pre>
+<p>Check: the table gains the row <code>polygon, RPP without rotate-to-heading</code> with "Leaving A" under 8 s in all three runs.</p>
+<h2 id="how-the-code-works">How the code works</h2>
+<p><strong>The inflation cost.</strong> <code>tuning.inflation_cost</code> is <code>InflationLayer::computeCost</code> from Nav2 Humble:</p>
+<pre><code class="language-python">def inflation_cost(d, inscribed, radius, scale):
+    if d &lt;= 0.0:
+        return LETHAL                       # 254: the obstacle cell itself
+    if d &lt;= inscribed:
+        return INSCRIBED                    # 253: the robot centre here means a collision
+    if d &gt; radius:
+        return 0
+    return int((INSCRIBED - 1) * math.exp(-scale * (d - inscribed)))
+</code></pre>
+<p>So for inscribed radius r_i &lt; d ≤ <code>inflation_radius</code>, cost = 252 · exp(−<code>cost_scaling_factor</code> · (d − r_i)). The inscribed
+radius is <code>robot_radius</code> for a circle, and the distance from the centre to the nearest edge of the padded footprint for a
+polygon (0.15 + 0.01 = 0.16 m here; a fit to the recorded costmap gives a mean cost error of 1.0 with 0.16 m against 4.8
+with 0.15 m). NavFn treats every cell of 253 or more as an obstacle and otherwise adds the cost to the path length, so a
+higher cost pushes the path towards the middle of a gap, and a high cost everywhere makes the planner weigh long detours
+against short expensive routes.</p>
+<p><strong>Changing one thing.</strong> <code>make_params.make</code> copies the stack's parameter dictionary and edits only the named keys:</p>
+<pre><code class="language-python">for cm in ('local_costmap', 'global_costmap'):
+    q = P[cm][cm]['ros__parameters']
+    if radius is not None:
+        q['inflation_layer']['inflation_radius'] = radius
+    ...
+    if footprint is not None:
+        q.pop('robot_radius'); q['footprint'] = footprint
+</code></pre>
+<p>Smac Hybrid-A* replaces the <code>GridBased</code> planner block and MPPI the <code>FollowPath</code> block. The values that matter for a
+comparison with RPP are kept equal: MPPI's <code>vx_max</code> 0.25 m/s and <code>wz_max</code> 0.5 rad/s are RPP's <code>desired_linear_vel</code> and
+the velocity smoother's <code>max_velocity</code>, and <code>motion_model: DiffDrive</code> keeps MPPI from using sideways steps RPP cannot
+command. Smac's <code>minimum_turning_radius</code> is 0.3 m: the Go2 can turn on the spot, and 0.3 m keeps the search small.</p>
+<p><strong>The metrics.</strong> <code>score.py</code> reads the bag once. The time to leave A is measured from the first <code>/plan</code> (header stamp,
+simulated time) to the first <code>/odom_gt</code> pose 1 m from A:</p>
+<pre><code class="language-python">away = np.hypot(gt[:, 0] - A[0], gt[:, 1] - A[1]) &gt; 1.0
+res['leave_A_s'] = round(float(gt_t[np.argmax(away)] - plan0_t), 1)
+</code></pre>
+<p>The clearances use <code>src/go2_nav_sim/maps/arena.pgm</code>, not the costmap: a distance transform gives the distance from every
+free cell to the nearest obstacle cell, looked up at the true robot centre (centre clearance) and at points every 2.5 cm
+along the 0.65 × 0.30 m body outline rotated by the true heading (body clearance), at 10 Hz. Both are minima over the
+whole run.</p>
+<p><strong>Keeping the reference runs.</strong> <code>run_all.sh</code> writes only to its runs directory. Its last line copies into <code>results/</code>
+only when you ask:</p>
+<pre><code class="language-bash">[ &quot;${P12_COPY_RESULTS:-0}&quot; = 1 ] || exit 0
+</code></pre>
+<h2 id="results">Results</h2>
+<pre><code class="language-bash">python3 projects/p12_tune-nav2/plot.py
+</code></pre>
+<p>Mean over 3 runs, (min-max) in brackets. "Leaving A" is from the first plan until the robot is 1 m from A; "rest of the
+way" is navigation time minus that. Recoveries are summed over the 3 runs.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Reached B</th>
+<th>Nav time, s</th>
+<th>Leaving A, s</th>
+<th>Rest of the way, s</th>
+<th>True path, m</th>
+<th>First plan, m</th>
+<th>Min centre clearance, m</th>
+<th>Min body clearance, m</th>
+<th>Recoveries</th>
+<th>AMCL RMSE, cm</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>r 0.45, scale 4</td>
+<td>3/3</td>
+<td>55.0 (54.9-55.1)</td>
+<td>9.5 (9.1-10.0)</td>
+<td>45.5 (45.1-45.9)</td>
+<td>11.44 (11.42-11.46)</td>
+<td>11.18 (11.15-11.20)</td>
+<td>0.50 (0.46-0.53)</td>
+<td>0.35 (0.32-0.36)</td>
+<td>0</td>
+<td>8.2 (7.7-9.1)</td>
+</tr>
+<tr>
+<td>r 0.75, scale 4 (stack)</td>
+<td>3/3</td>
+<td>62.1 (55.2-67.0)</td>
+<td>15.8 (9.0-20.4)</td>
+<td>46.3 (46.1-46.6)</td>
+<td>12.10 (11.61-12.40)</td>
+<td>11.47 (11.35-11.56)</td>
+<td>0.61 (0.60-0.64)</td>
+<td>0.44 (0.42-0.46)</td>
+<td>0</td>
+<td>9.1 (8.4-9.4)</td>
+</tr>
+<tr>
+<td>r 1.50, scale 4</td>
+<td>3/3</td>
+<td>67.9 (55.4-79.6)</td>
+<td>21.3 (8.4-33.0)</td>
+<td>46.6 (46.2-47.0)</td>
+<td>12.73 (11.65-13.77)</td>
+<td>11.34 (11.33-11.35)</td>
+<td>0.61 (0.60-0.64)</td>
+<td>0.44 (0.40-0.46)</td>
+<td>1</td>
+<td>12.5 (9.6-16.6)</td>
+</tr>
+<tr>
+<td>r 0.75, scale 1</td>
+<td>3/3</td>
+<td>117.3 (63.6-172.9)</td>
+<td>16.8 (9.2-24.1)</td>
+<td>100.5 (46.5-148.8)</td>
+<td>17.62 (12.29-22.23)</td>
+<td>11.49 (11.46-11.51)</td>
+<td>0.73 (0.57-0.81)</td>
+<td>0.57 (0.40-0.66)</td>
+<td>7</td>
+<td>12.3 (9.1-15.9)</td>
+</tr>
+<tr>
+<td>r 0.75, scale 10</td>
+<td>3/3</td>
+<td>56.0 (53.4-58.3)</td>
+<td>10.3 (7.6-12.9)</td>
+<td>45.7 (45.4-46.0)</td>
+<td>11.63 (11.38-11.85)</td>
+<td>11.46 (11.34-11.52)</td>
+<td>0.62 (0.60-0.64)</td>
+<td>0.46 (0.46-0.46)</td>
+<td>0</td>
+<td>8.6 (7.3-9.9)</td>
+</tr>
+<tr>
+<td>polygon footprint</td>
+<td>3/3</td>
+<td>55.4 (54.5-56.8)</td>
+<td>9.4 (8.4-10.8)</td>
+<td>46.0 (45.8-46.1)</td>
+<td>11.57 (11.53-11.62)</td>
+<td>11.56 (11.37-11.68)</td>
+<td>0.63 (0.63-0.64)</td>
+<td>0.45 (0.43-0.46)</td>
+<td>0</td>
+<td>10.2 (8.3-12.0)</td>
+</tr>
+<tr>
+<td>Smac Hybrid-A* + MPPI, polygon</td>
+<td>3/3</td>
+<td>50.4 (49.9-50.7)</td>
+<td>5.1 (4.9-5.2)</td>
+<td>45.3 (45.0-45.5)</td>
+<td>11.33 (11.32-11.34)</td>
+<td>11.24 (11.21-11.27)</td>
+<td>0.58 (0.57-0.60)</td>
+<td>0.41 (0.39-0.42)</td>
+<td>0</td>
+<td>12.0 (9.9-14.4)</td>
+</tr>
+<tr>
+<td>polygon, RPP without rotate-to-heading</td>
+<td>3/3</td>
+<td>52.3 (52.0-53.0)</td>
+<td>6.6 (6.2-7.1)</td>
+<td>45.7 (45.5-45.9)</td>
+<td>11.32 (11.27-11.39)</td>
+<td>11.51 (11.28-11.62)</td>
+<td>0.64 (0.64-0.64)</td>
+<td>0.46 (0.45-0.46)</td>
+<td>0</td>
+<td>8.1 (7.1-9.7)</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="what-the-numbers-say">What the numbers say</h3>
+<p><strong>Most of the spread is at A, not on the way.</strong> Apart from scale 1, "rest of the way" is 45.0 to 47.0 s for every run of
+every setting. The navigation time differs because of the first metre. In 7 of the 18 NavFn + RPP runs leaving A took
+more than 12 s (up to 33.0 s); with MPPI it took 4.9 to 5.2 s every time. The plan leaves A at about 60 degrees, the robot
+faces 0 degrees, and RPP first turns on the spot (<code>use_rotate_to_heading</code>: the heading error is above
+<code>rotate_to_heading_min_angle</code>, 0.6 rad). In the slow base run 2, <code>/cmd_vel</code> in the bag shows zero forward speed for the
+first 14 s after the first command, apart from 0.8 s at 2.6 to 3.4 s. In that time <code>angular.z</code> keeps changing sign: from
+6 to 14 s it swings between −0.26 and +0.32 rad/s, its median over each 2 s is 0.04 to 0.11 rad/s, and the robot's
+heading creeps from about 8 to 19 degrees. Only from 14 to 16 s does the command stay positive (median 0.28 rad/s); the
+heading goes from 18 to 54 degrees and the robot walks off at 0.16 to 0.25 m/s. So RPP's rotate command averages a small
+rate around which it oscillates, and the robot barely turns. Why the command changes sign I did not isolate. MPPI walks
+forward while it turns, so it never stands and turns.</p>
+<p><img loading="lazy" alt="Heading and distance from A for the first 30 s after the first plan" src="figures/start.png" /></p>
+<p><em>Heading (left) and distance from A (right), ground truth, for the 3 runs of the stack's settings (grey), the polygon with
+NavFn + RPP (black dashed) and Smac + MPPI (black dotted). Two grey runs stay between −8 and 15 degrees for about 10 s
+before they turn.</em></p>
+<p>The start stall makes single runs misleading. <code>base</code> (62.1 s) looks slower than <code>polygon</code> (55.4 s), but its rest of the way
+is 46.3 against 46.0 s; the difference is two stalls at A. Compare settings on "rest of the way" and clearances, and on
+how often they stall, not on one navigation time.</p>
+<p><strong>Inflation radius.</strong> Going from 0.75 to 0.45 m cut the minimum body clearance from 0.44 to 0.35 m and saved 0.8 s on the
+way. Going from 0.75 to 1.50 m changed neither (0.44 m, 46.6 s) and had the one recovery among the radius runs, during a
+33 s stall at A (the progress checker wants 0.2 m in 20 s). The plans already pass through the middle of every gap with
+0.75 m; a field reaching further out has nothing left to push.</p>
+<p><strong>Cost scaling factor.</strong> Scale 1 is the one setting that clearly failed: 7 recoveries, 2 of 3 runs over 100 s, a true path
+up to 22.2 m for an 11.5 m plan. With every cell within 0.6 m of an obstacle costing 192 or more, the planner's two
+routes, the 11.5 m middle route and a 15.3 m route along the south wall, cost about the same, and the replanned path (once
+a second) switched between them while the robot walked (you can see it in <code>/plan</code> in the bag of run 1: the plans of
+11.46 m and 15.33 m alternate in the first 5 s). On that route it reached B heading north (81 and 88 degrees against the
+goal's 37) and then stayed within 0.35 m of B, on the edge of the 0.25 m tolerance, for 49 s (run 1) and 93 s (run 3),
+where all 7 recoveries happened. Scale 10 against 4: 0.46 against 0.44 m body clearance and 45.7 against 46.3 s on the
+way. That is within the run-to-run spread.</p>
+<p><strong>Polygon against circle, NavFn + RPP.</strong> No measurable difference: 0.45 against 0.44 m body clearance, 46.0 against
+46.3 s on the way, first plans within 0.1 m of each other. This is what the tuning guide says to expect. NavFn is a
+holonomic planner: it plans for a point and only sees the footprint through the inscribed-radius band, which the polygon
+makes thinner (0.16 m instead of 0.33 m). RPP uses the footprint only for its collision check along the path ahead.</p>
+<p><img loading="lazy" alt="Footprint and planner comparison: body outlines along the walked path in the two narrowest passages" src="figures/footprint_planners.png" /></p>
+<p><em>The narrowest part of the route, run 1 of each setting, with the body outline (teal) every 3 s. Left: the stack (circle
+0.33 m). Middle: polygon, NavFn + RPP. Right: polygon, Smac Hybrid-A</em> + MPPI.*</p>
+<p><strong>Smac Hybrid-A* + MPPI against NavFn + RPP, both with the polygon.</strong> 50.4 s against 55.4 s, with a 0.8 s spread against
+2.3 s. 4.3 s of the 5.0 s is the start (5.1 against 9.4 s), 0.7 s is the way (45.3 against 46.0 s). The path is shorter
+(11.33 against 11.57 m) and runs closer to obstacles: 0.41 against 0.45 m body clearance. AMCL was 1.8 cm worse
+(12.0 against 10.2 cm), which this comparison cannot explain; 3 runs are too few to call it an effect. In
+one more pair of runs, kept as <code>results/smac_check.nav.log</code> and <code>results/polygon_check.nav.log</code> (Nav2's log, which
+<code>up_tuned.sh</code> otherwise overwrites every run), the planner server warned <code>Planner loop missed its desired rate of
+20.0000 Hz. Current loop rate is 14.2857 Hz</code> once with Smac and never with NavFn. CPU use was not measured.</p>
+<p><strong>The follow-up (Task 4).</strong> With RPP's turn on the spot switched off, NavFn + RPP left A in 6.2 to 7.1 s and needed
+52.3 s (52.0-53.0) in all, against 55.4 s with the turn and 50.4 s for Smac + MPPI. Its body clearance, 0.46 m, is as
+large as any setting's except scale 1 (0.57 m), against 0.41 m for MPPI, and its AMCL error, 8.1 cm, was the lowest of
+all settings. So about 3 of the 5 s that MPPI gained came from not standing to turn, which a one-line RPP change also
+gets. The price is not in this table: without the turn RPP walks an arc to face the path, which needs room; from A the
+plan's first leg is only about 60 degrees off the robot's heading, and a goal behind the robot was not tested.</p>
+<h3 id="recommendation">Recommendation</h3>
+<p>For this arena and this robot, from these 24 runs:</p>
+<ol>
+<li>Keep <code>inflation_radius</code> 0.75 m and <code>cost_scaling_factor</code> 4.0. Smaller radius costs 9 cm of body clearance; larger radius
+   and larger scale changed nothing measurable.</li>
+<li>Never lower <code>cost_scaling_factor</code> towards 1 here: it is the only costmap change that cost runs (7 recoveries, up to
+   172.9 s).</li>
+<li>Use the polygon footprint only together with a planner or controller that uses it (the Smac Hybrid-A* planner, or the
+   MPPI controller with <code>consider_footprint</code>). With NavFn the polygon changed nothing.</li>
+<li>Keep NavFn + RPP and set RPP's <code>use_rotate_to_heading: false</code>. It removed the stalls at A (leaving A 6.2 to 7.1 s
+   against 7.6 to 33.0 s over 18 runs with the turn), kept 0.46 m of body clearance and needed no new plugins. Smac
+   Hybrid-A* + MPPI was 1.9 s faster still (50.4 against 52.3 s) but passed 5 cm closer to obstacles; that trade is not
+   worth making in this arena. To win the clearance back with MPPI, its <code>CostCritic.cost_weight</code> (3.81 here) is the
+   first parameter to raise; I did not run that.</li>
+</ol>
+<p>All four points rest on 3 runs per setting, one start and one goal. Before changing <code>config/nav2_params.yaml</code> for
+everyone, repeat point 4 with goals behind the robot, where the turn on the spot is the safer way to face the path.</p>
+<h3 id="how-this-follows-the-nav2-tuning-guide">How this follows the Nav2 tuning guide</h3>
+<p>The guide (Further reading) makes three points that this project tests:</p>
+<ul>
+<li>It recommends a wide, smooth inflation field (larger radius and scale together) so robots stay in the middle of spaces.
+  Here the stack's 0.75 m already kept the centre 0.60 to 0.64 m from obstacles; wider fields added nothing in an arena
+  whose narrowest gap is 0.86 m, and the flat field of scale 1 made routes compete instead of guiding the robot.</li>
+<li>It says <code>robot_radius</code> is right for circular robots and for holonomic planners such as NavFn, which ignore an SE2
+  footprint anyway. The polygon with NavFn measured the same as the circle.</li>
+<li>Its table of plugins by robot type lists legged robots under Smac Hybrid-A* (planner) and MPPI and RPP (controllers).
+  Both controllers reached B 3 of 3 times here. The guide's rotate-in-place section covers the other finding: how a
+  controller turns towards the path matters, and here RPP's turn on the spot is where the NavFn + RPP runs lost their time.</li>
+</ul>
+<h2 id="exercise">Exercise</h2>
+<p>How many of the 18 NavFn + RPP runs with the turn on the spot (every setting except <code>smac_mppi</code> and <code>polygon_norot</code>)
+took more than 12 s to leave A? Use the <code>.json</code> files, not the table.</p>
+<p>Answer:</p>
+<pre><code class="language-bash">python3 -c &quot;
+import json, glob
+R = [json.load(open(f)) for f in glob.glob('projects/p12_tune-nav2/results/*.json')]
+R = [r for r in R if r['setting'] not in ('smac_mppi', 'polygon_norot')]
+print(len(R), sum(r['leave_A_s'] &gt; 12 for r in R), sorted(r['leave_A_s'] for r in R))
+&quot;
+</code></pre>
+<pre><code>18 7 [7.6, 8.4, 8.4, 9.0, 9.1, 9.1, 9.2, 9.3, 10.0, 10.3, 10.8, 12.9, 17.1, 18.1, 20.4, 22.5, 24.1, 33.0]
+</code></pre>
+<p>The values split into a group near 9 s and a group from 12.9 s up, the stalls. Two of the stalls are in <code>base</code>, two in
+<code>infl_r150</code>, two in <code>scale_1</code> and one in <code>scale_10</code>; none in <code>infl_r045</code> or <code>polygon</code>. With 3 runs per setting that
+pattern can be chance, which is why the table's "rest of the way" is the fairer comparison.</p>
+<h2 id="if-it-goes-wrong">If it goes wrong</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Cause</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>TIMEOUT waiting for: gazebo</code> in <code>&lt;run&gt;.out</code></td>
+<td>On a loaded machine <code>gz stats</code> did not answer in time (load average 40 to 99 during these runs)</td>
+<td><code>run_all.sh</code> retries up to 3 times; it needed one retry in 24 runs</td>
+</tr>
+<tr>
+<td><code>&lt;run&gt; already exists (ros2 bag record will not overwrite it)</code></td>
+<td><code>ros2 bag record -o</code> refuses an existing directory</td>
+<td>Use a new name, or delete the old run's directory and files</td>
+</tr>
+<tr>
+<td><code>projects/common/record_cam.py</code> reports <code>0 frames</code></td>
+<td>Best-effort subscription on a loaded machine (project 1 explains)</td>
+<td>Record with <code>projects/p01_first-steps/record.py</code>, which is <code>record_cam.py</code> with a reliable subscription; it wrote 585 frames for the video above</td>
+</tr>
+<tr>
+<td><code>robot_radius</code> reads 0.1 although you set 0.33</td>
+<td>A <code>footprint</code> is set as well, and then Nav2 ignores <code>robot_radius</code></td>
+<td>Set one of the two. <code>make_params.py</code> removes <code>robot_radius</code> when it sets a footprint</td>
+</tr>
+<tr>
+<td><code>Controller period is less then model dt, consider setting it equal</code> from MPPI</td>
+<td><code>model_dt</code> 0.067 s is a little longer than 1/15 Hz = 0.0667 s</td>
+<td>Harmless here; set <code>model_dt</code> to exactly <code>1 / controller_frequency</code> to silence it</td>
+</tr>
+<tr>
+<td>One setting looks much slower from a single run</td>
+<td>A stall at A (see Results), not the setting</td>
+<td>Compare "rest of the way" over 3 runs</td>
+</tr>
+<tr>
+<td><code>plot.py</code> shows a mix of your runs and mine</td>
+<td>You ran it without <code>--dir</code>, or with <code>P12_COPY_RESULTS=1</code> after only some settings</td>
+<td><code>plot.py --dir ~/p12_runs/all</code> reads only your runs</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="further-reading">Further reading</h2>
+<ul>
+<li>Nav2 tuning guide (inflation, footprint against radius, planner and controller per robot type):
+  https://docs.nav2.org/rolling/configuration_and_development/tuning_guide/</li>
+<li>S. Macenski et al., "The Marathon 2: A Navigation System", IROS 2020: https://arxiv.org/abs/2003.00368</li>
+<li><code>AtsushiSakai/PythonRobotics</code>: small Python versions of A<em>, hybrid A</em> and model predictive path following, to read next
+  to the Nav2 plugins.</li>
+</ul><nav class="prevnext" aria-label="Previous and next"><a class="pn" href="../p11_command-arbitration/index.html"><span>Previous</span>Command arbitration</a><a class="pn next" href="../p13_behaviour-trees/index.html"><span>Next</span>Behaviour trees: read, change and write one</a></nav><p class="source">Source: <a href="https://github.com/Armanasq/go2-nav-sim/blob/main/projects/p12_tune-nav2/README.md">projects/p12_tune-nav2/README.md</a></p></article></div>
+</main>
+<footer class="site"><div class="wrap">Simulation only. Source and issues on <a href="https://github.com/Armanasq/go2-nav-sim">GitHub</a>.</div></footer>
+<script type="module" src="../../static/js/site.js"></script>
+</body>
+</html>

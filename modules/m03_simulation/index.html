@@ -1,0 +1,834 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Simulation: controlled physics experiments with analytic answers · go2-nav-sim</title>
+<meta name="description" content="Simulation: controlled physics experiments with analytic answers">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../../static/css/site.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5' fill='%230a6a9c'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"><script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script><script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.querySelector('main'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false})"></script>
+</head>
+<body data-root="../../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar"><div class="inner">
+<a class="brand" href="../../index.html">go2-nav-sim</a>
+<nav aria-label="Main"><a href="../../tutorial/00-overview.html">Learn</a><a href="../../tasks/index.html">Tasks</a><a href="../../modules/index.html" aria-current="page">Deep dives</a><a href="../../reference.html">Reference</a></nav>
+<button class="theme-toggle" type="button" aria-label="Colour theme: auto">auto</button>
+</div></header>
+<main id="main">
+<div class="wrap doc"><details class="side" open><summary>Simulation</summary><nav aria-label="Contents"><ol class="parts"><li class="open"><a class="part" href="../index.html">All deep dives</a><ol><li><a href="../m00_math/index.html"><span class="n">00</span><span>Mathematical foundations</span></a></li><li><a href="../m01_anatomy/index.html"><span class="n">01</span><span>Robot anatomy</span></a></li><li><a href="../m02_description/index.html"><span class="n">02</span><span>Robot description</span></a></li><li><a href="../m03_simulation/index.html" aria-current="page"><span class="n">03</span><span>Simulation</span></a><ul class="sections"><li><a href="#objective">Objective</a></li><li><a href="#prerequisites">Prerequisites</a></li><li><a href="#theory">Theory</a></li><li><a href="#implementation">Implementation</a></li><li><a href="#experiment">Experiment</a></li><li><a href="#validation">Validation</a></li><li><a href="#failure-analysis">Failure analysis</a></li><li><a href="#references">References</a></li></ul></li><li><a href="../m04_kinematics/index.html"><span class="n">04</span><span>Kinematics (single leg)</span></a></li><li><a href="../m06_sensors/index.html"><span class="n">06</span><span>Sensors</span></a></li><li><a href="../m11_state_estimation/index.html"><span class="n">11</span><span>State estimation</span></a></li><li><a href="../m12_perception/index.html"><span class="n">12</span><span>Perception</span></a></li></ol></li></ol></nav></details><article class="prose"><p class="where">Deep dive · module 03</p><h1>Simulation: controlled physics experiments with analytic answers</h1><h2 id="objective">Objective</h2>
+<p>Every later module trusts MuJoCo's answer for how the Go2 moves. This module checks that answer on experiments small enough
+to solve by hand: a falling body, an oscillator, a block on an incline, a body resting on soft ground and a torque-limited
+joint. Each experiment has a closed-form or exactly computable prediction, written out in <code>physics.py</code>, and the measured
+MuJoCo result is compared with it. Where the two differ, the difference is traced to a stated property of the integrator
+or the contact model, and that property is then predicted exactly as well.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Level</th>
+<th>Content</th>
+<th>Applied on the Go2</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Fundamental</td>
+<td>free fall and the exact error of semi-implicit Euler; explicit Euler, semi-implicit Euler, implicit-damping Euler and RK4 written out and compared with the analytic energy factor per step and with MuJoCo's integrators</td>
+<td>the Go2's centre of mass in free fall with the joints moving</td>
+</tr>
+<tr>
+<td>Intermediate</td>
+<td>energy drift against timestep for Euler, implicitfast, implicit and RK4; Coulomb friction on an incline: threshold angle $\arctan\mu$, sliding acceleration, creep below the threshold, pyramidal against elliptic cones</td>
+<td>the tumbling Go2 (energy); a block with the Go2's cone settings (<code>cone="elliptic"</code>, <code>impratio="100"</code>)</td>
+</tr>
+<tr>
+<td>Advanced</td>
+<td>MuJoCo's soft contact written out (solref, solimp, impedance, regulariser, reference acceleration) and checked row by row; steady penetration and creep predicted; actuator saturation against the closed-form torque-limited response</td>
+<td>the Go2's 13 mm foot penetration explained to 0.15%; the Go2 knee on a bench; the Go2 rising from a crouch; the Go2 on a tilting platform</td>
+</tr>
+</tbody>
+</table></div>
+<p>After this module a reader can say what error a given integrator and timestep will put into a trajectory, predict how
+far a MuJoCo contact sinks and how fast it creeps from its <code>solref</code>, <code>solimp</code> and <code>impratio</code>, and recognise a saturated
+actuator from its response.</p>
+<p><img loading="lazy" alt="Tilting platform at 24.1°: the μ = 0.2 block has left the platform, the μ = 0.4 block is sliding, the μ = 0.6 block holds; the Go2's rear feet are at their friction limit" src="media/incline.png" /></p>
+<p><a href="media/incline.mp4">Incline video</a> (18.5 s, 960×540, 652 KB): a 2.4 m platform hinged at 1 m height tilts from 0° to 40° along a
+minimum-jerk profile over 16 s. Three 10 cm blocks with μ = 0.2, 0.4 and 0.6 start sliding at 11.7°, 22.1° and 31.1°
+(predicted $\arctan\mu$: 11.3°, 21.8°, 31.0°). The Go2 stands on the same platform under joint PD; its first foot passes the
+platform's lower edge at 33.8° (<code>platform_go2_foot_past_edge_deg</code>).</p>
+<h2 id="prerequisites">Prerequisites</h2>
+<p><a href="../m02_description/index.html">Module 02</a>: the Menagerie <code>go2.xml</code> that is simulated here, its joint parameters (damping
+2 N m s/rad, armature 0.01 kg m², friction loss 0.2 N m on every joint) and its masses. No code of module 02 is reused;
+nothing there steps the dynamics. <a href="../m01_anatomy/index.html">Module 01</a> derives the mass matrix $M(q)$ used below.
+Maths: ordinary differential equations, the explicit Runge-Kutta family, eigenvalues of a 2×2 matrix, Coulomb friction,
+and constrained optimisation at the level of a first-order optimality condition.</p>
+<h2 id="theory">Theory</h2>
+<p>Notation: $h$ is the timestep, $t = nh$, $g = 9.81$ m/s², $m$ a mass, $q, v$ position and velocity, $M$ the mass matrix.
+MuJoCo's integrators are named as in its XML (<code>Euler</code>, <code>implicitfast</code>, <code>implicit</code>, <code>RK4</code>).</p>
+<h3 id="fundamental-level">Fundamental level</h3>
+<h4 id="free-fall-and-the-error-of-semi-implicit-euler">Free fall and the error of semi-implicit Euler</h4>
+<p>MuJoCo's <code>Euler</code> updates the velocity first and then the position with the new velocity (semi-implicit, or symplectic,
+Euler). Under constant gravity, starting from $z_0, v_0$:</p>
+<p>$$
+v_{k+1} = v_k - g h,\qquad z_{k+1} = z_k + h\,v_{k+1}
+\;\Rightarrow\;
+z_n = z_0 + h\sum_{k=1}^{n}(v_0 - k g h) = z_0 + v_0 t - \tfrac12 g t^2 - \tfrac12 g h t .
+$$</p>
+<p>The velocity is exact and the position carries a first-order offset $-\tfrac12 g h t$, which is $-9.81$ mm after 1 s at
+$h = 2$ ms. The energy error follows exactly:</p>
+<p>$$
+E_n - E_0 = \tfrac12 m (v_0 - g t)^2 + m g z_n - \tfrac12 m v_0^2 - m g z_0 = -\tfrac12 m g^2 h\, t ,
+$$</p>
+<p>so the scheme loses energy linearly in time. RK4 integrates polynomials of degree ≤ 4 in $t$ exactly, so free fall has no
+RK4 error at all.</p>
+<p>For the Go2 in the air, internal joint torques cancel in the total momentum, $m\ddot c = m g$ for the centre of mass $c$.
+The step is linear in $v$, so the momentum update is exact, but $c(q)$ is a nonlinear function of the configuration. The
+COM therefore follows the parabola plus the same $-\tfrac12 g h t$ offset, up to a residual that is itself $O(h)$ when the
+body rotates and the joints move.</p>
+<h4 id="energy-per-step-on-the-harmonic-oscillator">Energy per step on the harmonic oscillator</h4>
+<p>For $\ddot x = -\omega^2 x$ write $u = \omega x$, $z = \omega h$ and $E = \tfrac12(u^2 + v^2)$. One step of each scheme is a
+linear map of $(u, v)$:</p>
+<p>$$
+A_{\rm explicit} = \begin{pmatrix}1 &amp; z\\ -z &amp; 1\end{pmatrix},\qquad
+A_{\rm semi} = \begin{pmatrix}1 - z^2 &amp; z\\ -z &amp; 1\end{pmatrix}.
+$$</p>
+<p>$A_{\rm explicit}^T A_{\rm explicit} = (1 + z^2)\,\mathbb 1$, so explicit Euler multiplies the energy by exactly $1 + z^2$
+every step, from any state. $\det A_{\rm semi} = 1$; semi-implicit Euler conserves the modified energy</p>
+<p>$$
+\tilde E = \tfrac12\left(u^2 + v^2 - z\,u v\right) = \tfrac12\left(v^2 + \omega^2 x^2 - h\omega^2 x v\right).
+$$</p>
+<p>In polar form $u = \rho\cos\varphi$, $v = \rho\sin\varphi$, $\tilde E = \tfrac12\rho^2(1 - \tfrac z2\sin 2\varphi)$, so
+$E = \tilde E / (1 - \tfrac z2 \sin 2\varphi)$ stays in $[\tilde E/(1 + z/2),\ \tilde E/(1 - z/2)]$. Started from rest
+($\tilde E = E_0$), the largest relative energy error is</p>
+<p>$$
+\max_k \left|\frac{E_k}{E_0} - 1\right| = \frac{z/2}{1 - z/2}.
+$$</p>
+<p>It is bounded and does not grow with time. For RK4 write $w = u + i v$. Then $\dot u = \omega v$ and $\dot v = -\omega u$
+give $\dot w = -i\omega\, w$, so one step multiplies $w$ by the stability function $R(\xi) = \sum_{j=0}^{4}\xi^j / j!$ at
+$\xi = \lambda h$ with $\lambda = -i\omega$, that is by $R(-iz)$. $R$ has real coefficients, so $|R(-iz)| = |R(iz)|$ and</p>
+<p>$$
+\frac{E_{k+1}}{E_k} = |R(-iz)|^2 = \left(1 - \tfrac{z^2}{2} + \tfrac{z^4}{24}\right)^2 + \left(z - \tfrac{z^3}{6}\right)^2
+= 1 - \frac{z^6}{72} + \frac{z^8}{576},
+$$</p>
+<p>a slow loss, sixth order in $z$ per step.</p>
+<h4 id="damping-why-mujocos-euler-takes-it-implicitly">Damping: why MuJoCo's Euler takes it implicitly</h4>
+<p>With joint damping $b$, MuJoCo's <code>Euler</code> evaluates the damping force at the new velocity. For one degree of freedom with
+force $f(x)$:</p>
+<p>$$
+(m + h b)\,v_{k+1} = m v_k + h\,f(x_k)
+\quad\Leftrightarrow\quad
+v_{k+1} = v_k + h\,\frac{f(x_k) - b v_k}{m + h b},\qquad x_{k+1} = x_k + h v_{k+1}.
+$$</p>
+<p>For a pure damper ($f = 0$) this gives $v_{k+1} = v_k / (1 + h b/m)$, stable for every $h$. The explicit update
+$v_{k+1} = v_k (1 - h b / m)$ diverges once $h b/m &gt; 2$. <code>implicitfast</code> applies the same treatment to all velocity
+derivatives of passive and actuator forces; on a single slide joint with a damper it is the same update.</p>
+<h3 id="intermediate-level">Intermediate level</h3>
+<h4 id="energy-drift-on-the-go2">Energy drift on the Go2</h4>
+<p>With gravity, damping, friction loss, joint limits and contacts disabled, the only energy of the floating Go2 is
+$T = \tfrac12 v^T M(q)\, v$, and it is conserved. A method of order $p$ has a global error $O(h^p)$, so the maximum drift
+over a fixed time should scale as $h^1$ for the Euler variants and $h^4$ for RK4. Semi-implicit Euler is symplectic only
+for separable Hamiltonians; the configuration-dependent $M(q)$ of a multibody system is not separable, so no bounded-error
+guarantee applies here and first order is the prediction.</p>
+<h4 id="block-on-an-incline">Block on an incline</h4>
+<p>On a plane tilted by $\theta$ with Coulomb coefficient $\mu$, the normal force is $N = m g\cos\theta$ and the block holds
+while the required friction $m g \sin\theta$ fits in the cone $\mu N$:</p>
+<p>$$
+\tan\theta \le \mu \;\Leftrightarrow\; \theta \le \theta^* = \arctan\mu,\qquad
+a = g\,(\sin\theta - \mu\cos\theta)\ \text{ when sliding.}
+$$</p>
+<p>The experiment detects sliding as an acceleration above $a_{\min} = 0.01$ m/s², which places the measured threshold above
+$\theta^*$ by $\delta\theta \approx a_{\min} / (g\sqrt{1+\mu^2})$, from 0.057° at μ = 0.2 to 0.041° at μ = 1.</p>
+<p>MuJoCo's pyramidal cone for <code>condim="3"</code> has the four edges $n \pm \mu t_1$ and $n \pm \mu t_2$. A force
+$f = \sum_j \lambda_j e_j$ with $\lambda_j \ge 0$ has tangential components $\mu(\lambda_1 - \lambda_2)$,
+$\mu(\lambda_3 - \lambda_4)$ and normal component $\sum_j\lambda_j$, so the pyramid is $|f_1| + |f_2| \le \mu f_n$. Its
+friction limit in a direction at angle $\varphi$ from $t_1$ is</p>
+<p>$$
+\mu_{\rm eff}(\varphi) = \frac{\mu}{|\cos\varphi| + |\sin\varphi|},\qquad \mu_{\rm eff}(45°) = \mu/\sqrt2 .
+$$</p>
+<p>The elliptic cone $\sqrt{f_1^2 + f_2^2} \le \mu f_n$ has no such direction dependence.</p>
+<h3 id="advanced-level-the-soft-contact">Advanced level: the soft contact</h3>
+<h4 id="reference-acceleration-impedance-and-regulariser">Reference acceleration, impedance and regulariser</h4>
+<p>MuJoCo does not enforce $J\dot v = 0$ at a contact. For each constraint row with violation $r$ (signed distance minus
+margin, negative in penetration) and velocity $v_r = J v$ it defines a reference acceleration and a regulariser:</p>
+<p>$$
+a_{\rm ref} = -B\, v_r - K\, d(r)\, r,\qquad R = \frac{1 - d(r)}{d(r)}\,\hat A,
+$$</p>
+<p>where $\hat A$ is a diagonal approximation of $J M^{-1} J^T$. For a contact normal on body $b$ it is the body's
+translational inverse weight at the reference configuration $q_0$,</p>
+<p>$$
+\hat A_b = \tfrac13\,\mathrm{tr}\!\left(J_{c,b}\, M(q_0)^{-1} J_{c,b}^T\right),
+$$</p>
+<p>with $J_{c,b}$ the Jacobian of the body's centre of mass. <code>solref = (τ, ζ)</code> sets</p>
+<p>$$
+K = \frac{1}{d_{\max}^2\,\tau^2\,\zeta^2},\qquad B = \frac{2}{d_{\max}\,\tau},\qquad
+\tau \leftarrow \max(\tau, 2h)\ \text{(refsafe, on by default)} ,
+$$</p>
+<p>and <code>solimp = (d_0, d_{\rm width}, w, m_p, p)</code> sets the impedance $d(r) = d_0 + y(x)(d_{\rm width} - d_0)$ with
+$x = |r|/w$ and</p>
+<p>$$
+y(x) = \begin{cases} x^p / m_p^{\,p-1} &amp; x \le m_p\\ 1 - (1-x)^p/(1-m_p)^{p-1} &amp; m_p &lt; x &lt; 1\\ 1 &amp; x \ge 1\end{cases}
+$$</p>
+<p>($d_{\max} = d_{\rm width}$; MuJoCo clamps $d$ to $[10^{-4}, 0.9999]$). These are the quantities MuJoCo stores per row in
+<code>efc_KBIP</code>, <code>efc_R</code> and <code>efc_aref</code>; the experiment compares them one by one.</p>
+<h4 id="steady-penetration">Steady penetration</h4>
+<p>For a row whose force lies inside its cone, the solver's optimality condition gives $J\dot v = a_{\rm ref} - R f$. At rest
+$J\dot v = 0$ and $v_r = 0$, so with the violation $u = -r &gt; 0$:</p>
+<p>$$
+K\, d(u)\, u = \frac{1 - d(u)}{d(u)}\,\hat A f
+\quad\Longleftrightarrow\quad
+K\, d(u)^2\, u = (1 - d(u))\,\hat A\, f ,
+$$</p>
+<p>and the geometric penetration is $u$ minus the contact margin. The left side grows with $u$ and the right side falls, so
+there is one root. With a constant impedance ($d_0 = d_{\rm width} = d$) and a free body ($\hat A = 1/m$, $f = m g$) it
+reduces to $u = (1 - d)\,\tau^2\zeta^2\, g$, independent of the mass: 0.392 mm for $d = 0.9$, $\tau = 0.02$ s.</p>
+<p>Worked example, the Go2's front foot at rest. The Menagerie foot class sets <code>solimp="0.015 1 0.022"</code> (mid 0.5, power 2),
+default <code>solref = (0.02, 1)</code>, margin 1 mm, and the foot geom has <code>priority="1"</code>, so these values are used unmixed. Then
+$d_{\max} = 0.9999$, $K = 2500.5$ s⁻², the calf's $\hat A = 1.767$ kg⁻¹ (<code>go2_invweight_calf</code>) and the measured normal force
+is $f = 33.38$ N. The root is $u = 13.56$ mm with $d = 0.710$: $K d^2 u = 17.1$ m/s² $= (1-d)\hat A f$. Removing the 1 mm
+margin leaves a penetration of 12.56 mm, the "13 mm soft foot" noted in <code>MODULE_SPEC.md</code>. The impedance starts at 0.015,
+so the contact is nearly limp for the first millimetres and only stiffens as the foot sphere sinks into its 22 mm width
+(diagram below, right).</p>
+<h4 id="creep-below-the-friction-threshold">Creep below the friction threshold</h4>
+<p>A friction row has zero violation, so $a_{\rm ref} = -B v_t$. If the block slides steadily at $v_t$ ($J\dot v = 0$) with
+its friction force $f_t$ inside the cone, then $0 = -B v_t - R_t f_t$:</p>
+<p>$$
+|v_t| = \frac{R_t\, f_t}{B},\qquad R_t = \frac{R_n}{\texttt{impratio}}\ \text{(elliptic cone, equal tangential } \mu).
+$$</p>
+<p>A block that Coulomb friction would hold therefore creeps at a constant speed, inversely proportional to <code>impratio</code>.</p>
+<h4 id="actuator-saturation">Actuator saturation</h4>
+<p>A Go2 motor applies $\tau = \mathrm{clip}(u, -\tau_{\max}, \tau_{\max})$ with $\tau_{\max} = 23.7$ N m (hip, thigh) or
+45.43 N m (knee). On a bench (thigh clamped, no gravity) the knee obeys</p>
+<p>$$
+I\ddot q = \tau - b\,\dot q - \tau_{\rm fl}\,\mathrm{sign}(\dot q),\qquad
+I = a^T I_c\, a + m\left(|c|^2 - (a\cdot c)^2\right) + I_{\rm arm},
+$$</p>
+<p>with the calf's mass $m$, centre of mass $c$ and inertia $I_c$ about it, the joint axis $a$, armature $I_{\rm arm}$, damping
+$b$ and friction loss $\tau_{\rm fl}$. While saturated ($\tau = \tau_{\max}$, $\dot q &gt; 0$, start from rest), with
+$\tau_s = \tau_{\max} - \tau_{\rm fl}$ and $T = I/b$:</p>
+<p>$$
+\dot q(t) = \frac{\tau_s}{b}\left(1 - e^{-t/T}\right),\qquad
+q(t) = q_0 + \frac{\tau_s}{b}\left(t - T\left(1 - e^{-t/T}\right)\right).
+$$</p>
+<p>The speed tends to $\tau_s / b$, here 22.6 rad/s. The same joint stepped by MuJoCo's Euler (damping implicit) follows the
+discrete version exactly, with $\rho = 1/(1 + h b/I)$:</p>
+<p>$$
+\dot q_n = \frac{\tau_s}{b}(1 - \rho^n),\qquad q_n = q_0 + h\,\frac{\tau_s}{b}\left(n - \frac{\rho(1 - \rho^n)}{1 - \rho}\right).
+$$</p>
+<p>A PD law $u = k_p(q_1 - q) - k_d\dot q$ leaves saturation when $u$ falls to $\tau_{\max}$; inserting the closed form gives
+the exit time.</p>
+<p><img loading="lazy" alt="Method diagrams: forces on the incline, and the two sides of the steady-penetration equation for the Go2's feet" src="figures/diagrams.png" /></p>
+<h2 id="implementation">Implementation</h2>
+<p><code>physics.py</code> holds every prediction and the test rigs; <code>validate.py</code> runs the experiments and compares.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Equation</th>
+<th>Function</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>free fall, Euler offset and energy error</td>
+<td><code>free_fall</code>, <code>free_fall_semi_implicit_offset</code>, <code>free_fall_semi_implicit_energy_error</code></td>
+<td></td>
+</tr>
+<tr>
+<td>integrators</td>
+<td><code>step_explicit_euler</code>, <code>step_semi_implicit_euler</code>, <code>step_euler_implicit_damping</code>, <code>step_rk4</code>, <code>integrate</code></td>
+<td>scalar second-order ODE</td>
+</tr>
+<tr>
+<td>oscillator energy factors</td>
+<td><code>oscillator_energy_factor</code>, <code>symplectic_modified_energy</code>, <code>symplectic_energy_band</code></td>
+<td></td>
+</tr>
+<tr>
+<td>incline</td>
+<td><code>incline_threshold</code>, <code>incline_acceleration</code>, <code>pyramid_friction_ratio</code></td>
+<td></td>
+</tr>
+<tr>
+<td>soft contact</td>
+<td><code>impedance</code>, <code>stiffness_damping</code>, <code>reference_acceleration</code>, <code>regulariser</code>, <code>inverse_weight</code>, <code>steady_penetration</code>, <code>creep_speed</code></td>
+<td><code>steady_penetration</code> brackets the root with <code>scipy.optimize.brentq</code></td>
+</tr>
+<tr>
+<td>saturation</td>
+<td><code>saturated_response</code>, <code>saturated_response_discrete</code>, <code>inertia_about_axis</code>, <code>pd_saturated_reference</code></td>
+<td>the reference integrates the clipped PD law with SciPy's DOP853 at <code>rtol = 1e-11</code></td>
+</tr>
+<tr>
+<td>rigs</td>
+<td><code>sphere_xml</code>, <code>oscillator_xml</code>, <code>slider_xml</code>, <code>knee_bench_xml</code></td>
+<td>MJCF strings</td>
+</tr>
+</tbody>
+</table></div>
+<p>Design choices and their reasons:</p>
+<ul>
+<li>The sphere and slider rigs put the same <code>solref</code>/<code>solimp</code> on both geoms. MuJoCo mixes the two geoms' parameters
+  (<code>solmix</code>), and a plane left at its defaults would silently change the values under test.</li>
+<li>The incline block is a sphere on three slide joints. A box on four corner contacts rocks while it slides; in a first
+  trial its acceleration over 0.25 s windows varied between 0.30 and 0.49 m/s² around the predicted 0.44 m/s². The slider
+  has one contact and no rotation, so the prediction applies without a tipping term.</li>
+<li>The incline is made by tilting gravity, not the plane. The contact frame then stays aligned with the world axes, and the
+  45° test can put the slope exactly between the pyramid's edges.</li>
+<li>The knee bench copies mass, centre of mass, inertia, damping, armature, friction loss, range and torque limit from the
+  compiled Menagerie model, so the bench is the Go2's knee and not a stand-in.</li>
+<li>The tilting platform's hinge position and velocity are prescribed before and after every step. A mocap body would move
+  the surface without a velocity, and friction would then oppose the platform's own motion.</li>
+<li><code>inverse_weight</code> takes $J_c$ and $M$ from MuJoCo as inputs. Only the formula is written here; the Jacobian and mass
+  matrix are module 01's and module 04's subject.</li>
+</ul>
+<h2 id="experiment">Experiment</h2>
+<pre><code class="language-bash">.venv-modules/bin/python modules/m03_simulation/validate.py      # 65 s wall time, 1-min load average 69 on 32 cores
+.venv-modules/bin/python -m pytest -q modules/m03_simulation       # 8 tests, 20 s
+</code></pre>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Experiment</th>
+<th>Inputs</th>
+<th>Measured</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>sphere free fall</td>
+<td>1 kg, no floor, $h$ = 2 ms, 1 s, <code>Euler</code> and <code>RK4</code></td>
+<td>height against the parabola and the discrete formula; energy</td>
+</tr>
+<tr>
+<td>Go2 free fall</td>
+<td>no floor, joints at the standing pose, joint velocities uniform in ±2 rad/s and base angular velocity in ±1 rad/s (seed 1), base velocity (0.3, −0.2, 1.0) m/s, $h$ = 2, 1, 0.5 ms, 1 s</td>
+<td>COM (<code>subtree_com</code>) against parabola plus $-\tfrac12 g h t$</td>
+</tr>
+<tr>
+<td>oscillator</td>
+<td>$\omega$ = 10 rad/s, $h$ = 0.01 s ($z$ = 0.1), 20 s, from $x$ = 1, $v$ = 0; damped case $b$ = 0.5 N s/m; damper case $b h/m$ = 3, 20 steps</td>
+<td>energy ratio per step; own trajectories against MuJoCo</td>
+</tr>
+<tr>
+<td>tumbling Go2</td>
+<td>gravity off, damping and friction loss zeroed, constraints disabled; base angular velocity in ±1 rad/s and joint velocities in ±2 rad/s (seed 0); $h$ = 0.25 to 4 ms; 2 s; four integrators</td>
+<td>max $\lvert E - E_0\rvert / E_0$, sampled every 4 ms ($E_0$ = 0.661 J)</td>
+</tr>
+<tr>
+<td>incline</td>
+<td>slider, 1 kg, μ ∈ {0.2, 0.5, 0.8, 1.0}; pyramidal (impratio 1), elliptic (impratio 1 and 100); bisection on θ to 6e-4°; acceleration fitted over 0.5 to 2.0 s</td>
+<td>threshold, acceleration at θ<em> + {2, 5, 10, 20}°, creep speed at 0.9 θ</em></td>
+</tr>
+<tr>
+<td>sphere penetration</td>
+<td>1 kg, <code>condim="1"</code>; τ ∈ {5, 10, 20, 40, 80} ms × 4 <code>solimp</code> sets; settled 2 s</td>
+<td>depth against <code>steady_penetration</code>; every efc row against the written-out model</td>
+</tr>
+<tr>
+<td>Go2 feet</td>
+<td>standing under joint PD (kp 60, kd 2), settled 2 s; Menagerie foot, MuJoCo default <code>solimp</code>, foot <code>solimp</code> with τ = 0.01 s</td>
+<td>per-foot depth against the prediction from the measured normal force</td>
+</tr>
+<tr>
+<td>knee bench</td>
+<td>FL calf, $q$: −2.6 → −1.0 rad, kp 300 N m/rad, kd 5 N m s/rad, $h$ = 2 ms, 0.25 s; then with the torque limit removed</td>
+<td>angle, demanded and applied torque</td>
+</tr>
+<tr>
+<td>Go2 rise</td>
+<td>crouch (0, 1.25, −2.6) to stand (0, 0.9, −1.8) rad per leg as a PD step, kp 150, kd 4, 1 s, with and without the torque limits; the PD output goes to <code>ctrl</code> unclipped (own loop, not <code>sim.run</code>, which clips to <code>ctrlrange</code>)</td>
+<td>base height, demand and applied torque relative to the limit</td>
+</tr>
+<tr>
+<td>tilting platform</td>
+<td>hinge at 1 m, 0 → 40° minimum-jerk over 16 s after a 1.5 s hold; blocks μ = 0.2, 0.4, 0.6 (platform μ 0.05); Go2 under joint PD (kp 60, kd 2) facing downhill</td>
+<td>block speed relative to the surface (onset: &gt; 2 mm/s); Go2 foot force ratios</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="validation">Validation</h2>
+<p>Thresholds were fixed in <code>validate.ACCEPT</code> before the first full run. <code>bench_saturated_vs_discrete_rad</code> was added after the
+first run showed the 7.6 mrad continuous-time gap, and before it was measured. <code>test_physics.py</code> asserts the same
+thresholds; the missed row is pinned to its measured state there (see Failure analysis).</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Check</th>
+<th>Measured</th>
+<th>Acceptance</th>
+<th>Source (<code>results.json</code>)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>sphere, <code>Euler</code> against parabola $-\tfrac12 g h t$, max over 1 s</td>
+<td>1.1e-14 m</td>
+<td>&lt; 1e-9 m</td>
+<td><code>ff_sphere_euler_vs_discrete_m</code></td>
+</tr>
+<tr>
+<td>sphere, <code>RK4</code> against the parabola, max</td>
+<td>1.3e-14 m</td>
+<td>&lt; 1e-9 m</td>
+<td><code>ff_sphere_rk4_vs_parabola_m</code></td>
+</tr>
+<tr>
+<td>sphere, error at 1 s / $(-\tfrac12 g h t)$ − 1 (error −9.81 mm)</td>
+<td>5.6e-13</td>
+<td>&lt; 1e-6</td>
+<td><code>ff_sphere_euler_offset_ratio_err</code></td>
+</tr>
+<tr>
+<td>sphere, energy error / $(-\tfrac12 m g^2 h t)$ − 1</td>
+<td>5.2e-12</td>
+<td>&lt; 1e-6</td>
+<td><code>ff_sphere_euler_energy_ratio_err</code></td>
+</tr>
+<tr>
+<td>Go2 COM against parabola plus Euler offset, max, $h$ = 2 ms</td>
+<td>0.22 mm</td>
+<td>&lt; 1 mm (10% of the 9.8 mm offset)</td>
+<td><code>ff_go2_com_residual_m</code></td>
+</tr>
+<tr>
+<td>own explicit Euler energy against $(1+z^2)^k$, max relative, 2000 steps</td>
+<td>2.4e-14</td>
+<td>&lt; 1e-9</td>
+<td><code>osc_explicit_euler_energy_rel_err</code></td>
+</tr>
+<tr>
+<td>own RK4 energy against $(1 - z^6/72 + z^8/576)^k$</td>
+<td>7.2e-14</td>
+<td>&lt; 1e-9</td>
+<td><code>osc_rk4_energy_rel_err</code></td>
+</tr>
+<tr>
+<td>semi-implicit Euler modified energy $\tilde E$, max relative change</td>
+<td>2.2e-15</td>
+<td>&lt; 1e-12</td>
+<td><code>osc_symplectic_modified_energy_rel_drift</code></td>
+</tr>
+<tr>
+<td>semi-implicit Euler max $\lvert E/E_0 - 1\rvert$ (0.052632) against $(z/2)/(1-z/2)$</td>
+<td>5.9e-8 relative</td>
+<td>&lt; 0.01</td>
+<td><code>osc_symplectic_band_rel_err</code></td>
+</tr>
+<tr>
+<td>own semi-implicit Euler against MuJoCo <code>Euler</code></td>
+<td>0 m</td>
+<td>&lt; 1e-12 m</td>
+<td><code>osc_own_vs_mujoco_euler_m</code></td>
+</tr>
+<tr>
+<td>own RK4 against MuJoCo <code>RK4</code></td>
+<td>1.9e-14 m</td>
+<td>&lt; 1e-12 m</td>
+<td><code>osc_own_vs_mujoco_rk4_m</code></td>
+</tr>
+<tr>
+<td>own implicit-damping Euler against MuJoCo <code>Euler</code>, $b$ = 0.5</td>
+<td>6.7e-16 m</td>
+<td>&lt; 1e-12 m</td>
+<td><code>osc_own_vs_mujoco_damped_euler_m</code></td>
+</tr>
+<tr>
+<td>same against MuJoCo <code>implicitfast</code></td>
+<td>6.7e-16 m</td>
+<td>&lt; 1e-12 m</td>
+<td><code>osc_own_vs_mujoco_damped_implicitfast_m</code></td>
+</tr>
+<tr>
+<td>damper $hb/m = 3$: MuJoCo with <code>eulerdamp</code> off against $(1 - hb/m)^k$, on against $(1+hb/m)^{-k}$</td>
+<td>0</td>
+<td>&lt; 1e-9</td>
+<td><code>osc_explicit_damping_growth_rel_err</code></td>
+</tr>
+<tr>
+<td>energy drift order, <code>Euler</code></td>
+<td>1.01</td>
+<td>0.8 to 1.2</td>
+<td><code>energy_order_euler</code></td>
+</tr>
+<tr>
+<td>energy drift order, <code>implicitfast</code></td>
+<td>1.01</td>
+<td>0.8 to 1.2</td>
+<td><code>energy_order_implicitfast</code></td>
+</tr>
+<tr>
+<td>energy drift order, <code>implicit</code></td>
+<td>1.00</td>
+<td>0.8 to 1.2</td>
+<td><code>energy_order_implicit</code></td>
+</tr>
+<tr>
+<td>energy drift order, <code>RK4</code></td>
+<td><strong>2.00 (missed)</strong></td>
+<td>3.5 to 4.5</td>
+<td><code>energy_order_rk4</code></td>
+</tr>
+<tr>
+<td><code>implicitfast</code> drift against <code>Euler</code> drift, max relative difference</td>
+<td>0</td>
+<td>&lt; 1e-10</td>
+<td><code>energy_implicitfast_equals_euler</code></td>
+</tr>
+<tr>
+<td><code>RK4</code> drift / <code>Euler</code> drift at 2 ms</td>
+<td>2.7e-6</td>
+<td>&lt; 1e-2</td>
+<td><code>energy_rk4_over_euler_at_2ms</code></td>
+</tr>
+<tr>
+<td>incline threshold against $\arctan\mu$, max over 4 μ × 3 cone settings</td>
+<td>0.057°</td>
+<td>&lt; 0.5°</td>
+<td><code>incline_threshold_err_deg_max</code></td>
+</tr>
+<tr>
+<td>sliding acceleration against $g(\sin\theta - \mu\cos\theta)$, max / g</td>
+<td>0.0049</td>
+<td>&lt; 0.02</td>
+<td><code>incline_accel_err_over_g_max</code></td>
+</tr>
+<tr>
+<td>creep speed at 0.9 θ* against $R_t f_t / B$, elliptic, max relative</td>
+<td>6.5e-9</td>
+<td>&lt; 0.10</td>
+<td><code>incline_creep_rel_err_max</code></td>
+</tr>
+<tr>
+<td>pyramidal cone, slope at 45° to $t_1$: threshold against $\arctan(\mu/\sqrt2)$</td>
+<td>0.058°</td>
+<td>&lt; 0.5°</td>
+<td><code>incline_pyramid_45deg_threshold_err_deg_max</code></td>
+</tr>
+<tr>
+<td>own $K$, $B$, $d$, $R$, $a_{\rm ref}$ against <code>efc_KBIP</code>, <code>efc_R</code>, <code>efc_aref</code>, all contact rows (sphere and Go2)</td>
+<td>2.0e-16 relative</td>
+<td>&lt; 1e-9</td>
+<td><code>contact_model_vs_efc_rel_max</code></td>
+</tr>
+<tr>
+<td>own $\hat A$ of the four calves against <code>body_invweight0</code></td>
+<td>2.2e-16 relative</td>
+<td>&lt; 1e-9</td>
+<td><code>contact_invweight_vs_mujoco_rel</code></td>
+</tr>
+<tr>
+<td>sphere penetration against <code>steady_penetration</code>, 20 cases (0.025 to 15.5 mm)</td>
+<td>2.1e-9 relative</td>
+<td>&lt; 1e-3</td>
+<td><code>penetration_sphere_rel_err_max</code></td>
+</tr>
+<tr>
+<td>Go2 foot penetration against prediction, 4 feet × 3 settings</td>
+<td>1.5e-3 relative</td>
+<td>&lt; 0.02</td>
+<td><code>penetration_go2_rel_err_max</code></td>
+</tr>
+<tr>
+<td>sphere, τ = 2 ms requested at $h$ = 2 ms: depth against refsafe prediction (τ = 4 ms)</td>
+<td>1.3e-9 relative</td>
+<td>&lt; 1e-3</td>
+<td><code>penetration_refsafe_rel_err</code></td>
+</tr>
+<tr>
+<td>knee bench inertia (0.01633 kg m²) against MuJoCo <code>mj_fullM</code></td>
+<td>2.2e-16 relative</td>
+<td>&lt; 1e-9</td>
+<td><code>bench_inertia_vs_mujoco_rel</code></td>
+</tr>
+<tr>
+<td>MuJoCo <code>actuator_force</code> for <code>ctrl</code> = 300 N m, minus 45.43 N m</td>
+<td>0 N m</td>
+<td>&lt; 1e-12 N m</td>
+<td><code>bench_mujoco_force_clamped_Nm</code></td>
+</tr>
+<tr>
+<td>saturated phase, MuJoCo against continuous closed form, max</td>
+<td>7.6e-3 rad</td>
+<td>&lt; 1e-2 rad</td>
+<td><code>bench_saturated_vs_closed_form_rad</code></td>
+</tr>
+<tr>
+<td>saturated phase, MuJoCo against discrete closed form, max</td>
+<td>6.7e-16 rad</td>
+<td>&lt; 1e-9 rad</td>
+<td><code>bench_saturated_vs_discrete_rad</code></td>
+</tr>
+<tr>
+<td>whole step until first stop, MuJoCo against SciPy reference, max</td>
+<td>7.6e-3 rad</td>
+<td>&lt; 1e-2 rad</td>
+<td><code>bench_vs_reference_rad</code></td>
+</tr>
+<tr>
+<td>exit from saturation, predicted 55.6 ms against measured 56 ms</td>
+<td>0.44 ms</td>
+<td>&lt; 4 ms (2 steps)</td>
+<td><code>bench_sat_exit_time_err_s</code></td>
+</tr>
+<tr>
+<td>Go2 rise, applied torque (<code>actuator_force</code>) / limit, max over 12 joints; <code>ctrl</code> written unclipped, so this tests MuJoCo's <code>ctrllimited</code> clamp</td>
+<td>1.000</td>
+<td>≤ 1</td>
+<td><code>rise_applied_over_limit_max</code></td>
+</tr>
+<tr>
+<td>Go2 rise, demanded torque / limit, max</td>
+<td>2.64</td>
+<td>&gt; 1</td>
+<td><code>rise_demand_over_limit_max</code></td>
+</tr>
+<tr>
+<td>tilting platform, onset angle against $\arctan\mu$, max over 3 blocks</td>
+<td>0.35°</td>
+<td>&lt; 1°</td>
+<td><code>platform_onset_err_deg_max</code></td>
+</tr>
+<tr>
+<td>MP4 under 6 MB</td>
+<td>1 (652 KB)</td>
+<td>1</td>
+<td><code>media_mp4_under_6MB</code></td>
+</tr>
+</tbody>
+</table></div>
+<p>38 of 39 checks pass.</p>
+<h3 id="integrators">Integrators</h3>
+<p><img loading="lazy" alt="Free fall: the sphere's error is exactly −g h t / 2 under Euler and zero under RK4; the Go2 COM residual after removing that offset halves with h" src="figures/free_fall.png" /></p>
+<p>The Go2 COM's offset at 1 s is −9.94 mm against −9.81 mm for a point mass (<code>ff_go2_com_offset_at_1s_m</code>), and the residual
+is 0.216, 0.108 and 0.054 mm at $h$ = 2, 1 and 0.5 ms (<code>ff_go2_com_residual_by_h</code>): first order, as derived.</p>
+<p><img loading="lazy" alt="Oscillator: explicit Euler gains energy by (1 + z²) per step; semi-implicit Euler stays in the predicted band; RK4 loses energy slowly, on the predicted curve; the stiff damper's velocity grows as 2^k with eulerdamp off and decays as 4^−k with it on" src="figures/oscillator.png" /></p>
+<p>RK4 loses 1 − E/E₀ = 2.8e-5 over the 2000 steps (<code>osc_rk4_energy_loss</code>), on the curve
+$1 - (1 - z^6/72 + z^8/576)^k$. MuJoCo's <code>Euler</code> and the written-out semi-implicit Euler agree to the last bit (0 m). With damping, MuJoCo's <code>Euler</code> and
+<code>implicitfast</code> both equal the implicit-damping update to 6.7e-16 m. With the damper set to $hb/m = 3$ and MuJoCo's
+<code>eulerdamp</code> disabled, the velocity after 20 steps is $(-2)^{20} = 1.05\times10^{6}$ times its start value; with implicit
+damping it is $4^{-20} = 9.1\times10^{-13}$ (<code>osc_explicit_damping_v_after_20_steps</code>, <code>osc_implicit_damping_v_after_20_steps</code>).</p>
+<p><img loading="lazy" alt="Energy drift of the tumbling Go2 against timestep, and over time at 2 ms" src="figures/energy_drift.png" /></p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Integrator</th>
+<th>0.25 ms</th>
+<th>0.5 ms</th>
+<th>1 ms</th>
+<th>2 ms</th>
+<th>4 ms</th>
+<th>fitted order</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Euler</td>
+<td>3.2e-4</td>
+<td>6.4e-4</td>
+<td>1.3e-3</td>
+<td>2.6e-3</td>
+<td>5.3e-3</td>
+<td>1.01</td>
+</tr>
+<tr>
+<td>implicitfast</td>
+<td>3.2e-4</td>
+<td>6.4e-4</td>
+<td>1.3e-3</td>
+<td>2.6e-3</td>
+<td>5.3e-3</td>
+<td>1.01</td>
+</tr>
+<tr>
+<td>implicit</td>
+<td>3.2e-4</td>
+<td>6.5e-4</td>
+<td>1.3e-3</td>
+<td>2.6e-3</td>
+<td>5.1e-3</td>
+<td>1.00</td>
+</tr>
+<tr>
+<td>RK4</td>
+<td>1.1e-10</td>
+<td>4.4e-10</td>
+<td>1.8e-9</td>
+<td>7.0e-9</td>
+<td>2.8e-8</td>
+<td>2.00</td>
+</tr>
+</tbody>
+</table></div>
+<p>Max $\lvert E - E_0\rvert / E_0$ over 2 s, from <code>energy_drift</code>. With no damping and no actuators, <code>implicitfast</code> has nothing
+to treat implicitly and reproduces <code>Euler</code> exactly. <code>implicit</code> also linearises the Coriolis and centrifugal terms and
+differs from <code>Euler</code> by at most 2.6% here. At the default 2 ms step the Euler variants drift 0.26% of the kinetic energy in
+2 s; RK4 drifts 7.0e-9, at four model evaluations per step.</p>
+<h3 id="friction">Friction</h3>
+<p><img loading="lazy" alt="Threshold angle against μ for both cones, and sliding acceleration against incline" src="figures/incline.png" /></p>
+<p>The measured thresholds sit above $\arctan\mu$ by the detection bias derived above: elliptic, impratio 100, μ = 0.8 gives
+38.7047° against 38.6598° + 0.0456° = 38.7054° (<code>threshold_deg</code>). Pyramidal and elliptic cones give the same threshold when
+the slope runs along the contact frame's $t_1$. At 45° the pyramidal threshold follows $\arctan(\mu/\sqrt2)$: 29.55° for
+μ = 0.8 instead of 38.66°.</p>
+<p><img loading="lazy" alt="Creep speed of a block held at 0.9 θ*: measured points on the written-out prediction" src="figures/creep.png" /></p>
+<p>Below the threshold every block creeps. At μ = 0.5 and 23.9° the elliptic cone creeps at 3.65 mm/s with <code>impratio</code> 1 and
+0.0365 mm/s with <code>impratio</code> 100; the pyramidal cone creeps at 9.82 mm/s (<code>creep</code>). The elliptic values match $R_t f_t/B$ to
+6.5e-9. No prediction was derived for the pyramidal cone, whose four edge rows share the load differently.</p>
+<h3 id="contact-penetration">Contact penetration</h3>
+<p><img loading="lazy" alt="Sphere penetration against solref timeconst for four solimp sets, and the standing Go2's foot penetration for three settings" src="figures/penetration.png" /></p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Go2 foot setting</th>
+<th>FL, FR measured</th>
+<th>RL, RR measured</th>
+<th>prediction, max relative error</th>
+<th>base height</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Menagerie foot (<code>solimp</code> 0.015 1 0.022, τ = 0.02 s)</td>
+<td>12.56 mm</td>
+<td>12.99 mm</td>
+<td>2.3e-6</td>
+<td>0.256 m</td>
+</tr>
+<tr>
+<td>MuJoCo default <code>solimp</code> (0.9 0.95 0.001)</td>
+<td>0.19 mm</td>
+<td>0.45 mm</td>
+<td>1.5e-3</td>
+<td>0.269 m</td>
+</tr>
+<tr>
+<td>foot <code>solimp</code>, τ = 0.01 s</td>
+<td>10.04 mm</td>
+<td>10.39 mm</td>
+<td>1.7e-6</td>
+<td>0.258 m</td>
+</tr>
+</tbody>
+</table></div>
+<p>From <code>variants</code>. The Menagerie feet sink 29 (rear) to 65 (front) times deeper than with MuJoCo's default <code>solimp</code>, and the
+base stands 13 mm lower. The largest prediction error, 1.5e-3, is with the default <code>solimp</code>, where the 0.2 to 0.45 mm
+depths are comparable to the PD stance's residual motion; it was not investigated further. Halving the time constant takes 2.5 mm off, because the impedance, not the stiffness, sets most of this depth.</p>
+<h3 id="actuator-saturation_1">Actuator saturation</h3>
+<p><img loading="lazy" alt="Knee bench: angle against the closed form and the SciPy reference; demanded against applied torque; the Go2 rising with and without torque limits" src="figures/saturation.png" /></p>
+<p>The knee's inertia is 0.0163 kg m², of which the armature is 0.010 kg m² (61%). The PD law asks for 480 N m at the start;
+the motor gives 45.43 N m for the first 56 ms and the knee reaches 22.57 rad/s against the predicted terminal speed of
+22.62 rad/s. 90% of the 1.6 rad step takes 82 ms with the limit and 52 ms without it (<code>bench_t90_limited_s</code>,
+<code>bench_t90_unlimited_s</code>). On the whole Go2 the same PD step from a crouch demands up to 2.64 times the limit, the knees are
+saturated in 25% of the samples during the first 0.2 s (<code>rise_knee_saturated_fraction_first_0p2s</code>), and the base reaches
+95% of its rise at 96 ms instead of 82 ms. The limited run overshoots to 0.369 m base height and the unlimited one to 0.413 m
+(<code>rise_peak_height_limited_m</code>, <code>rise_peak_height_unlimited_m</code>; figure, right): a PD step is not a standing controller.</p>
+<h3 id="tilting-platform">Tilting platform</h3>
+<p><img loading="lazy" alt="Block speeds relative to the platform with atan μ marked, and the Go2's displacement on the platform" src="figures/platform.png" /></p>
+<p>The onsets measured in the video run are 11.66°, 22.13° and 31.09° against 11.31°, 21.80° and 30.96°
+(<code>platform_onset_deg</code>). The bias is the 2 mm/s detection threshold reached while the platform keeps tilting. Over
+1° &lt; θ &lt; 0.9 arctan μ the blocks move relative to the surface at a median of 6.4e-6, 1.2e-5 and 1.5e-5 m/s for μ = 0.2, 0.4
+and 0.6, the creep level of <code>impratio</code> 100, with maxima of 8.0e-4, 3.4e-4 and 1.7e-4 m/s
+(<code>platform_block_speed_before_onset</code>). The μ = 0.2 maximum is a short rise at 10.0° that was not traced to a cause. Taken
+over the whole interval from the end of the hold to the measured onset, the medians are 2.2e-6, 7.0e-6 and 1.2e-5 m/s.</p>
+<h2 id="failure-analysis">Failure analysis</h2>
+<h3 id="rk4-is-second-order-on-the-floating-base">RK4 is second order on the floating base</h3>
+<p>The fitted energy-drift order of <code>RK4</code> on the floating Go2 is 2.00 against the 4 expected, so <code>energy_order_rk4</code> misses its
+criterion. Two further runs locate the cause (<code>rk4_diagnostics</code>, not acceptance rows):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Run</th>
+<th>Fitted order</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>same Go2, same joint velocities, base welded to the world (<code>energy_order_rk4_fixed_base</code>)</td>
+<td>4.20</td>
+</tr>
+<tr>
+<td>single box tumbling freely, orientation error against a 10 µs RK4 reference, $h$ = 1, 2, 4 ms (<code>rk4_box_orientation_order</code>)</td>
+<td>1.98</td>
+</tr>
+</tbody>
+</table></div>
+<p>With only hinge joints RK4 is fourth order; the free joint's orientation is integrated to second order. A torque-free box
+alone does not show it in its energy, because its kinetic energy depends on the body-frame angular velocity only. The Go2's
+does, because the free joint's linear velocity is in the world frame. The measurement is consistent with RK4 stages that
+are combined in the tangent space and applied to the quaternion through one exponential map, without the commutator
+correction a Lie-group Runge-Kutta method needs (Munthe-Kaas, 1998); MuJoCo's source was not read to confirm it. In
+practice RK4 still drifts 3.7e5 times less than <code>Euler</code> at 2 ms, but halving the step only gains a factor 4.</p>
+<h3 id="explicit-damping-diverges">Explicit damping diverges</h3>
+<p>Shown in the oscillator figure (bottom right) and the validation table: with <code>eulerdamp</code> disabled, a damper with $hb/m = 3$ multiplies
+the velocity by −2 every step. On the Go2 the joint damping alone is far from this limit (calf: $2I/b = 16$ ms at
+$I$ = 0.0163 kg m²), but a PD derivative gain computed by the controller reaches MuJoCo as an explicit actuator force. With
+the joint damping $b$ still implicit, the velocity factor per step is $1 - h(k_d + b)/(I + hb)$, stable while
+$k_d &lt; 2I/h + b$: 18 N m s/rad for the calf at $h$ = 2 ms. This was derived, not run on the Go2.</p>
+<h3 id="pyramidal-cones-are-anisotropic">Pyramidal cones are anisotropic</h3>
+<p>At 45° to the contact frame the pyramidal cone holds only $\mu/\sqrt2$: the μ = 0.8 slider slides at 29.55° instead of
+38.66° (incline figure, red crosses). Which way the contact frame's $t_1$ points depends on the geometry pair, so the
+effective friction of a pyramidal foot contact changes with the walking direction. The Go2 model uses the elliptic cone and
+is not affected; any model left at MuJoCo's default (pyramidal) is.</p>
+<h3 id="soft-friction-creeps">Soft friction creeps</h3>
+<p>A block that Coulomb friction holds moves at $R_t f_t / B$: 3.65 mm/s, or 13 m per hour, at μ = 0.5 and 90% of its threshold
+with <code>impratio</code> 1. The Go2 model's <code>impratio="100"</code> reduces this to 0.0365 mm/s. A standing-still test over minutes on a
+slope would show the drift; an estimator that assumes zero foot velocity in stance would read it as odometry error.</p>
+<h3 id="timeconst-below-2h-is-silently-replaced-and-unstable-without-the-replacement"><code>timeconst</code> below 2h is silently replaced, and unstable without the replacement</h3>
+<p>Asking for τ = 2 ms at $h$ = 2 ms gives a penetration of 0.0175 mm, four times the 0.0044 mm the nominal τ predicts, and
+equal to the τ = 4 ms prediction to 1.3e-9 (<code>refsafe</code>). With <code>refsafe</code> disabled the sphere does not settle: after 2 s its centre is
+0.77 m above the floor, moving at 1.05 m/s (<code>measured_refsafe_off_m</code>, <code>refsafe_off_vertical_speed</code>).</p>
+<h3 id="the-go2-under-joint-pd-does-not-reach-the-friction-or-tipping-limit">The Go2 under joint PD does not reach the friction or tipping limit</h3>
+<p>On the platform the rigid-stance tipping angle is 40.7° (front-foot line against COM height, <code>platform_go2_tip_pred_deg</code>)
+and the friction limit of its feet is $\arctan 0.8 = 38.7°$. The Go2 fails earlier. Its rear feet reach $|f_t| = \mu f_n$ at
+23.5° (<code>platform_go2_rear_feet_at_friction_limit_deg</code>) and carry less than 1 N at 29.3° (<code>platform_go2_rear_feet_off_deg</code>);
+its base has moved 0.5 m down the platform at 32.7° (<code>platform_go2_displacement_0p5m_at_deg</code>) and its first foot passes the
+lower edge at 33.8° (<code>platform_go2_foot_past_edge_deg</code>). As the platform tilts, load moves to the front feet (34.1/40.4 N
+per front/rear foot at 1°, 53.3/16.8 N at 20°, means over the two feet) while the joint PD keeps asking the rear feet for a
+share of the downhill force: at 20° the rear friction ratio $|f_t|/f_n$ is 0.507 against 0.386 at the front
+(<code>platform_go2_foot_loads</code>). The legs also yield, 40 mm of base travel by 20° (<code>platform_go2_displacement_at_20deg_m</code>),
+which moves the COM toward the front-foot line.
+Both are controller properties, not simulator errors; a stance controller that distributes contact forces would be
+measured against the same 38.7° and 40.7°.</p>
+<h3 id="setup-errors-met-while-building-the-rigs">Setup errors met while building the rigs</h3>
+<p>The first knee-bench run copied the joint range in radians into an MJCF string without <code>&lt;compiler angle="radian"/&gt;</code>.
+MuJoCo read −2.72 to −0.84 as degrees, the joint limit engaged at once, and the knee reached 31 rad/s, above its own
+terminal speed. The first tilting platform hinged at 0.3 m hit the floor at about 14°, and the solver pushed the platform
+through the blocks and the Go2. A first box-shaped incline block rocked (see Implementation). Each was found because a
+measured number disagreed with its prediction.</p>
+<h3 id="what-the-experiments-do-not-cover">What the experiments do not cover</h3>
+<p>Multi-contact steady states other than the Go2's four feet, rolling and torsional friction, <code>implicit</code> with velocity-
+dependent actuators, and MuJoCo's <code>mjINT_DISCRETE</code> integrator (present in 3.17) were not tested. The creep and penetration
+formulas hold for constraint forces inside their cones; sliding contacts were only checked through the block acceleration.</p>
+<h2 id="references">References</h2>
+<ul>
+<li>MuJoCo documentation, mujoco.readthedocs.io (MuJoCo 3.x). The pages use named headings, not numbers; the parts used:
+  Computation › General framework › Numerical integration › Integrators (Euler with implicit damping, implicit,
+  implicitfast, RK4); Computation › Constraint model › Contact › Friction cones (pyramidal and elliptic); Computation ›
+  Constraint solver › Primal problem, Dual problem and Parameters (impedance $d$, reference acceleration, diagonal
+  approximation $\hat A$); Modeling › MJCF Mechanisms › Solver parameters › Reference (<code>solref</code>, <code>refsafe</code>) and › Impedance
+  (<code>solimp</code>); Modeling › MJCF Mechanisms › Contact parameters (<code>solmix</code>, <code>priority</code>, <code>margin</code>, <code>condim</code>); XML Reference ›
+  <code>option</code> (<code>impratio</code>, <code>cone</code>) and <code>option/flag</code> (<code>refsafe</code>, <code>eulerdamp</code>), <code>motor</code> (<code>ctrlrange</code>). The formulas above were
+  taken from there and then checked against <code>efc_KBIP</code>, <code>efc_R</code> and <code>efc_aref</code> to round-off.</li>
+<li>E. Todorov, "Convex and analytically-invertible dynamics with contacts and constraints: Theory and implementation in
+  MuJoCo", IEEE ICRA 2014: Section II.C, problem (5), the soft Gauss principle with regulariser $R$; Section V, eq. (23),
+  $f = R^{-1}(v^* - Jv')$ for non-sliding contacts. The paper states it at the velocity (impulse) level; the acceleration
+  form $J\dot v = a_{\rm ref} - Rf$ used here is the documentation's (Constraint solver › Primal problem).</li>
+<li>E. Hairer, C. Lubich, G. Wanner, <em>Geometric Numerical Integration</em>, 2nd ed., Springer 2006: Section I.1.2 (symplectic
+  Euler), Section VI.3 (symplectic Euler is symplectic), Sections IX.1 and IX.3 (modified equation and modified Hamiltonian
+  of symplectic methods, the source of $\tilde E$) and IX.8 (long-time energy conservation, the bounded band). Section
+  titles checked against the book's table of contents.</li>
+<li>E. Hairer, G. Wanner, <em>Solving Ordinary Differential Equations II</em>, 2nd ed., Springer 1996: Section IV.2, "Stability
+  analysis for explicit RK methods", the stability function $R(z) = \sum_{j=0}^{4} z^j/j!$ of the classical RK4 used for
+  the energy factor.</li>
+<li>H. Munthe-Kaas, "Runge-Kutta methods on Lie groups", BIT Numerical Mathematics 38(1), 1998: cited only as the context for
+  the RK4 order loss on the free joint (order conditions for Runge-Kutta methods on Lie groups); no section of it was
+  checked against the measurement.</li>
+<li>K. Zakka et al., MuJoCo Menagerie, github.com/google-deepmind/mujoco_menagerie, <code>unitree_go2/go2.xml</code> (foot <code>solimp</code>,
+  <code>priority</code>, <code>cone</code>, <code>impratio</code>, motor ranges).</li>
+</ul><p class="source">Source: <a href="https://github.com/Armanasq/go2-nav-sim/blob/main/modules/m03_simulation/README.md">modules/m03_simulation/README.md</a></p></article></div>
+</main>
+<footer class="site"><div class="wrap">Simulation only. Source and issues on <a href="https://github.com/Armanasq/go2-nav-sim">GitHub</a>.</div></footer>
+<script type="module" src="../../static/js/site.js"></script>
+</body>
+</html>

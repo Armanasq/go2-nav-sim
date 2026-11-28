@@ -1,0 +1,569 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Frames and TF2 · go2-nav-sim</title>
+<meta name="description" content="Frames and TF2">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../static/css/site.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5' fill='%230a6a9c'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"><script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script><script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.querySelector('main'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false})"></script>
+</head>
+<body data-root="../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar"><div class="inner">
+<a class="brand" href="../index.html">go2-nav-sim</a>
+<nav aria-label="Main"><a href="../tutorial/00-overview.html" aria-current="page">Learn</a><a href="../tasks/index.html">Tasks</a><a href="../modules/index.html">Deep dives</a><a href="../reference.html">Reference</a></nav>
+<button class="theme-toggle" type="button" aria-label="Colour theme: auto">auto</button>
+</div></header>
+<main id="main">
+<div class="wrap doc"><details class="side" open><summary>Frames and TF2</summary><nav aria-label="Contents"><ol class="parts"><li><a class="part" href="00-overview.html">Start</a></li><li class="open"><p class="part">The robot</p><ol><li><a href="05-frames-and-tf2.html" aria-current="page"><span class="n">5</span><span>Frames and TF2</span></a><ul class="sections"><li><a href="#task-1-read-the-tree-of-the-running-stack">Task 1: Read the tree of the running stack</a></li><li><a href="#task-2-look-up-transforms-in-time">Task 2: Look up transforms in time</a></li><li><a href="#task-3-find-the-faults-in-a-broken-tree">Task 3: Find the faults in a broken tree</a></li><li><a href="#exercise">Exercise</a></li><li><a href="#further-reading">Further reading</a></li></ul></li><li><a href="06-import-the-go2.html"><span class="n">6</span><span>Import the Go2</span></a></li><li><a href="../tasks/s01_import-and-inspect/index.html"><span class="n">S1</span><span>Import and inspect the robot</span></a></li><li><a href="../tasks/s02_joint-and-leg-control/index.html"><span class="n">S2</span><span>Joint and leg control</span></a></li><li><a href="../tasks/s03_posture-and-balance/index.html"><span class="n">S3</span><span>Posture and balance</span></a></li><li><a href="07-make-it-walk.html"><span class="n">7</span><span>Make it walk</span></a></li></ol></li><li><a class="part" href="../projects/p02_teleop-and-safety/index.html">Move it</a></li><li><a class="part" href="08-robot-and-sensors.html">Sense and avoid</a></li><li><a class="part" href="09-state-estimation.html">Estimate and map</a></li><li><a class="part" href="../projects/p11_command-arbitration/index.html">Navigate</a></li><li><a class="part" href="../projects/p14_test-the-stack/index.html">Beyond simulation</a></li></ol></nav></details><article class="prose"><p class="where">The robot · Chapter 5</p><h1>Frames and TF2</h1><p>Every measurement on the robot is taken in some frame: the lidar measures from its own centre, the camera along its optical
+axis, the IMU in its own axes. To combine them, and to say where the robot is in the room, ROS 2 keeps a tree of frames and the
+transforms between them. The library is TF2.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Goal</td>
+<td>Read the TF tree of the running stack, look up a transform at the right time and explain an <code>ExtrapolationException</code>, and find a wrong and a missing transform in a broken tree.</td>
+</tr>
+<tr>
+<td>Time</td>
+<td>2.5 h</td>
+</tr>
+<tr>
+<td>Before you start</td>
+<td><a href="04-ros2-from-scratch.html">Chapter 4</a>: the stack starts with <code>scripts/up.sh</code>, and you can use <code>ros2 topic</code>, <code>ros2 param</code> and <code>use_sim_time</code>. Every terminal starts with <code>source env.sh</code> at the repository root.</td>
+</tr>
+<tr>
+<td>You will learn</td>
+<td>REP-103 axes and REP-105 frames; static and dynamic transforms; <code>view_frames</code>, <code>tf2_echo</code> and <code>tf2_monitor</code>; <code>lookup_transform</code> at the latest time and at a stamp; the three kinds of <code>ExtrapolationException</code>; the one transform in this stack that is wrong.</td>
+</tr>
+</tbody>
+</table></div>
+<p>A transform from frame A to frame B is a rotation $R$ and a translation $t$ that give the pose of B in A. It converts B
+coordinates into A coordinates, $p_A = R\,p_B + t$. Chains of transforms multiply as 4×4 matrices
+(<a href="../modules/m00_math/index.html#se2-and-se3">module m00</a> has the formula). The tasks below only read transforms that TF has
+already composed; task 2.4 checks one composition by hand.</p>
+<p>The outputs come from sessions with the stack up (<code>scripts/up.sh</code>), except task 3, which runs with the stack stopped.</p>
+<h2 id="task-1-read-the-tree-of-the-running-stack">Task 1: Read the tree of the running stack</h2>
+<h3 id="11-check-the-axis-conventions">1.1 Check the axis conventions</h3>
+<p>Confirm that the sensor frames follow REP-103.</p>
+<p><a href="https://www.ros.org/reps/rep-0103.html">REP-103</a> fixes units and axes for all of ROS: metres, radians, seconds, right-handed
+frames, and for a body frame x forward, y left, z up. A positive yaw turns the robot left, so the <code>{angular: {z: 0.5}}</code>
+command of chapter 4 turned it anticlockwise. Camera optical frames are the exception: z forward along the optical axis, x
+right, y down.</p>
+<p><code>tf2_echo A B</code> prints the pose of B in A:</p>
+<pre><code class="language-bash">ros2 run tf2_ros tf2_echo base_link lidar_link
+</code></pre>
+<pre><code>At time 0.0
+- Translation: [0.000, 0.000, 0.100]
+- Rotation: in Quaternion (xyzw) [0.000, 0.000, 0.000, 1.000]
+- Rotation: in RPY (radian) [0.000, -0.000, 0.000]
+- Rotation: in RPY (degree) [0.000, -0.000, 0.000]
+- Matrix:
+  1.000  0.000  0.000  0.000
+  0.000  1.000  0.000  0.000
+  0.000  0.000  1.000  0.100
+  0.000  0.000  0.000  1.000
+</code></pre>
+<p>The lidar is 0.1 m above <code>base_link</code> and not rotated. <code>At time 0.0</code> marks a static transform. The other fixed sensors:</p>
+<pre><code class="language-bash">ros2 run tf2_ros tf2_echo base_link camera_link     # Translation: [0.280, 0.000, 0.030], no rotation
+ros2 run tf2_ros tf2_echo base_link imu_link        # Translation: [0.000, 0.000, 0.000], no rotation
+</code></pre>
+<p><img loading="lazy" alt="The Go2 drawn see-through with coordinate axes at base_link, lidar_link, camera_link, the four hips and the left front leg chain" src="../img/c04-go2-frames.png" /></p>
+<p><em>The MuJoCo Menagerie Go2 posed with the trunk 0.217 m above the floor, with this stack's URDF frame names: <code>lidar_link</code> 0.1 m above <code>base_link</code>, <code>camera_link</code> 0.28 m ahead and 0.03 m up, the four hips and the <code>lf_</code> leg chain. Axes x red, y green, z blue: REP-103 body axes, x forward, y left, z up. The sensor frames are placed at their URDF offsets on the Menagerie base, which has no sensors of its own.</em></p>
+<p>Check: the camera is 0.28 m ahead of <code>base_link</code> (+x) and the lidar 0.1 m above it (+z).</p>
+<h3 id="12-name-the-world-frames">1.2 Name the world frames</h3>
+<p>Find out who publishes each of the REP-105 frames.</p>
+<p><a href="https://www.ros.org/reps/rep-0105.html">REP-105</a> names the frames of a mobile robot and the rules they follow.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Frame</th>
+<th>Fixed to</th>
+<th>Rule</th>
+<th>Published here by</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>map</code></td>
+<td>the world</td>
+<td>the robot's pose in it does not drift, but it may jump</td>
+<td>AMCL (<code>map</code> to <code>odom</code>)</td>
+</tr>
+<tr>
+<td><code>odom</code></td>
+<td>the world</td>
+<td>the robot's pose in it is continuous, but it drifts</td>
+<td><code>odom_ekf</code> (<code>odom</code> to <code>base_footprint</code>)</td>
+</tr>
+<tr>
+<td><code>base_footprint</code></td>
+<td>the robot, on the ground below the base, yaw only</td>
+<td></td>
+<td>CHAMP's <code>base_to_footprint_ekf</code> (<code>base_footprint</code> to <code>base_link</code>)</td>
+</tr>
+<tr>
+<td><code>base_link</code></td>
+<td>the robot's base</td>
+<td></td>
+<td>root of the URDF</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>base_footprint</code> comes from <a href="https://www.ros.org/reps/rep-0120.html">REP-120</a>, written for humanoids and used by most legged
+and wheeled robots since.</p>
+<p>Odometry integrates motion: it never jumps, so a controller can follow a path in it, but its error grows. AMCL compares the
+scan with a map: its error stays bounded, but each correction can move the estimate by centimetres or more in one step. So AMCL
+does not publish the robot's pose; it publishes <code>map</code> to <code>odom</code>, the correction that makes <code>map</code> to <code>odom</code> to <code>base_footprint</code>
+equal its estimate. The controller works in <code>odom</code>; the planner and the goal live in <code>map</code>.</p>
+<pre><code class="language-bash">ros2 topic info -v /tf | awk '/^Node name:/{n=$3} /Endpoint type: PUBLISHER/{print n}'
+</code></pre>
+<pre><code>amcl
+base_to_footprint_ekf
+robot_state_publisher
+odom_ekf
+state_estimation_node
+slam_toolbox
+slam_toolbox
+</code></pre>
+<p><code>slam_toolbox</code> has a publisher on <code>/tf</code> but is configured to send nothing (task 1.4), and CHAMP's <code>state_estimation_node</code> adds
+no edge to the tree: every edge <code>view_frames</code> draws in task 1.4 belongs to one of the other four.</p>
+<p><img loading="lazy" alt="Left: ground truth, odometry and AMCL paths of run w2 over the arena. Right: odometry and AMCL position error against time" src="../img/c04-amcl-vs-odom.png" /></p>
+<p><em>Run w2 from <code>site/data/runs/w2/run.json</code> (odometry aligned to ground truth on its first sample by <code>export_run.py</code>). The AMCL pose is held between its 170 updates, so its error saw-tooths while the robot walks; the odometry is continuous. Over one minute the odometry error stays small here; chapter 4 shows how it grows when the robot is left standing.</em></p>
+<p>Check: <code>amcl</code>, <code>odom_ekf</code> and <code>base_to_footprint_ekf</code> are in the list.</p>
+<h3 id="13-watch-map-jump-and-odom-not">1.3 Watch map jump and odom not</h3>
+<p>See the REP-105 split happen. <code>docs/exercises/map_odom.py</code> reads <code>map</code> to <code>odom</code> and <code>odom</code> to <code>base_footprint</code> (x, y, yaw)
+and composes them into the robot's pose in <code>map</code>. Run it, tell AMCL the robot is somewhere else, and run it again.
+<code>/initialpose</code> is what RViz's "2D Pose Estimate" button publishes:</p>
+<pre><code class="language-bash">ros2 topic echo --once /odom_gt --field pose.pose.position          # x: 0.078, y: 0.011: the robot stands near marker A (-4.5, -3.5)
+python3 docs/exercises/map_odom.py --ros-args -p use_sim_time:=true
+ros2 topic pub --once /initialpose geometry_msgs/msg/PoseWithCovarianceStamped \
+  &quot;{header: {frame_id: map}, pose: {pose: {position: {x: -3.77, y: -3.49}, orientation: {w: 1.0}}}}&quot;
+python3 docs/exercises/map_odom.py --ros-args -p use_sim_time:=true
+</code></pre>
+<p>The robot stood at (-4.42, -3.49) in <code>map</code> (marker A plus the <code>/odom_gt</code> offset), so this pose is 0.65 m ahead of the truth.
+Then publish the true pose, <code>x: -4.43, y: -3.49</code>, and run the script a third time:</p>
+<pre><code>map-&gt;odom (-4.494, -3.481, yaw 0.007 rad)  odom-&gt;base_footprint (-0.029, 0.091, yaw -0.036 rad)  robot in map (-4.524, -3.390)
+map-&gt;odom (-3.735, -3.574, yaw 0.039 rad)  odom-&gt;base_footprint (-0.029, 0.098, yaw -0.031 rad)  robot in map (-3.768, -3.477)
+map-&gt;odom (-4.398, -3.586, yaw 0.031 rad)  odom-&gt;base_footprint (-0.023, 0.090, yaw -0.042 rad)  robot in map (-4.424, -3.496)
+</code></pre>
+<p><code>map</code> to <code>odom</code> moved by 0.76 m and then by 0.66 m, each in one step. <code>odom</code> to <code>base_footprint</code> moved by 7 mm and 10 mm, its
+slow drift while the robot stood, and did not react. The composed pose followed the pose you gave: the second line is 1.3 cm
+from the false pose, the third 1.5 cm from the truth (<code>/odom_gt</code> x was 0.089 by then). Before the first message it was 0.14 m
+off.</p>
+<p><img loading="lazy" alt="Left: the map origin, the three odom origins and the three composed robot poses in the arena. Right: bar chart of how far map to odom and odom to base_footprint moved in each step" src="../img/c04-map-odom-jump.png" /></p>
+<p><em>An earlier run of the same steps with a 0.5 m offset, drawn in <code>map</code>. Large arrows: the <code>odom</code> origin given by <code>map</code> to <code>odom</code>; small arrows: the robot, <code>map</code> to <code>odom</code> composed with <code>odom</code> to <code>base_footprint</code>; grey: ground truth. Right: the 0.43 m and 0.57 m steps of <code>map</code> to <code>odom</code> against 0.07 m and 0.03 m of <code>odom</code> to <code>base_footprint</code> over the same intervals.</em></p>
+<p>In that earlier run the robot had stood for several minutes and the odometry had drifted by 2.6 m and 22 degrees; <code>map</code> to
+<code>odom</code> had absorbed it, and the composed pose (-4.53, -3.86, -169.8 degrees) was within 0.18 m and 3.6 degrees of ground truth.
+The <code>map</code> to <code>odom</code> stamps also ran about 1 s ahead of the odometry: AMCL stamps its transform <code>transform_tolerance</code> (1.0 s in
+<code>nav2_params.yaml</code>) into the future, so that lookups at the current time succeed between its updates.</p>
+<p>Check: after each <code>/initialpose</code>, <code>map</code> to <code>odom</code> moves by about the offset you gave, <code>odom</code> to <code>base_footprint</code> by a
+centimetre or less, and "robot in map" lands within a few centimetres of the pose you published.</p>
+<h3 id="14-draw-the-tree-with-view_frames">1.4 Draw the tree with view_frames</h3>
+<p>Get every edge of the tree with its rate.</p>
+<pre><code class="language-bash">ros2 run tf2_tools view_frames
+# [view_frames]: Listening to tf data for 5.0 seconds...
+# [view_frames]: Generating graph in frames.pdf file...
+ls
+# frames_2026-11-28_00.35.51.gv  frames_2026-11-28_00.35.51.pdf
+</code></pre>
+<p>The edges, from the <code>.gv</code> file:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Parent to child</th>
+<th>Average rate</th>
+<th>Kind</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>map</code> to <code>odom</code></td>
+<td>10.3 Hz</td>
+<td>dynamic (AMCL)</td>
+</tr>
+<tr>
+<td><code>odom</code> to <code>base_footprint</code></td>
+<td>50.3 Hz</td>
+<td>dynamic (EKF)</td>
+</tr>
+<tr>
+<td><code>base_footprint</code> to <code>base_link</code></td>
+<td>49.8 Hz</td>
+<td>dynamic (CHAMP)</td>
+</tr>
+<tr>
+<td><code>base_link</code> to <code>trunk</code>, <code>lidar_link</code>, <code>camera_link</code>, <code>chase_cam</code></td>
+<td>"10000"</td>
+<td>static</td>
+</tr>
+<tr>
+<td><code>trunk</code> to <code>imu_link</code> and the four <code>*_hip_link</code></td>
+<td>static and 250 Hz</td>
+<td><code>imu_link</code> static; hips follow <code>/joint_states</code></td>
+</tr>
+<tr>
+<td><code>*_hip_link</code> to <code>*_upper_leg_link</code> to <code>*_lower_leg_link</code></td>
+<td>250 Hz</td>
+<td>dynamic (<code>robot_state_publisher</code>)</td>
+</tr>
+<tr>
+<td><code>*_lower_leg_link</code> to <code>*_foot_link</code>, <code>camera_link</code> to <code>camera_optical</code>, <code>lidar_link</code> to <code>lidar_visual</code></td>
+<td>"10000"</td>
+<td>static</td>
+</tr>
+</tbody>
+</table></div>
+<p>A second session gave 10.29, 50.29 and 50.29 Hz for the first three rows. Static transforms show a rate of 10000 and a most
+recent time of 0.0: they have no time. <code>robot_state_publisher</code> sends them once on <code>/tf_static</code> with <code>TRANSIENT_LOCAL</code>
+durability, so a listener that starts later still receives them (<a href="04-ros2-from-scratch.html#23-miss-a-message-that-was-published-before-you-subscribed">chapter 4</a>);
+every other transform is streamed on <code>/tf</code> with a stamp. Every edge says <code>Broadcaster: default_authority</code>, so <code>view_frames</code>
+does not tell you who publishes what; <code>ros2 topic info -v /tf</code> (task 1.2) does.</p>
+<p><img loading="lazy" alt="The TF tree drawn from map down to the four feet and the sensor frames, edges coloured by publisher, static edges dashed" src="../img/c04-tf-tree.png" /></p>
+<p><em>The table above as a tree. Edge colour is the publisher, from the "Kind" column and <code>ros2 topic info -v /tf</code>; dashed edges are static. Leg prefixes <code>lf</code>, <code>rf</code>, <code>lh</code>, <code>rh</code> are the URDF names.</em></p>
+<video controls muted playsinline src="../media/c04-go2-frames.mp4"></video>
+
+<p><em>Leg frames move with the joints, which in the ROS stack means <code>/tf</code> from <code>robot_state_publisher</code> and <code>/joint_states</code>; <code>lidar_link</code> and <code>camera_link</code> (orange spheres) stay fixed to <code>base_link</code>, which means <code>/tf_static</code>. MuJoCo Go2 with the legs moved kinematically in a trot pattern, not a recording of the Gazebo stack.</em></p>
+<p>Each frame has exactly one parent. If two nodes publish the same child frame, TF keeps whichever message arrived last, so the
+tree changes from message to message. This stack has three places where that could happen, and each is configured away:</p>
+<ul>
+<li><code>sim.launch.py</code> starts <code>gt_odom.py</code>, which also publishes <code>odom</code> to <code>base_footprint</code>, only with <code>odom:=gt</code>. Run it that way and
+  do not start <code>estimation.launch.py</code>.</li>
+<li><code>slam_toolbox</code> would publish its own <code>map</code> to <code>odom</code>. <code>config/slam.yaml</code> sets <code>map_frame: slam_map</code> and
+  <code>transform_publish_period: 0.0</code>, so it publishes no transform and AMCL stays the only parent of <code>odom</code>.</li>
+<li>CHAMP's own <code>footprint_to_odom</code> EKF is not started, through the <code>gt_odom</code> argument that the patch adds
+  (<a href="03-install-and-first-run.html#12-read-what-the-patch-changes">chapter 3</a>).</li>
+</ul>
+<p><img loading="lazy" alt="Left: map to odom to base_footprint, one publisher per edge. Right: amcl and slam_toolbox both publishing a parent of odom" src="../img/c04-one-parent.png" /></p>
+<p><em>The second case from the list above, had <code>slam_toolbox</code> been left to publish its transform.</em></p>
+<p>Check: the tree has <code>map</code> at the root, and <code>map</code> to <code>odom</code> runs near 10 Hz while <code>odom</code> to <code>base_footprint</code> runs near 50 Hz.</p>
+<h3 id="15-read-the-transform-that-is-wrong">1.5 Read the transform that is wrong</h3>
+<p>Find the one transform in this stack that does not match the robot. <code>odom</code> to <code>base_footprint</code> should carry x, y and yaw;
+<code>base_footprint</code> to <code>base_link</code> should carry the rest: trunk height, roll and pitch.</p>
+<pre><code class="language-bash">ros2 run tf2_ros tf2_echo base_footprint base_link
+</code></pre>
+<pre><code>At time 707.845000000
+- Translation: [0.000, 0.000, 0.426]
+- Rotation: in Quaternion (xyzw) [0.000, 0.000, 0.000, 1.000]
+...
+At time 708.595000000
+- Translation: [0.000, 0.000, 0.426]
+- Rotation: in Quaternion (xyzw) [0.000, 0.000, 0.000, 1.000]
+</code></pre>
+<p>It is stamped and published at 50 Hz, but its value is a constant (0.426 m again in a later session, at time 24.105). Where
+it comes from:</p>
+<pre><code class="language-bash">ros2 topic echo --once /base_to_footprint_pose --field pose.pose     # position z: 0.4259999990463257, identity rotation
+ros2 topic echo --once /odom_gt --field pose.pose.position          # z: 0.21658939177410852
+</code></pre>
+<p>CHAMP's <code>state_estimation_node</code> publishes <code>/base_to_footprint_pose</code> and <code>base_to_footprint_ekf</code> turns it into the transform.
+The estimator needs foot contacts, and nothing publishes <code>/foot_contacts</code> in this setup (<code>ros2 doctor</code> in chapter 4 flagged
+it). 0.426 m is the height for all joint angles at zero, legs straight down: 0.213 + 0.213 m, the thigh and calf lengths
+(<a href="01-legged-robot-foundations.html#42-measure-base_footprint-to-base_link">chapter 1</a> has the details). The simulator puts <code>base_link</code> 0.217 m above the floor,
+so <code>base_footprint</code> lies 0.426 − 0.217 = 0.209 m below the floor, and everything expressed in <code>base_footprint</code> or <code>odom</code> is
+0.209 m too high. This is a known open issue of the course; it is stated here, not fixed.</p>
+<p><img loading="lazy" alt="Side view of the Go2 to scale: base_link 0.217 m above the floor, base_footprint 0.426 m below base_link and 0.209 m below the floor, and the lowest lidar beam reaching the floor" src="../img/c04-footprint-error.png" /></p>
+<p><em>Side view to scale, MuJoCo Go2 posed at the ground-truth height of 0.217 m. The dashed line is where TF puts <code>base_footprint</code>; the lowest beam, drawn from the 0.1 m lidar offset, reaches the floor 1.18 m ahead, close to the 1.2 m ring measured below.</em></p>
+<p>The floor confirms it. The lidar's lowest beam points 15 degrees down and hits the floor in a ring about 1.2 m around the
+robot. <code>docs/exercises/floor_ring.py</code> takes one <code>/lidar/points</code> message, keeps the points of the lowest elevation angle, and
+adds the <code>base_footprint</code> to <code>lidar_link</code> height from TF (0.1 + 0.426 m):</p>
+<pre><code class="language-bash">python3 docs/exercises/floor_ring.py --ros-args -p use_sim_time:=true
+</code></pre>
+<pre><code>lowest ring (-15 deg): 900 pts  horizontal distance median 1.174 m  z in base_footprint median 0.211  mean 0.220  (lidar_link z in base_footprint 0.526)
+gt z 0.2161
+</code></pre>
+<p>The distance is horizontal, $\sqrt{x^2 + y^2}$: the lidar is 0.526 − 0.211 = 0.315 m above that floor, and 0.315 m over
+1.174 m is the 15 degree beam. The slant range along the beam is 1.22 m. A second run printed 1.173 m and 0.212.</p>
+<p>The floor is at +0.211 m in <code>base_footprint</code>, against 0.426 − 0.2161 = 0.210 m predicted. <code>lidar_odom.py</code> keeps points
+between 0.30 and 1.0 m in <code>base_footprint</code>, which is 0.09 to 0.79 m above the real floor
+(<a href="09-state-estimation.html#lidar-odometry">chapter 9</a>).</p>
+<p>Trunk roll and pitch never reach TF either, so a point at distance $d$ is placed as if the trunk were level, off in height by
+$d \sin\theta$: 0.19 m at 3 m for the largest roll of the chapter 7 walk (3.6 degrees), 0.15 m for the −2.95 degree pitch in
+<code>bags/v3</code>. The derivation is in <a href="../modules/m00_math/index.html#height-error-from-an-uncorrected-tilt">module m00</a>. Code that
+needs gravity alignment takes roll and pitch from <code>/imu/data</code>.</p>
+<p><img loading="lazy" alt="Left: sketch of a tilted ray and the height error d sin theta. Right: height error against distance for 3.6, 2.95 and 1.63 degrees" src="../img/c04-tilt-error.png" /></p>
+<p><em>$\Delta z = d \sin\theta$ for the three tilts quoted above, with the 0.188 m and 0.154 m values at 3 m marked.</em></p>
+<p>Check: <code>tf2_echo base_footprint base_link</code> prints z = 0.426 at every stamp, and <code>/odom_gt</code> puts the trunk near 0.217 m.</p>
+<h3 id="16-read-the-camera-optical-frame">1.6 Read the camera optical frame</h3>
+<p>Confirm that <code>camera_optical</code> follows the optical convention. <code>sensors.xacro</code> attaches it to <code>camera_link</code> with
+<code>rpy="-1.5707963 0 -1.5707963"</code>:</p>
+<pre><code class="language-bash">ros2 run tf2_ros tf2_echo camera_link camera_optical
+</code></pre>
+<pre><code>At time 0.0
+- Translation: [0.000, 0.000, 0.000]
+- Rotation: in Quaternion (xyzw) [-0.500, 0.500, -0.500, 0.500]
+- Rotation: in RPY (radian) [-1.571, 0.000, -1.571]
+- Rotation: in RPY (degree) [-90.000, 0.000, -90.000]
+- Matrix:
+  0.000  0.000  1.000  0.000
+ -1.000  0.000  0.000  0.000
+ -0.000 -1.000  0.000  0.000
+  0.000  0.000  0.000  1.000
+</code></pre>
+<p>The columns of the rotation are the optical axes written in <code>camera_link</code>: optical x is (0, −1, 0), to the right; optical y
+is (0, 0, −1), down; optical z is (1, 0, 0), forward. How the matrix follows from the URDF <code>rpy</code> is worked through in
+<a href="../modules/m00_math/index.html#camera-optical-frame">module m00</a>. A depth pixel on the optical axis at depth $d$ is
+$(0, 0, d)$ in <code>camera_optical</code> and $(d, 0, 0)$ in <code>camera_link</code>: straight ahead.</p>
+<p><img loading="lazy" alt="Three 3-D axis triads: camera_link, camera_optical, and both at the same origin" src="../img/c04-optical-frame.png" /></p>
+<p><em>The columns of $R$ drawn: optical z lies on link x, optical x on link −y, optical y on link −z.</em></p>
+<p>Check: the third column of the matrix is (1, 0, 0), so the optical axis points along <code>camera_link</code> x.</p>
+<h2 id="task-2-look-up-transforms-in-time">Task 2: Look up transforms in time</h2>
+<h3 id="21-ask-for-the-latest-transform-and-for-one-at-a-stamp">2.1 Ask for the latest transform and for one at a stamp</h3>
+<p>Run a node that asks TF for <code>odom</code> to <code>base_footprint</code> at four times. Code uses TF through a buffer and a listener;
+<code>docs/exercises/tf_lookup.py</code> does this:</p>
+<pre><code class="language-python">buf = Buffer()                                         # keeps 10 s of history by default
+listener = TransformListener(buf, node, spin_thread=True)
+buf.lookup_transform('odom', 'base_footprint', Time())                              # the latest it has
+buf.lookup_transform('odom', 'base_footprint', now - Duration(seconds=30.0))        # 30 s ago
+buf.lookup_transform('odom', 'base_footprint', now + Duration(seconds=0.5))         # 0.5 s ahead
+buf.lookup_transform('odom', 'base_footprint', now + Duration(seconds=0.5), Duration(seconds=3.0))   # same, wait up to 3 s
+</code></pre>
+<p><code>lookup_transform(target, source, time)</code> returns the transform that maps source coordinates into target coordinates, like
+<code>tf2_echo target source</code>. The script asks once at start-up, waits 3 s of wall time, then asks the four questions:</p>
+<pre><code class="language-bash">python3 docs/exercises/tf_lookup.py --ros-args -p use_sim_time:=true
+</code></pre>
+<pre><code>at once, now           ExtrapolationException: Lookup would require extrapolation at time 56.980000, but only time 56.971000 is in the buffer, when looking up transform from frame [base_footprint] to frame [odom]
+now = 58.775 s
+latest, Time()         ok, stamp 58.751
+now - 30 s             ExtrapolationException: Lookup would require extrapolation into the past.  Requested time 28.775000 but the earliest data is at time 58.039000, when looking up transform from frame [base_footprint] to frame [odom]
+now + 0.5 s            ExtrapolationException: Lookup would require extrapolation into the future.  Requested time 59.275000 but the latest data is at time 58.751000, when looking up transform from frame [base_footprint] to frame [odom]
+now + 0.5 s, wait 3 s  ok, stamp 59.275
+</code></pre>
+<ul>
+<li><code>Time()</code> (zero) means "the latest you have", whatever its stamp. It does not fail for lack of time coverage, and it may be
+  stale.</li>
+<li>A stamp means "interpolated at this instant". For sensor data this is the right choice: the robot moved between the scan and
+  now, and the latest transform would place the points where the robot is now, not where it measured.</li>
+<li>The listener holds only what it has heard since it started: here 0.7 s of simulated time, so 30 s ago is not there.</li>
+<li>A time that has not happened yet fails at once; with a timeout the lookup waits, and succeeds once the publisher reaches it.</li>
+</ul>
+<p>Check: <code>Time()</code> and the lookup with a timeout succeed; the other two print <code>into the past</code> and <code>into the future</code>.</p>
+<p>Common mistakes: the first line varies with how much the listener has heard. In two other runs it was
+<code>LookupException: "odom" passed to lookupTransform argument target_frame does not exist</code>: no message had arrived yet.</p>
+<h3 id="22-read-an-extrapolationexception">2.2 Read an ExtrapolationException</h3>
+<p>Learn which side and by how much from the message alone. An earlier probe on the loaded machine (load average above 40)
+produced the three kinds:</p>
+<pre><code>tf2.ExtrapolationException: Lookup would require extrapolation into the past.  Requested time 880.096000 but the earliest data is at time 880.100000, when looking up transform from frame [lidar_link] to frame [base_footprint]
+ExtrapolationException : Lookup would require extrapolation into the future.  Requested time 935.490000 but the latest data is at time 934.979000, when looking up transform from frame [base_footprint] to frame [odom]
+ExtrapolationException : Lookup would require extrapolation into the past.  Requested time 904.990000 but the earliest data is at time 934.400000, when looking up transform from frame [base_footprint] to frame [odom]
+</code></pre>
+<p>The first came from a node that had just started: its listener had 4 ms less history than the first scan it received needed.
+The lidar lookup can fail at all because the chain from <code>lidar_link</code> to <code>base_footprint</code> includes the dynamic <code>base_footprint</code>
+to <code>base_link</code>; a chain of static transforms has no time and never raises these errors. The second asked for <code>now + 0.5 s</code>, the
+third for <code>now − 30 s</code>. A stamped lookup that fails into the future by a few tens of milliseconds means the publisher is late,
+and a timeout fixes it.</p>
+<p><img loading="lazy" alt="Three time axes, one per exception, each showing the span of the buffer and the requested time outside it" src="../img/c04-lookup-time.png" /></p>
+<p><em>The three messages above on their own time axes (note the different scales): 4 ms before the earliest data, 0.511 s after the latest, 29.4 s before the earliest.</em></p>
+<p><code>lidar_odom.py</code> uses both forms: a stamped lookup with a 0.3 s timeout, and the latest transform as a fallback when the
+stamped one fails on a loaded machine (<a href="09-state-estimation.html#lidar-odometry">chapter 9</a>).</p>
+<p>Check: for each of the three messages you can say whether the request was before the buffer or after it, and by how much.</p>
+<h3 id="23-diagnose-a-lookup-on-the-wrong-clock">2.3 Diagnose a lookup on the wrong clock</h3>
+<p>Run the same script without <code>use_sim_time</code> and explain the result:</p>
+<pre><code class="language-bash">python3 docs/exercises/tf_lookup.py
+</code></pre>
+<pre><code>at once, now           LookupException: &quot;odom&quot; passed to lookupTransform argument target_frame does not exist.
+now = 1795846701.248 s
+latest, Time()         ok, stamp 61.757
+now - 30 s             ExtrapolationException: Lookup would require extrapolation into the future.  Requested time 1795846671.247732 but the latest data is at time 62.740000, when looking up transform from frame [base_footprint] to frame [odom]
+now + 0.5 s            ExtrapolationException: Lookup would require extrapolation into the future.  Requested time 1795846701.747732 but the latest data is at time 62.740000, when looking up transform from frame [base_footprint] to frame [odom]
+now + 0.5 s, wait 3 s  ExtrapolationException: Lookup would require extrapolation into the future.  Requested time 1795846701.747732 but the latest data is at time 64.839000, when looking up transform from frame [base_footprint] to frame [odom]
+</code></pre>
+<p>The node's clock is the system clock, so "now" is a Unix time near 1.8e9 s, while the transforms are stamped in simulated
+seconds. Even <code>now − 30 s</code> is "in the future", and no timeout helps. Only <code>Time()</code> works, because it ignores the clock. This
+is the TF form of the silent echo of <a href="04-ros2-from-scratch.html#24-measure-on-the-right-clock">chapter 4</a>.</p>
+<p><img loading="lazy" alt="Troubleshooting ladder for an ExtrapolationException: a Unix requested time, into the future, into the past by a few ms at start-up, into the past beyond the buffer, each with its cause" src="../img/c04-tf-lookup-tree.png" /></p>
+<p><em>The three probe messages as a checklist. The first row is not one of them: it is the wall-clock mismatch of <a href="04-ros2-from-scratch.html">chapter 4</a>, task 2.4, as a TF lookup would meet it.</em></p>
+<p>Check: the requested times are about 1.8e9 s and the data near 60 s; with <code>-p use_sim_time:=true</code> both are near 60 s.</p>
+<h3 id="24-let-tf-compose-a-chain">2.4 Let TF compose a chain</h3>
+<p>Ask for a transform across several edges; TF multiplies them for you:</p>
+<pre><code class="language-bash">ros2 run tf2_ros tf2_echo odom lidar_link
+</code></pre>
+<pre><code>At time 53.418000000
+- Translation: [0.123, -0.103, 0.526]
+- Rotation: in Quaternion (xyzw) [0.000, 0.000, 0.027, 1.000]
+</code></pre>
+<p>The height is 0.1 m (<code>base_link</code> to <code>lidar_link</code>) plus 0.426 m (<code>base_footprint</code> to <code>base_link</code>); x, y and yaw are the drift
+of <code>odom</code> to <code>base_footprint</code> while the robot stood.</p>
+<p>The same chain by hand, from an earlier session: a <code>/lidar/points</code> message stamped 934.896 s, and the three transforms that
+<code>lookup_transform</code> returned at that stamp. The first two only add height. The third is the drift of that session, much larger
+than above:</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Transform</th>
+<th>Translation (m)</th>
+<th>Yaw</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>base_link</code> to <code>lidar_link</code></td>
+<td>(0, 0, 0.1)</td>
+<td>0</td>
+</tr>
+<tr>
+<td><code>base_footprint</code> to <code>base_link</code></td>
+<td>(0, 0, 0.426)</td>
+<td>0</td>
+</tr>
+<tr>
+<td><code>odom</code> to <code>base_footprint</code></td>
+<td>(−0.5398, 0.2516, 0)</td>
+<td>7.83 degrees (cos 0.9907, sin 0.1362)</td>
+</tr>
+</tbody>
+</table></div>
+<p>A point at $p_\text{lidar} = (1.2545, −0.0044, 0.0219)$ is at $(1.2545, −0.0044, 0.5479)$ in <code>base_footprint</code>, and in <code>odom</code></p>
+<p>$$x = 0.9907 \times 1.2545 - 0.1362 \times (-0.0044) - 0.5398 = 0.7036, \qquad y = 0.1362 \times 1.2545 + 0.9907 \times (-0.0044) + 0.2516 = 0.4181,$$</p>
+<p>with $z = 0.5479$. <code>lookup_transform('odom', 'lidar_link', stamp)</code> applied to the same point gave (0.7035, 0.4181, 0.5479),
+2.2e-16 m from the composition done in full precision; the 0.7036 above differs in the fourth decimal because the table is
+rounded. Your own numbers will differ by the drift of your <code>odom</code> frame.</p>
+<p><img loading="lazy" alt="The lidar point carried down a chain of four frames with its coordinates in each, and a top view of the odom and base_footprint frames with the point" src="../img/c04-compose-chain.png" /></p>
+<p><em>The worked example as a chain: each arrow is one transform, the coordinates beside each frame are the point in that frame. Right: the same step in top view, <code>base_footprint</code> turned 7.83 degrees in <code>odom</code>.</em></p>
+<p>Check: the z of <code>odom</code> to <code>lidar_link</code> is 0.526 m, the static 0.1 m plus the dynamic 0.426 m.</p>
+<h2 id="task-3-find-the-faults-in-a-broken-tree">Task 3: Find the faults in a broken tree</h2>
+<p><code>docs/exercises/broken_tree.launch.py</code> publishes a small version of this robot's sensor tree with static transforms only. It
+has two faults: one transform is wrong and one frame has no parent. Find both with the three tools before you read 3.5. Do
+not read the launch file below its docstring, which lists the expected tree:</p>
+<pre><code>base_footprint -&gt; base_link -&gt; lidar_link, camera_link -&gt; camera_optical, trunk -&gt; imu_link
+</code></pre>
+<h3 id="31-start-the-broken-tree">3.1 Start the broken tree</h3>
+<p>Start the five static publishers of the exercise on their own. The frame names are the robot's, so stop the stack first:</p>
+<pre><code class="language-bash">scripts/stop.sh
+ros2 launch docs/exercises/broken_tree.launch.py
+</code></pre>
+<pre><code>[INFO] [static_transform_publisher-1]: process started with pid [...]
+...
+[static_transform_publisher-1] [INFO] [...] [footprint_to_base]: Spinning until stopped - publishing transform
+</code></pre>
+<p>Check: <code>ros2 node list</code> in a second terminal shows five nodes: <code>/base_to_camera</code>, <code>/base_to_lidar</code>, <code>/camera_to_optical</code>,
+<code>/footprint_to_base</code>, <code>/trunk_to_imu</code>.</p>
+<h3 id="32-ask-tf2_echo">3.2 Ask tf2_echo</h3>
+<p>Look up each sensor from <code>base_link</code> and compare with task 1:</p>
+<pre><code class="language-bash">ros2 run tf2_ros tf2_echo base_link lidar_link       # Translation: [0.000, 0.000, 0.100], as on the robot
+ros2 run tf2_ros tf2_echo base_link imu_link
+</code></pre>
+<pre><code>[INFO] [...] [tf2_echo]: Waiting for transform base_link -&gt;  imu_link: Invalid frame ID &quot;base_link&quot; passed to canTransform argument target_frame - frame does not exist
+[INFO] [...] [tf2_echo]: Waiting for transform base_link -&gt;  imu_link: Could not find a connection between 'base_link' and 'imu_link' because they are not part of the same tree.Tf has two or more unconnected trees.
+</code></pre>
+<pre><code class="language-bash">ros2 run tf2_ros tf2_echo camera_link camera_optical
+</code></pre>
+<pre><code>At time 0.0
+- Translation: [0.000, 0.000, 0.000]
+- Rotation: in Quaternion (xyzw) [-0.500, -0.500, 0.500, 0.500]
+- Rotation: in RPY (radian) [-1.571, 0.000, 1.571]
+- Rotation: in RPY (degree) [-90.000, 0.000, 90.000]
+- Matrix:
+  0.000 -0.000 -1.000  0.000
+  1.000  0.000  0.000  0.000
+ -0.000 -1.000  0.000  0.000
+  0.000  0.000  0.000  1.000
+</code></pre>
+<p>Check: <code>imu_link</code> cannot be reached from <code>base_link</code>, and the optical rotation differs from the one in task 1.6.</p>
+<p>Common mistakes: the first line of <code>tf2_echo</code> says <code>frame does not exist</code> even for a frame that is there; the listener has not
+heard anything yet. Read the second line.</p>
+<h3 id="33-ask-tf2_monitor">3.3 Ask tf2_monitor</h3>
+<p>Find the frame that has no parent. <code>tf2_monitor</code> listens for 10 s and lists every frame that has a parent:</p>
+<pre><code class="language-bash">ros2 run tf2_ros tf2_monitor
+</code></pre>
+<pre><code>Gathering data on all frames for 10 seconds...
+
+RESULTS: for all Frames
+
+Frames:
+Frame: base_link, published by &lt;no authority available&gt;, Average Delay: 59.9426, Max Delay: 59.9426
+Frame: camera_link, published by &lt;no authority available&gt;, Average Delay: 59.9373, Max Delay: 59.9373
+Frame: camera_optical, published by &lt;no authority available&gt;, Average Delay: 59.9426, Max Delay: 59.9426
+Frame: imu_link, published by &lt;no authority available&gt;, Average Delay: 59.9452, Max Delay: 59.9452
+Frame: lidar_link, published by &lt;no authority available&gt;, Average Delay: 59.9455, Max Delay: 59.9455
+
+All Broadcasters:
+Node: &lt;no authority available&gt; 384.467 Hz, Average Delay: 59.9426 Max Delay: 59.9455
+</code></pre>
+<p>The expected tree has six child frames; <code>trunk</code> is missing from the list, so nothing gives it a parent. The delay of about
+60 s is the age of the static transforms, which are stamped once when their publisher starts. With two frames,
+<code>ros2 run tf2_ros tf2_monitor base_link imu_link</code> repeats the <code>not part of the same tree</code> message of 3.2.</p>
+<p>Check: the list has five frames and no <code>trunk</code>.</p>
+<h3 id="34-draw-it-with-view_frames">3.4 Draw it with view_frames</h3>
+<p>See both faults' effect on the shape of the tree.</p>
+<pre><code class="language-bash">ros2 run tf2_tools view_frames
+</code></pre>
+<p><img loading="lazy" alt="view_frames output of the broken tree: base_footprint to base_link to camera_link, lidar_link and camera_optical in one tree, and trunk to imu_link as a second tree with no connection" src="../img/c05-broken-tree-frames.png" /></p>
+<p><em><code>view_frames</code> on the broken tree. Two trees: <code>trunk</code> to <code>imu_link</code> stands on its own, because nothing publishes <code>base_link</code> to <code>trunk</code>.</em></p>
+<p>The edges in the <code>.gv</code> file:</p>
+<pre><code>&quot;base_link&quot; -&gt; &quot;lidar_link&quot;
+&quot;base_footprint&quot; -&gt; &quot;base_link&quot;
+&quot;base_link&quot; -&gt; &quot;camera_link&quot;
+&quot;camera_link&quot; -&gt; &quot;camera_optical&quot;
+&quot;trunk&quot; -&gt; &quot;imu_link&quot;
+</code></pre>
+<p>Check: the drawing shows two separate trees.</p>
+<h3 id="35-fix-both-and-check">3.5 Fix both and check</h3>
+<p>Correct the launch file and confirm the fix with <code>tf2_echo</code> and RViz. The two faults:</p>
+<ul>
+<li>Missing frame: nothing publishes <code>base_link</code> to <code>trunk</code>. In the robot's URDF that joint is fixed with zero offset.</li>
+<li>Wrong transform: <code>camera_link</code> to <code>camera_optical</code> has yaw +1.5708 instead of −1.5708. Its rotation's third column is
+  (−1, 0, 0): the optical axis points backwards, and optical x points left.</li>
+</ul>
+<p>Copy the launch file, flip the yaw sign and add the missing edge:</p>
+<pre><code class="language-bash">cp docs/exercises/broken_tree.launch.py $HOME/fixed_tree.launch.py
+# edit: yaw=1.5707963 -&gt; yaw=-1.5707963, and add  static('base_to_trunk', 'base_link', 'trunk'),
+diff docs/exercises/broken_tree.launch.py $HOME/fixed_tree.launch.py
+</code></pre>
+<pre><code>22c22,23
+&lt;         static('camera_to_optical', 'camera_link', 'camera_optical', roll=-1.5707963, yaw=1.5707963),   # fault 1: yaw sign
+---
+&gt;         static('camera_to_optical', 'camera_link', 'camera_optical', roll=-1.5707963, yaw=-1.5707963),   # fault 1: yaw sign
+&gt;         static('base_to_trunk', 'base_link', 'trunk'),
+</code></pre>
+<p>Stop the broken tree (Ctrl-C) and start yours:</p>
+<pre><code class="language-bash">ros2 launch $HOME/fixed_tree.launch.py
+ros2 run tf2_ros tf2_echo camera_link camera_optical    # Quaternion (xyzw) [-0.500, 0.500, -0.500, 0.500], RPY degree [-90.000, -0.000, -90.000]
+ros2 run tf2_ros tf2_echo base_link imu_link            # Translation: [0.000, 0.000, 0.000]
+</code></pre>
+<p><code>view_frames</code> now draws one tree, with <code>base_link</code> to <code>trunk</code> to <code>imu_link</code>.</p>
+<p><img loading="lazy" alt="Two panels of 3-D axes. Left, as launched: optical z points backwards along minus camera_link x, optical x points left. Right, fixed: optical z forward, x right, y down" src="../img/c05-broken-optical.png" /></p>
+<p><em>The rotation of <code>camera_link</code> to <code>camera_optical</code> from the two <code>tf2_echo</code> matrices above; faded axes are <code>camera_link</code>. Optical y points down in both, which is why the fault is easy to miss in a camera image that is only mirrored and rotated.</em></p>
+<p>Look at the same two trees in RViz. Start it on the course config with <code>base_link</code> as the fixed frame, once with the broken
+tree running and once with yours:</p>
+<pre><code class="language-bash">rviz2 -d src/go2_nav_sim/rviz/go2.rviz -f base_link
+</code></pre>
+<p>In the Displays panel, expand TF. With the broken tree its status is <code>Warn</code> (orange); with yours it is <code>Ok</code>. The figure
+below has the RobotModel display unticked, to leave only the frames.</p>
+<p><img loading="lazy" alt="RViz TF display of the broken and the fixed tree, seen from in front of the robot and to its left. Left: the camera_optical triad has its blue z axis pointing back towards base_link. Right: blue z points forward, away from the robot, red x to the robot's right, green y down" src="../img/c05-broken-optical-rviz.png" /></p>
+<p><em>RViz with <code>go2.rviz</code>, fixed frame <code>base_link</code>, TF names off and arrows on, seen from in front of the robot and to its left; the triad nearest the viewer is <code>camera_link</code> and <code>camera_optical</code> at the same origin, and behind it, from the top, <code>lidar_link</code>, <code>base_link</code> and <code>base_footprint</code>. Left, as launched: optical z (blue) points back along the body. Right, fixed: optical z points forward, towards the viewer, and optical x (red) to the robot's right.</em></p>
+<p>Check: <code>tf2_echo camera_link camera_optical</code> matches task 1.6, <code>tf2_echo base_link imu_link</code> prints a transform, and the TF
+display in RViz reads <code>Status: Ok</code>.</p>
+<p>Common mistakes: starting a second <code>static_transform_publisher</code> for <code>camera_link</code> to <code>camera_optical</code> next to the broken one
+did not fix it. Both publish the same child; the listener in my run kept the wrong one. Fix the publisher that is wrong, do not
+add a second. The same happens when the broken tree is still running while you start yours: in my run <code>tf2_echo</code> then printed
+the broken rotation <code>[-0.500, -0.500, 0.500, 0.500]</code>.</p>
+<p>Before you go on, stop the fixed tree with Ctrl-C in its terminal, then check with <code>ros2 node list</code> that none of the five
+publishers is left. <code>scripts/stop.sh</code> does not stop it (its patterns do not match <code>static_transform_publisher</code> or
+<code>ros2 launch</code> of a file outside the packages), and a tree left running keeps publishing a static <code>base_footprint</code> to
+<code>base_link</code> at z = 0.217 and its own camera frames next to the robot's publishers. Then start the stack again with
+<code>scripts/up.sh</code> for the exercise.</p>
+<h2 id="exercise">Exercise</h2>
+<p>A depth pixel on the optical axis of the robot's camera reads 2.0 m. Where is that point in <code>base_link</code>? Work it out from
+task 1.1 and 1.6, then check it with <code>lookup_transform('base_link', 'camera_optical', Time())</code> on the running stack.</p>
+<p>Answer: in <code>camera_link</code> the point is $R\,(0,0,2)^\top = (2, 0, 0)$; adding the 0.28 m forward and 0.03 m up of <code>camera_link</code>
+gives (2.28, 0, 0.03) m in <code>base_link</code>. TF printed <code>[2.28000000e+00 5.35897930e-08 3.00000536e-02]</code>.</p>
+<h2 id="further-reading">Further reading</h2>
+<ul>
+<li>ROS 2 documentation, Humble: <code>Tf2/Debugging-Tf2-Problems.rst</code> in https://github.com/ros2/ros2_documentation (the tools of
+  task 3 on a different broken tree).</li>
+<li>K. M. Lynch and F. C. Park, <em>Modern Robotics</em>, chapter 3 (rigid-body motions): https://hades.mech.northwestern.edu/index.php/Modern_Robotics</li>
+</ul><nav class="prevnext" aria-label="Previous and next"><a class="pn" href="../projects/p01_first-steps/index.html"><span>Previous</span>First steps: launch, inspect, walk, stop</a><a class="pn next" href="06-import-the-go2.html"><span>Next</span>Import the Go2</a></nav><p class="source">Source: <a href="https://github.com/Armanasq/go2-nav-sim/blob/main/docs/05-frames-and-tf2.md">docs/05-frames-and-tf2.md</a></p></article></div>
+</main>
+<footer class="site"><div class="wrap">Simulation only. Source and issues on <a href="https://github.com/Armanasq/go2-nav-sim">GitHub</a>.</div></footer>
+<script type="module" src="../static/js/site.js"></script>
+</body>
+</html>

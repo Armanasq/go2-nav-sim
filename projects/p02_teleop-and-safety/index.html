@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Teleoperation with a safety layer · go2-nav-sim</title>
+<meta name="description" content="Teleoperation with a safety layer">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../../static/css/site.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5' fill='%230a6a9c'/%3E%3C/svg%3E">
+
+</head>
+<body data-root="../../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar"><div class="inner">
+<a class="brand" href="../../index.html">go2-nav-sim</a>
+<nav aria-label="Main"><a href="../../tutorial/00-overview.html" aria-current="page">Learn</a><a href="../../tasks/index.html">Tasks</a><a href="../../modules/index.html">Deep dives</a><a href="../../reference.html">Reference</a></nav>
+<button class="theme-toggle" type="button" aria-label="Colour theme: auto">auto</button>
+</div></header>
+<main id="main">
+<div class="wrap doc"><details class="side" open><summary>Teleoperation with a safety layer</summary><nav aria-label="Contents"><ol class="parts"><li><a class="part" href="../../tutorial/00-overview.html">Start</a></li><li><a class="part" href="../../tutorial/05-frames-and-tf2.html">The robot</a></li><li class="open"><p class="part">Move it</p><ol><li><a href="index.html" aria-current="page"><span class="n">P2</span><span>Teleoperation with a safety layer</span></a><ul class="sections"><li><a href="#goal">Goal</a></li><li><a href="#what-you-will-learn">What you will learn</a></li><li><a href="#before-you-start">Before you start</a></li><li><a href="#steps">Steps</a></li><li><a href="#how-the-code-works">How the code works</a></li><li><a href="#results">Results</a></li><li><a href="#try-this">Try this</a></li><li><a href="#if-it-goes-wrong">If it goes wrong</a></li></ul></li><li><a href="../p03_move-in-shapes/index.html"><span class="n">P3</span><span>Move in shapes</span></a></li><li><a href="../p04_go-to-pose/index.html"><span class="n">P4</span><span>Your own go-to-pose controller</span></a></li><li><a href="../../tasks/s08_feedback-movement/index.html"><span class="n">S8</span><span>Feedback movement</span></a></li></ol></li><li><a class="part" href="../../tutorial/08-robot-and-sensors.html">Sense and avoid</a></li><li><a class="part" href="../../tutorial/09-state-estimation.html">Estimate and map</a></li><li><a class="part" href="../p11_command-arbitration/index.html">Navigate</a></li><li><a class="part" href="../p14_test-the-stack/index.html">Beyond simulation</a></li></ol></nav></details><article class="prose"><p class="where">Move it · Project 2</p><h1>Teleoperation with a safety layer</h1><h2 id="goal">Goal</h2>
+<p>Drive the Go2 from the keyboard, then put a small node of your own between the keyboard and the robot. The node limits speed
+and acceleration and stops the robot when commands stop arriving (a dead-man timeout). CHAMP, the gait controller, has no such
+timeout: it walks on the last <code>/cmd_vel</code> it received for as long as nothing else arrives. You measure how long the robot takes
+to stand still after the last command, with and without your node, and you unit-test the limiter without ROS.</p>
+<h2 id="what-you-will-learn">What you will learn</h2>
+<ul>
+<li>Running <code>teleop_twist_keyboard</code> and remapping its output topic.</li>
+<li>Why a keyboard teleop alone is unsafe on this robot, measured on the simulator's ground truth.</li>
+<li>Writing a node that sits in a command chain: subscribe, filter, republish on a timer.</li>
+<li>Velocity clipping, an acceleration (slew-rate) limit and a dead-man timeout, and how to predict the stopping distance they give.</li>
+<li>Keeping the logic in a plain Python class so <code>pytest</code> can test it with no ROS graph.</li>
+<li>Handling Ctrl-C and SIGTERM in an rclpy node so it can send a last zero before it exits.</li>
+</ul>
+<h2 id="before-you-start">Before you start</h2>
+<p>Do <a href="../p01_first-steps/index.html">project 1</a> first: it shows how to start the stack, read <code>/odom_gt</code>, and why a zero twist is the
+only way to stop CHAMP. <a href="../../tutorial/07-make-it-walk.html">Chapter 7</a> has the CHAMP limits used below (0.3 m/s forward, 0.25 m/s
+sideways, 0.5 rad/s yaw).</p>
+<p>Every terminal starts with:</p>
+<pre><code class="language-bash">cd go2-nav-sim
+source env.sh
+</code></pre>
+<p>and the stack must be running (<code>scripts/up.sh</code>, which prints <code>stack up</code>). This project only uses the simulator; Nav2 can stay up
+because it publishes on <code>/cmd_vel</code> only while it has a goal. In my runs with Nav2 up and idle, a robot left walking was still
+walking 6 s later, so nothing else sent it a zero.</p>
+<p>The scripts are plain Python files and need no build: <code>python3 projects/p02_teleop-and-safety/&lt;script&gt;.py</code>.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>File</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>limiter.py</code></td>
+<td>the limiter and dead-man logic, no ROS</td>
+</tr>
+<tr>
+<td><code>safety_node.py</code></td>
+<td>the node: <code>teleop/cmd_vel</code> in, <code>cmd_vel</code> out</td>
+</tr>
+<tr>
+<td><code>test_limiter.py</code></td>
+<td>7 unit tests for <code>limiter.py</code></td>
+</tr>
+<tr>
+<td><code>measure_stop.py</code></td>
+<td>walks forward, goes silent, measures the time to standstill from <code>/odom_gt</code></td>
+</tr>
+<tr>
+<td><code>key_drive.py</code></td>
+<td>types keys into <code>teleop_twist_keyboard</code> from a script, so a keyboard drive can be repeated</td>
+</tr>
+<tr>
+<td><code>record_reliable.py</code></td>
+<td><code>projects/common/record_cam.py</code> with a reliable subscription (see <a href="#if-it-goes-wrong">If it goes wrong</a>)</td>
+</tr>
+<tr>
+<td><code>plot.py</code></td>
+<td>the two figures, and the summary of all stop measurements</td>
+</tr>
+<tr>
+<td><code>results/</code></td>
+<td>my CSVs and bags behind every number below; your own runs go to <code>~/p02_runs</code> (step 6), so they never overwrite these</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="steps">Steps</h2>
+<h3 id="1-check-that-the-keyboard-teleop-is-installed">1. Check that the keyboard teleop is installed</h3>
+<pre><code class="language-bash">ros2 pkg executables teleop_twist_keyboard
+</code></pre>
+<p>Expected:</p>
+<pre><code>teleop_twist_keyboard teleop_twist_keyboard
+</code></pre>
+<p>Check: if the line is missing, install it with <code>sudo apt install ros-humble-teleop-twist-keyboard</code>.</p>
+<h3 id="2-drive-without-a-safety-layer">2. Drive without a safety layer</h3>
+<pre><code class="language-bash">ros2 run teleop_twist_keyboard teleop_twist_keyboard
+</code></pre>
+<p>It prints a key map. <code>i</code> walks forward, <code>,</code> backwards, <code>j</code> and <code>l</code> turn on the spot, <code>u</code> and <code>o</code> walk in an arc, <code>k</code> stops. It
+starts at <code>speed 0.5 turn 1.0</code>, above CHAMP's limits; CHAMP clips them to 0.3 m/s and 0.5 rad/s.</p>
+<p>Press <code>i</code> once and take your hands off the keyboard. The robot keeps walking. <code>teleop_twist_keyboard</code> publishes one message per
+key event and nothing when no key is pressed, and CHAMP holds the last message. Press <code>k</code> to stop it.</p>
+<p>Check: in a second terminal, <code>ros2 topic hz /cmd_vel</code> prints nothing while you do not touch the keyboard, and
+<code>ros2 topic echo --once /odom_gt --field pose.pose.position.x</code>, run twice a few seconds apart, gives a larger number the second
+time, until you press <code>k</code>.</p>
+<p>Close the teleop with Ctrl-C (it sends a zero twist as it exits).</p>
+<h3 id="3-run-the-unit-tests">3. Run the unit tests</h3>
+<p>The limiter lives in <code>limiter.py</code>, which imports nothing from ROS. Test it first:</p>
+<pre><code class="language-bash">python3 -m pytest -q projects/p02_teleop-and-safety
+</code></pre>
+<p>Expected:</p>
+<pre><code>.......                                                                  [100%]
+7 passed in 0.24s
+</code></pre>
+<p>Check: the tests also pass in a shell where <code>env.sh</code> was not sourced, which shows they need no ROS.</p>
+<h3 id="4-start-the-safety-node">4. Start the safety node</h3>
+<pre><code class="language-bash">python3 projects/p02_teleop-and-safety/safety_node.py
+</code></pre>
+<p>Expected:</p>
+<pre><code>[INFO] [...] [cmd_safety]: teleop/cmd_vel -&gt; cmd_vel  v_max [0.3, 0.25, 0.5]  a_max [0.5, 0.5, 1.0]  timeout 0.6 s  20.0 Hz
+</code></pre>
+<p>Check, from another terminal:</p>
+<pre><code class="language-bash">ros2 node info /cmd_safety            # Subscribers: /clock, /teleop/cmd_vel   Publishers: /cmd_vel, ...
+ros2 param get /cmd_safety timeout    # Double value is: 0.6
+ros2 topic info /cmd_vel -v | grep -c 'Node name: cmd_safety'    # 1
+</code></pre>
+<p>The last command counts the publishers on <code>/cmd_vel</code> named <code>cmd_safety</code>; it must print <code>1</code>. The full
+<code>ros2 topic info /cmd_vel -v</code> lists more: with the stack from <code>scripts/up.sh</code> it printed <code>Publisher count: 7</code> (<code>cmd_safety</code>,
+<code>velocity_smoother</code> and five <code>behavior_server</code> entries, all from Nav2, which publish only while Nav2 has a goal) and
+<code>Subscription count: 1</code> (<code>quadruped_controller_node</code>, CHAMP). Seven is normal here; only <code>cmd_safety</code> appearing twice is a
+problem (see <a href="#if-it-goes-wrong">If it goes wrong</a>). <a href="../p11_command-arbitration/index.html">Project 11</a> puts <code>twist_mux</code> in front
+of CHAMP so that one node, <code>cmd_safety</code>, is the only publisher on <code>/cmd_vel</code>.</p>
+<p>The node reads its parameters once, at start-up. To change one, stop the node and start it again with
+<code>--ros-args -p timeout:=0.3</code>. Give floats as floats: <code>-p "a_max:=[1, 1, 2]"</code> stops the node with
+<code>InvalidParameterTypeException: ... of type 'INTEGER_ARRAY', expecting type 'DOUBLE_ARRAY'</code>; write <code>-p "a_max:=[1.0, 1.0, 2.0]"</code>.</p>
+<h3 id="5-drive-through-the-safety-node">5. Drive through the safety node</h3>
+<p>Remap the teleop's output to the node's input:</p>
+<pre><code class="language-bash">ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r cmd_vel:=teleop/cmd_vel
+</code></pre>
+<p>Hold <code>i</code> for a few seconds, then let go. The robot speeds up over about 0.6 s, walks, and stops about 1.3 s after you let go. The
+safety node logs:</p>
+<pre><code>[WARN] [...] [cmd_safety]: no command for 0.6 s: stopping
+</code></pre>
+<p>Check: while you hold <code>i</code>, <code>ros2 topic echo /teleop/cmd_vel --field linear.x</code> shows <code>0.5</code> and
+<code>ros2 topic echo /cmd_vel --field linear.x</code> shows <code>0.3</code>: the node clipped the command.</p>
+<p>Close the teleop with Ctrl-C. Leave the safety node running; steps 6 and 7 use it.</p>
+<h3 id="6-measure-the-stopping-time">6. Measure the stopping time</h3>
+<p>Restart the stack so the robot is back on A, facing +x:</p>
+<pre><code class="language-bash">scripts/up.sh
+</code></pre>
+<p>Leave the safety node from step 4 running. The restart sets simulated time back to about 0, and the node logs that once:</p>
+<pre><code>[WARN] [...] [cmd_safety]: simulated time went back 42.5 s (simulator restarted): last command dropped
+</code></pre>
+<p>It then stays silent until a new command arrives on <code>teleop/cmd_vel</code>, so it does not interfere with the first two runs below, which
+publish straight to <code>/cmd_vel</code>. If that line does not appear and the first two runs print <code>standstill 0.00 s ... 0.00 m walked</code>,
+you are running an older copy of <code>safety_node.py</code> without the clock check: it kept resending its last zero after the restart
+(<a href="#if-it-goes-wrong">If it goes wrong</a>). Ctrl-C it, start it again, and repeat the runs.</p>
+<p>Your results go to <code>~/p02_runs</code>, outside the repository, so my files in <code>results/</code> and <code>figures/</code> stay as they are:</p>
+<pre><code class="language-bash">mkdir -p ~/p02_runs
+</code></pre>
+<p>The three runs below walk about 6 m in total along y = -3.5, which is free of obstacles up to x = 5.5. Each run walks at 0.3 m/s
+for 4 s of simulated time, then either sends one zero twist or goes silent, then watches the ground truth for 6 s. At the end the
+script always sends a zero on <code>/cmd_vel</code>.</p>
+<pre><code class="language-bash">python3 projects/p02_teleop-and-safety/measure_stop.py --topic /cmd_vel --zero --csv ~/p02_runs/direct_zero.csv
+python3 projects/p02_teleop-and-safety/measure_stop.py --topic /cmd_vel --csv ~/p02_runs/direct_silence.csv
+python3 projects/p02_teleop-and-safety/measure_stop.py --topic /teleop/cmd_vel --csv ~/p02_runs/safety_silence.csv
+</code></pre>
+<p>Expected, one line per run (my fourth run of each, made straight after a restart with the safety node left running):</p>
+<pre><code>/cmd_vel zero=True: standstill 0.38 s after the last command, 0.04 m walked in that time
+/cmd_vel zero=False: NOT stopped 6.0 s after the last command; walked 1.85 m since, speed at end 0.286 m/s
+/teleop/cmd_vel zero=False: standstill 1.28 s after the last command, 0.29 m walked in that time
+</code></pre>
+<p>Your numbers will differ by a few hundredths; the <a href="#results">results</a> table has all my runs.</p>
+<p>Check:</p>
+<pre><code class="language-bash">python3 projects/p02_teleop-and-safety/plot.py --dir ~/p02_runs
+</code></pre>
+<p>prints one line per CSV in <code>~/p02_runs</code> and writes <code>~/p02_runs/stop_time.png</code>. Without <code>--dir</code>, <code>plot.py</code> reads my CSVs in
+<code>results/</code> and rewrites <code>figures/stop_time.png</code>.</p>
+<h3 id="7-record-a-drive-and-plot-it">7. Record a drive and plot it</h3>
+<p>Restart the stack once more, so the drive starts on A facing +x, where the scripted drive below was planned. The safety node can
+stay running; it logs the time jump again.</p>
+<pre><code class="language-bash">scripts/up.sh
+</code></pre>
+<p>Four terminals:</p>
+<pre><code class="language-bash">python3 projects/p02_teleop-and-safety/safety_node.py                                   # terminal 1, already running from step 4
+ros2 bag record -o ~/p02_runs/drive_bag /odom_gt /odom /cmd_vel /teleop/cmd_vel         # terminal 2
+python3 projects/p02_teleop-and-safety/record_reliable.py ~/p02_runs/teleop_drive.mp4 \
+    --topic /spectator/cam/image_raw                                                    # terminal 3
+python3 projects/p02_teleop-and-safety/key_drive.py &quot;i 4, u 3.2, i 2, u 3.2, i 3, - 3&quot;   # terminal 4
+</code></pre>
+<p><code>ros2 bag record</code> refuses to write into a folder that already exists (<code>Output folder '...' already exists.</code>), so delete or rename
+<code>~/p02_runs/drive_bag</code> before a second recording.</p>
+<p>Terminal 4 runs my drive from a script, so it can be repeated. Each item is a key and how long to hold it, in simulated seconds;
+<code>-</code> releases all keys. From A it walks east along y = -3.5, arcs left to face north, walks north, arcs left to face west, walks
+west and lets go. The robot's centre passes 0.58 m from the wood pallet, the closest obstacle. It prints one line per item, with
+the simulated time at which the item started (yours will differ):</p>
+<pre><code>   28.95  i for 4.0 s
+   32.96  u for 3.2 s
+   36.18  i for 2.0 s
+   38.19  u for 3.2 s
+   41.40  i for 3.0 s
+   44.42  - for 3.0 s
+</code></pre>
+<p>To drive by hand instead, run <code>ros2 run teleop_twist_keyboard teleop_twist_keyboard --ros-args -r cmd_vel:=teleop/cmd_vel</code> in
+terminal 4 and finish by letting go of all keys. At 0.3 m/s and 0.5 rad/s, <code>i 1</code> is about 0.3 m and <code>j 3.2</code> about a quarter
+turn. A hand drive gives a different path, so the numbers below will not match.</p>
+<p>When the robot has stood still for 3 s, Ctrl-C terminals 2 and 3. Terminal 3 prints the frame count
+(<code>.../teleop_drive.mp4: 292 frames</code> for my drive). Plot:</p>
+<pre><code class="language-bash">python3 projects/p02_teleop-and-safety/plot.py ~/p02_runs/drive_bag --dir ~/p02_runs
+# drive: 29.8 s simulated, true path 4.91 m, odometry end error 0.070 m, end at (-4.51, -1.89)
+</code></pre>
+<p>The duration counts from the start of the bag, so it includes the time you took to start terminal 4 (7.6 s in my run); the path
+length and the end point do not depend on it.</p>
+<p>The video shows the whole arena. To crop and enlarge it 2× around the drive, as in <code>media/teleop_drive.mp4</code>:</p>
+<pre><code class="language-bash">ffmpeg -i ~/p02_runs/teleop_drive.mp4 -vf &quot;crop=480:270:100:160,scale=960:540&quot; -c:v libx264 -crf 26 -pix_fmt yuv420p \
+    ~/p02_runs/teleop_drive_crop.mp4
+</code></pre>
+<p><code>crop=480:270:100:160</code> keeps a 480 × 270 pixel window whose top-left corner is at pixel (100, 160) of the 960 × 540 frame, the
+south-west part of the arena. For a drive elsewhere, move the corner.</p>
+<p>Check: <code>~/p02_runs/teleop_drive.png</code> exists, and in its right panel the keyboard dots stop before the blue output line ramps down.</p>
+<h3 id="8-stop">8. Stop</h3>
+<p>Ctrl-C the safety node. It publishes one zero twist before it exits, so the robot is left standing even if it was walking. Then:</p>
+<pre><code class="language-bash">scripts/stop.sh
+</code></pre>
+<h2 id="how-the-code-works">How the code works</h2>
+<h3 id="limiterpy"><code>limiter.py</code></h3>
+<p>The class keeps the last command (<code>target</code>), the last output (<code>out</code>) and the time of the last command (<code>t_cmd</code>):</p>
+<pre><code class="language-python">def command(self, t, cmd):
+    &quot;&quot;&quot;A new command arrived at time t (seconds).&quot;&quot;&quot;
+    self.target = tuple(clamp(c, -m, m) for c, m in zip(cmd, self.v_max))
+    self.t_cmd = t
+
+def stale(self, t):
+    # t &lt; t_cmd: the clock went back (the simulator was restarted), so the last command belongs to another run
+    return self.t_cmd is None or t &lt; self.t_cmd or t - self.t_cmd &gt; self.timeout
+
+def step(self, t):
+    &quot;&quot;&quot;Output for time t, or None when there is nothing to send (idle and already stopped).&quot;&quot;&quot;
+    if self.t_cmd is not None and t &lt; self.t_cmd:
+        self.t_cmd = None              # clock went back: forget the old command, or it revives when t passes t_cmd again
+    target = (0.0, 0.0, 0.0) if self.stale(t) else self.target
+    dt = 0.0 if self.t_out is None else max(0.0, t - self.t_out)
+    self.t_out = t
+    # move each axis towards its target by at most a_max * dt
+    self.out = tuple(o + clamp(g - o, -a * dt, a * dt) for o, g, a in zip(self.out, target, self.a_max))
+    if self.stale(t) and self.out == (0.0, 0.0, 0.0):
+        self.zeros_sent += 1
+        # ponytail: a few zeros, then silence, so a stopped limiter never fights another /cmd_vel publisher (Nav2)
+        return self.out if self.zeros_sent &lt;= 5 else None
+    self.zeros_sent = 0
+    return self.out
+</code></pre>
+<p>Three rules, applied to each axis (forward, sideways, yaw) separately:</p>
+<ol>
+<li>Velocity limit: a command is clipped to ±<code>v_max</code> when it arrives. The defaults equal CHAMP's own limits, so the clip changes
+   nothing CHAMP would not change, but the output now shows what the robot will really be asked to do.</li>
+<li>Acceleration limit: each step moves the output towards the target by at most <code>a_max · dt</code>. With 0.5 m/s² and a 20 Hz timer
+   that is 0.025 m/s per step, so 0 to 0.3 m/s takes 0.3 / 0.5 = 0.6 s. Reversing from +0.3 to -0.3 takes 1.2 s and passes through
+   zero.</li>
+<li>Dead-man timeout: if no command has arrived for <code>timeout</code> seconds, the target becomes zero and the acceleration limit ramps the
+   output down.</li>
+</ol>
+<p>When the output reaches zero the node sends five zeros and then goes quiet. A node that kept sending zeros forever would fight any
+other publisher on <code>/cmd_vel</code>, such as Nav2 in later projects.</p>
+<p>A restart of the simulator sets simulated time back to about 0 while the node keeps running. My first version only had the
+timeout test <code>t - t_cmd &gt; timeout</code>: after a restart <code>t - t_cmd</code> was negative, so the old command counted as fresh, and the node
+published its last command (a zero) at 20 Hz until the new clock passed the old <code>t_cmd</code>. That zero overrode every other
+publisher on <code>/cmd_vel</code>. Now a clock that goes back makes the command stale and <code>step()</code> forgets it, so the node stays silent
+until a new command arrives. A first fix that only changed <code>stale()</code> was not enough: the old command came back for 0.6 s when the
+new clock passed the old <code>t_cmd</code>, and the node logged <code>no command for 0.6 s: stopping</code> 52 s (wall clock) after the restart. The unit test
+<code>test_clock_jump_back_is_stale</code> covers both.</p>
+<p>From the three rules, the robot stops after it has walked for the timeout at full speed and then decelerated:</p>
+<pre><code>t_stop ≈ T + v / a + t_CHAMP        d_stop ≈ v·T + v² / (2a) + d_CHAMP
+</code></pre>
+<p>With v = 0.3 m/s, T = 0.6 s, a = 0.5 m/s² and CHAMP's own response to a zero (0.37 s, 0.04 m, the first row of the results
+table), that gives 1.57 s and 0.31 m. I measured 1.28 to 1.43 s and 0.288 to 0.295 m. The distance agrees. The time is about 0.2 s
+shorter than the sum, which suggests that CHAMP's delay does not simply add at the end of a slow ramp (my inference: chapter 7
+measured that CHAMP walks slower than commanded at small speeds, 0.063 m/s for a 0.1 m/s command, so the robot drops below the
+0.02 m/s standstill threshold before the command reaches zero).</p>
+<p>The same holds for turning. A turn key released at 0.5 rad/s keeps the robot turning for 0.5 · 0.6 + 0.5² / (2 · 1.0) = 0.43 rad,
+about 24°, before it stops (computed from the formula, not measured). Press <code>k</code> when the heading is right instead of letting go.</p>
+<h3 id="safety_nodepy"><code>safety_node.py</code></h3>
+<p>The node is a thin shell around the limiter: a subscription stores commands, a 20 Hz timer publishes the output.</p>
+<pre><code class="language-python">def on_cmd(self, m):
+    self.lim.command(self.now(), (m.linear.x, m.linear.y, m.angular.z))
+
+def on_timer(self):
+    t = self.now()
+    if self.lim.t_out is not None and t &lt; self.lim.t_out:
+        self.get_logger().warn(f'simulated time went back {self.lim.t_out - t:.1f} s (simulator restarted): '
+                               'last command dropped')
+    stale = self.lim.stale(t)
+    if stale and not self.was_stale:
+        self.get_logger().warn(f'no command for {self.lim.timeout} s: stopping')
+    self.was_stale = stale
+    out = self.lim.step(t)
+    if out is not None:
+        self.send(*out)
+</code></pre>
+<p>Points worth checking:</p>
+<ul>
+<li>The output is published by the timer, not by <code>on_cmd</code>. A dead-man must act when nothing arrives, and only a timer runs then.</li>
+<li>Time is simulated time (<code>use_sim_time</code> is set in the constructor). The timeout is measured on the same clock the robot moves on.
+  If Gazebo runs at half speed, 0.6 s of simulated time is 1.2 s on your watch.</li>
+<li>The timeout must be longer than the gap between key events while a key is held. A held key repeats only after a delay: 500 ms
+  on my machine (<code>xset q</code> prints <code>auto repeat delay: 500  repeat rate: 33</code>). With a timeout below that, the robot jerks at every
+  key press (<a href="#try-this">exercise 3</a>).</li>
+<li><code>main()</code> takes over SIGINT and SIGTERM from rclpy (<code>SignalHandlerOptions.NO</code>) and turns both into <code>KeyboardInterrupt</code>. rclpy's
+  own handler shuts the context down on SIGINT (<code>record_cam.py</code>, which keeps it, failed on Ctrl-C with <code>the given context is
+  not valid</code>), and a publish needs a valid context.</li>
+</ul>
+<pre><code class="language-python">rclpy.init(signal_handler_options=SignalHandlerOptions.NO)
+for s in (signal.SIGINT, signal.SIGTERM):
+    signal.signal(s, signal.default_int_handler)
+node = Safety()
+try:
+    rclpy.spin(node)
+except KeyboardInterrupt:
+    pass
+node.send(0.0, 0.0, 0.0)            # leave the robot standing, not walking on our last output
+</code></pre>
+<h3 id="measure_stoppy"><code>measure_stop.py</code></h3>
+<p>It records <code>/odom_gt</code> positions and computes the speed over a sliding 0.5 s window. The robot counts as standing from the first
+window, after the last command, whose speed is below 0.02 m/s and after which no window is above it:</p>
+<pre><code class="language-python">for t, v in speeds:
+    if t &lt; t_last:
+        continue
+    if v &gt;= STILL:
+        t_stop = None
+    elif t_stop is None:
+        t_stop = t
+</code></pre>
+<p>Speed from positions, not from the twist field, because the legs make the trunk sway. Standing still, this windowed speed was at
+most 0.0054 m/s (mean 0.0020 m/s over 6 s), well under the 0.02 m/s threshold. Each speed is stamped at the centre of its window,
+so the times have a resolution of about a quarter of a second.</p>
+<h3 id="key_drivepy"><code>key_drive.py</code></h3>
+<p><code>teleop_twist_keyboard</code> reads single key presses from its terminal. <code>key_drive.py</code> gives it a pseudo-terminal (<code>pty.openpty()</code>)
+and writes a key every 1/30 s while a key is "held", which is what the X server does with a held key. The durations are measured on
+<code>/clock</code>, read by a node spinning in a second thread. On exit it sends Ctrl-C, so teleop publishes its zero and quits.</p>
+<h2 id="results">Results</h2>
+<p>Measured in two sessions on a shared machine. In the first, two other Gazebo instances were running, the load average was between
+56 and 126, and <code>gz stats</code> showed a real-time factor between 0.33 and 0.90. The second session (the fourth run of each case in the
+table, and the drive) followed the steps in order, with the safety node left running across both restarts; the load average was
+about 60 (<code>uptime</code>: 59.20, 60.89, 61.82). All times are simulated seconds.</p>
+<p>Stopping after the last command, walking forward at 0.3 m/s (<code>measure_stop.py</code>, step 6; the runs of each case were done in
+different parts of the arena; numbers from <code>python3 projects/p02_teleop-and-safety/plot.py</code>, files <code>results/&lt;case&gt;.csv</code>,
+<code>&lt;case&gt;_2.csv</code>, <code>_3</code> and <code>_4</code>):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Commands reach CHAMP</th>
+<th>Ends with</th>
+<th>Time to standstill (4 runs)</th>
+<th>Distance walked after the last command</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>directly</td>
+<td>one zero twist (<code>--zero</code>, the <code>k</code> key)</td>
+<td>0.39, 0.35, 0.37, 0.38 s</td>
+<td>0.041, 0.035, 0.039, 0.037 m</td>
+</tr>
+<tr>
+<td>directly</td>
+<td>silence</td>
+<td>not stopped after 6.1 s; speed at the end 0.303, 0.306, 0.304, 0.286 m/s</td>
+<td>1.84, 1.84, 1.84, 1.85 m in 6.1 s</td>
+</tr>
+<tr>
+<td>through <code>safety_node.py</code> (defaults)</td>
+<td>silence</td>
+<td>1.43, 1.33, 1.31, 1.28 s</td>
+<td>0.295, 0.293, 0.288, 0.288 m</td>
+</tr>
+</tbody>
+</table></div>
+<p><img loading="lazy" alt="True speed after the last command: without a safety layer the robot walks on at 0.3 m/s; with it the speed ramps to zero in about 1.4 s; a zero twist stops it in about 0.4 s" src="figures/stop_time.png" /></p>
+<p>Without the node, silence is not a stop: in all four runs the robot was still walking at 0.286 to 0.306 m/s 6 s after the last
+command. With the node, silence stops the robot in 1.28 to 1.43 s and 0.29 m; a deliberate zero is still the fastest stop.</p>
+<p>The keyboard drive in step 7 (<code>results/drive_bag</code>, the scripted drive from A): 29.8 s from the start of the bag, of which the first
+7.6 s were before the first key, and 4.91 m of true path. The keyboard sent 0.5 m/s and 1.0 rad/s; the node passed on at most
+0.3 m/s and 0.5 rad/s. <code>key_drive.py</code> types 30 keys per wall-clock second; they arrived at 41.0 messages per simulated second
+because the simulation ran slower than real time. After the last key event the node's last 0.3 m/s output came 0.57 s later, the
+output reached zero 1.22 s after it, and the robot was standing at 1.34 s. In my first session's drive (a different path, now
+replaced) the same three numbers were 0.56, 1.16 and 1.32 s.</p>
+<p><img loading="lazy" alt="Left: the keyboard drive on the arena map, ground truth in grey and lidar-inertial odometry in blue, start-aligned. Right: keyboard commands as dots, the safety node's output as lines, and the true speed" src="figures/teleop_drive.png" /></p>
+<video controls muted playsinline src="media/teleop_drive.mp4"></video>
+
+<p>The video is the same drive from the spectator camera, recorded with <code>record_reliable.py</code> (292 frames, 29.2 s, simulated time) and
+cropped with the <code>ffmpeg</code> command in step 7. The robot walks east from A, turns north and then west, and stops on its own after
+the last key.</p>
+<p>The blue odometry line ends 0.070 m from the truth on this drive. In four drives in the first session that end error ranged from
+0.008 m (right after a restart) to 0.727 m (after the robot had stood for about 10 minutes, at a real-time factor of 0.36). The estimator
+is the subject of <a href="../../tutorial/09-state-estimation.html">chapter 9</a>; this project uses ground truth for every number above.</p>
+<p>Unit tests: <code>python3 -m pytest -q projects/p02_teleop-and-safety</code> gives <code>7 passed</code>. They check the clip, the ramp
+(the first step is exactly <code>a_max · dt</code>, no step is larger, and 0.3 m/s is reached), the timeout (output held for 0.6 s, ramps to
+zero by 1.2 s, five zeros, then nothing), restarting after a timeout, silence before the first command, a reversal through
+zero in 1.2 s, and silence after the clock goes back (a simulator restart), also when the new clock passes the old command time.</p>
+<h2 id="try-this">Try this</h2>
+<ol>
+<li>Predict, then measure, the stop with <code>timeout:=0.3</code> and <code>a_max:=[1.0, 1.0, 2.0]</code>. Restart the node with
+   <code>python3 projects/p02_teleop-and-safety/safety_node.py --ros-args -p timeout:=0.3 -p "a_max:=[1.0, 1.0, 2.0]"</code> and run the
+   third command of step 6 with a new CSV name, such as <code>--csv ~/p02_runs/ex1_fast_stop.csv</code>.</li>
+</ol>
+<p>Answer: the formula gives 0.3 · 0.3 + 0.3² / (2 · 1.0) + 0.04 = 0.175 m. I measured
+   <code>standstill 0.82 s after the last command, 0.17 m walked in that time</code> (<code>results/exercises/ex1_fast_stop.csv</code>). Halving the
+   timeout and doubling the deceleration saved 0.12 m and 0.5 to 0.6 s. The cost is exercise 3.</p>
+<ol start="2">
+<li>Kill the safety node with <code>kill -9</code> while the robot walks through it. Start
+   <code>python3 projects/p02_teleop-and-safety/measure_stop.py --topic /teleop/cmd_vel --hold 3 --watch 3</code>, and as soon as
+   <code>ros2 topic echo /cmd_vel --field linear.x</code> shows 0.3, run <code>kill -9 $(pgrep -f safety_node.py)</code> in another terminal. What does
+   the robot do, and why does Ctrl-C not have the same effect?</li>
+</ol>
+<p>Answer: it walks on. I measured <code>NOT stopped 3.0 s after the last command; walked 0.88 m since, speed at end 0.283 m/s</code>
+   (<code>results/exercises/ex2_kill9.csv</code>); only the zero that <code>measure_stop.py</code> sends at the end stopped it. SIGKILL cannot be caught,
+   so the node never sends its final zero, and CHAMP holds the last output. Ctrl-C is caught, and the node publishes a zero before
+   it exits (checked with <code>ros2 topic echo /cmd_vel</code>, which printed <code>x: 0.0</code>). A dead-man protects against a silent teleop, not
+   against its own death. That needs a timeout in the last link, the controller itself, which CHAMP does not have.</p>
+<ol start="3">
+<li>Set the timeout below the keyboard's repeat delay, <code>--ros-args -p timeout:=0.3</code>, hold <code>i</code> in the teleop terminal and watch
+   <code>ros2 topic echo /cmd_vel --field linear.x</code>. Then do the same with the default 0.6 s.</li>
+</ol>
+<p>Answer: with 0.3 s the output rises, falls back before the key starts repeating, then rises again, so every key hold starts
+   with a speed command that dips. I emulated the 500 ms repeat delay with
+   <code>key_drive.py "i 0.04, - 0.5, i 2, - 1.5"</code> and recorded <code>/cmd_vel</code> (<code>results/exercises/ex3_timeout_0.3</code> and <code>ex3_timeout_0.6</code>,
+   bag times are wall-clock). With 0.3 s the output went 0.025, 0.075, 0.125, 0.175, then down to 0.125 and 0.075, then up again
+   and reached 0.3 m/s 1.33 s after the first key event. With 0.6 s it rose without a dip and reached 0.3 m/s at 0.82 s. The
+   timeout must exceed the longest normal gap between commands from your input device.</p>
+<h2 id="if-it-goes-wrong">If it goes wrong</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Cause</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>/cmd_vel</code> shows two interleaved ramps (0.25, 0.3, 0.2, 0.3, 0.15, ...) and the stop takes longer than expected</td>
+<td>Two safety nodes were running. My first version kept rclpy's default SIGINT handling; started in the background with <code>&amp;</code>, the process inherits SIGINT as ignored, so <code>kill -INT</code> did nothing and the old node kept publishing next to the new one</td>
+<td><code>ros2 topic info /cmd_vel -v \| grep -c 'Node name: cmd_safety'</code> prints 2 instead of 1. (The total <code>Publisher count</code> is 7 with Nav2 up, so do not go by it.) Stop the extra node. <code>safety_node.py</code> now installs its own SIGINT and SIGTERM handlers</td>
+</tr>
+<tr>
+<td>After <code>scripts/up.sh</code>, <code>measure_stop.py --topic /cmd_vel</code> prints <code>standstill 0.00 s ... 0.00 m walked</code> and the robot never moves</td>
+<td>A safety node from before the restart, of the version without the clock-jump check. The restart sets simulated time back to about 0; that version treated its last command (the teleop's final zero) as fresh and republished it at 20 Hz until the new clock passed the old command time, overriding the 0.3 m/s</td>
+<td>Use the current <code>safety_node.py</code>, which logs <code>simulated time went back ... last command dropped</code> and stays silent. With an old copy, Ctrl-C the node and start it again after every <code>scripts/up.sh</code></td>
+</tr>
+<tr>
+<td><code>record_cam.py</code> writes a video of 1 to 3 frames</td>
+<td>It subscribes best effort. A 960 × 540 image is 1.5 MB, sent in many fragments; on my loaded machine a best-effort subscriber received 1 spectator image in 25 s and a reliable one 116</td>
+<td>Use <code>record_reliable.py</code> (same arguments). <a href="../p01_first-steps/index.html#if-it-goes-wrong">Project 1</a> has the same fix as an edit to <code>record_cam.py</code></td>
+</tr>
+<tr>
+<td>The robot stands still while <code>/cmd_vel</code> says 0.3 m/s</td>
+<td>It walked into an obstacle. In one of my drives the robot hit the orange cylinder; its true speed fell to about 0.03 m/s while the command stayed at 0.3</td>
+<td>Neither the teleop nor the safety node looks at the sensors. Back off with <code>,</code>, or turn away with <code>j</code> or <code>l</code></td>
+</tr>
+<tr>
+<td><code>pytest</code> stops with <code>ModuleNotFoundError: No module named 'rclpy'</code> while collecting <code>stop_test.py</code></td>
+<td>pytest collects <code>test_*.py</code> and <code>*_test.py</code>. The measuring script was first called <code>stop_test.py</code>, so pytest imported it, and it imports rclpy</td>
+<td>Name scripts so they match neither pattern; it is now <code>measure_stop.py</code></td>
+</tr>
+<tr>
+<td><code>key_drive.py</code> ends with <code>terminate called without an active exception</code> and a core dump</td>
+<td>The <code>/clock</code> node was spinning in a thread when Python exited</td>
+<td>Call <code>rclpy.try_shutdown()</code>, which makes <code>rclpy.spin</code> return, then <code>join()</code> the thread, as the script now does</td>
+</tr>
+</tbody>
+</table></div><nav class="prevnext" aria-label="Previous and next"><a class="pn" href="../../tutorial/07-make-it-walk.html"><span>Previous</span>Make it walk</a><a class="pn next" href="../p03_move-in-shapes/index.html"><span>Next</span>Move in shapes: open loop vs closed loop</a></nav><p class="source">Source: <a href="https://github.com/Armanasq/go2-nav-sim/blob/main/projects/p02_teleop-and-safety/README.md">projects/p02_teleop-and-safety/README.md</a></p></article></div>
+</main>
+<footer class="site"><div class="wrap">Simulation only. Source and issues on <a href="https://github.com/Armanasq/go2-nav-sim">GitHub</a>.</div></footer>
+<script type="module" src="../../static/js/site.js"></script>
+</body>
+</html>

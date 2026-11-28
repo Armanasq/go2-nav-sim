@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Robot and sensors · go2-nav-sim</title>
+<meta name="description" content="Robot and sensors">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../static/css/site.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5' fill='%230a6a9c'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"><script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script><script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.querySelector('main'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false})"></script><script type="importmap">{"imports": {"three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js", "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+</head>
+<body data-root="../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar"><div class="inner">
+<a class="brand" href="../index.html">go2-nav-sim</a>
+<nav aria-label="Main"><a href="../tutorial/00-overview.html" aria-current="page">Learn</a><a href="../tasks/index.html">Tasks</a><a href="../modules/index.html">Deep dives</a><a href="../reference.html">Reference</a></nav>
+<button class="theme-toggle" type="button" aria-label="Colour theme: auto">auto</button>
+</div></header>
+<main id="main">
+<div class="wrap doc"><details class="side" open><summary>Robot and sensors</summary><nav aria-label="Contents"><ol class="parts"><li><a class="part" href="00-overview.html">Start</a></li><li><a class="part" href="05-frames-and-tf2.html">The robot</a></li><li><a class="part" href="../projects/p02_teleop-and-safety/index.html">Move it</a></li><li class="open"><p class="part">Sense and avoid</p><ol><li><a href="08-robot-and-sensors.html" aria-current="page"><span class="n">8</span><span>Robot and sensors</span></a><ul class="sections"><li><a href="#task-1-find-each-sensor-in-tf">Task 1: Find each sensor in TF</a></li><li><a href="#task-2-check-each-sensor-in-rviz">Task 2: Check each sensor in RViz</a></li><li><a href="#task-3-measure-the-rates">Task 3: Measure the rates</a></li><li><a href="#task-4-compare-with-the-real-go2">Task 4: Compare with the real Go2</a></li><li><a href="#one-lidar-sweep-in-3d">One lidar sweep in 3D</a></li><li><a href="#exercise">Exercise</a></li><li><a href="#further-reading">Further reading</a></li></ul></li><li><a href="../tasks/s06_sensors-and-perception/index.html"><span class="n">S6</span><span>Sensors and perception</span></a></li><li><a href="../projects/p05_sense-and-stop/index.html"><span class="n">P5</span><span>Sense obstacles and stop</span></a></li><li><a href="../projects/p06_avoid-obstacles/index.html"><span class="n">P6</span><span>Reactive obstacle avoidance without a map</span></a></li></ol></li><li><a class="part" href="09-state-estimation.html">Estimate and map</a></li><li><a class="part" href="../projects/p11_command-arbitration/index.html">Navigate</a></li><li><a class="part" href="../projects/p14_test-the-stack/index.html">Beyond simulation</a></li></ol></nav></details><article class="prose"><p class="where">Sense and avoid · Chapter 8</p><h1>Robot and sensors</h1><div class="table-wrap"><table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Goal</td>
+<td>Find every simulated sensor in TF, see each one in RViz, measure its rate, and know which of them the real Go2 provides and how.</td>
+</tr>
+<tr>
+<td>Time</td>
+<td>2 h</td>
+</tr>
+<tr>
+<td>Before you start</td>
+<td><a href="07-make-it-walk.html">Chapter 7</a>, and <code>go2.rviz</code> from <a href="06-import-the-go2.html">chapter 6</a>, Task 2.1. Start the stack with <code>bash scripts/up.sh</code> (sim, estimation and Nav2; about a minute).</td>
+</tr>
+<tr>
+<td>You will learn</td>
+<td>which frame each topic is stamped in; how to check a lidar, a scan, a camera, a depth image and an IMU by eye; how rates drop when the simulator runs slow; what changes on the real robot.</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>src/go2_nav_sim/urdf/go2_nav.xacro</code> includes the upstream Go2 and adds the sensors from <code>sensors.xacro</code>. The upstream
+description files are not edited. All sensors hang off <code>base_link</code> through fixed joints.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Sensor</th>
+<th>Topic</th>
+<th>Frame</th>
+<th>Rate</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>3D lidar</td>
+<td><code>/lidar/points</code></td>
+<td><code>lidar_link</code></td>
+<td>10 Hz</td>
+<td>16 beams, ±15°, 900 samples per revolution, 0.3 to 20 m, 1 cm range noise. Mounted 0.10 m above <code>base_link</code>. Fields <code>x y z intensity</code>.</td>
+</tr>
+<tr>
+<td>RGB</td>
+<td><code>/camera/image_raw</code></td>
+<td><code>camera_optical</code></td>
+<td>10 Hz</td>
+<td>640×360, 1.2 rad horizontal field of view</td>
+</tr>
+<tr>
+<td>Depth</td>
+<td><code>/camera/depth/image_raw</code></td>
+<td><code>camera_optical</code></td>
+<td>10 Hz</td>
+<td>32FC1, metres, 0.3 to 8 m, 7 mm noise, <code>NaN</code> beyond range</td>
+</tr>
+<tr>
+<td>IMU</td>
+<td><code>/imu/data</code></td>
+<td><code>base_link</code></td>
+<td>100 Hz</td>
+<td>from upstream, gyro noise σ = 2e-4 rad/s</td>
+</tr>
+<tr>
+<td>Ground truth</td>
+<td><code>/odom_gt</code></td>
+<td><code>world</code></td>
+<td>50 Hz</td>
+<td>noise-free; read once by <code>go_to_goal.py</code> to initialise AMCL, otherwise used only for evaluation</td>
+</tr>
+<tr>
+<td>External cameras</td>
+<td><code>/spectator/cam/*</code>, <code>/chase/cam/*</code></td>
+<td></td>
+<td>10 Hz</td>
+<td>for video only, no algorithm reads them</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>/scan</code> is not a sensor: <code>estimation.launch.py</code> makes it from <code>/lidar/points</code> (<a href="09-state-estimation.html">chapter 9</a>).</p>
+<h2 id="task-1-find-each-sensor-in-tf">Task 1: Find each sensor in TF</h2>
+<h3 id="11-read-the-frame-each-topic-is-stamped-in">1.1 Read the frame each topic is stamped in</h3>
+<p>Objective: match every row of the table to a TF frame.</p>
+<pre><code class="language-bash">for t in /lidar/points /scan /camera/image_raw /camera/depth/image_raw /imu/data /odom_gt; do
+  echo &quot;$t $(ros2 topic echo --once $t --field header.frame_id | head -n 1)&quot;; done
+</code></pre>
+<pre><code>/lidar/points lidar_link
+/scan base_footprint
+/camera/image_raw camera_optical
+/camera/depth/image_raw camera_optical
+/imu/data base_link
+/odom_gt world
+</code></pre>
+<p><img loading="lazy" alt="TF frames odom, base_footprint, base_link and the sensor frames, each sensor topic linked to the frame its messages are stamped in" src="../img/c06-sensor-frames.png" /></p>
+<p><em>Where each topic hangs in TF. Dashed edges are fixed joints with their offsets from <code>go2_nav.xacro</code>; to use a lidar point in <code>base_link</code>, TF applies the (0, 0, 0.10) edge.</em></p>
+<p><code>world</code> is not in the TF tree. <code>/odom_gt</code> is a separate answer key from the simulator, so RViz cannot draw it; read it with
+<code>ros2 topic echo</code>.</p>
+<p>Check: five frames you can find in the figure, and <code>world</code> that you cannot.</p>
+<h3 id="12-measure-the-base_footprint-to-base_link-offset">1.2 Measure the base_footprint to base_link offset</h3>
+<p>Objective: see the constant that every sensor height inherits.</p>
+<pre><code class="language-bash">ros2 run tf2_ros tf2_echo base_footprint base_link
+</code></pre>
+<pre><code>At time 328.720000000
+- Translation: [0.000, 0.000, 0.426]
+- Rotation: in Quaternion (xyzw) [0.000, 0.000, 0.000, 1.000]
+</code></pre>
+<p>The real trunk stands 0.216 m above the floor (<code>/odom_gt</code> z in <a href="07-make-it-walk.html">chapter 7</a>, Task 4), so every sensor sits
+0.426 − 0.216 = 0.21 m too high in TF. CHAMP's <code>base_to_footprint</code> estimator gets no foot contacts in this setup and assumes straight legs. It also
+publishes no roll or pitch, so the trunk's tilt never reaches TF. This is a known open issue; <a href="09-state-estimation.html">chapter 9</a>
+works around it.</p>
+<p><img loading="lazy" alt="Side section of the Go2 standing on the floor with the 16 lidar beams fanning from lidar_link, the camera's vertical field of view from camera_link, the lowest beam meeting the floor 1.18 m ahead, and base_footprint drawn 0.426 m below base_link, under the floor" src="../img/c06-sensor-mounts.png" /></p>
+<p><em>Mount offsets from <code>go2_nav.xacro</code>, drawn on the MuJoCo Go2 posed by IK with <code>base_link</code> at the 0.216 m standing height of <a href="07-make-it-walk.html#44-measure-how-the-trunk-moves-while-walking">chapter 7</a>. Beams every 2° over ±15°. The 42.1° vertical field of view follows from 1.2 rad horizontal at 640 × 360.</em></p>
+<p>Check: translation (0, 0, 0.426) and the identity rotation.</p>
+<h3 id="13-read-the-cameras-optical-frame">1.3 Read the camera's optical frame</h3>
+<p>Objective: know which way the image axes point before you use a depth pixel.</p>
+<p><code>camera_optical</code> follows the optical convention (z forward, x right, y down) through a fixed joint with
+<code>rpy = (-π/2, 0, -π/2)</code> from <code>camera_link</code>. URDF applies roll, then pitch, then yaw about fixed axes, so the rotation from
+<code>camera_optical</code> to <code>camera_link</code> is</p>
+<p>$$
+R = R_z(-\tfrac{\pi}{2})\,R_y(0)\,R_x(-\tfrac{\pi}{2})
+  = \begin{bmatrix} 0 &amp; 0 &amp; 1 \\ -1 &amp; 0 &amp; 0 \\ 0 &amp; -1 &amp; 0 \end{bmatrix}.
+$$</p>
+<p>Its columns are the optical axes in <code>camera_link</code>: optical x is (0, -1, 0), to the right; optical y is (0, 0, -1), down;
+optical z is (1, 0, 0), forward. <code>docs/img/c06-figures.py</code> asserts this product.</p>
+<p><img loading="lazy" alt="Two 3-D axis triads, camera_link with x forward, y left, z up and camera_optical with z forward, x right, y down, next to a 640 by 360 image with u to the right, v down and the optical axes at the image centre" src="../img/c06-camera-optical.png" /></p>
+<p><em>Pixel column u grows along optical x, row v along optical y, and depth is measured along optical z.</em></p>
+<pre><code class="language-bash">ros2 run tf2_ros tf2_echo camera_link camera_optical
+</code></pre>
+<pre><code>- Translation: [0.000, 0.000, 0.000]
+- Rotation: in Quaternion (xyzw) [-0.500, 0.500, -0.500, 0.500]
+- Rotation: in RPY (radian) [-1.571, 0.000, -1.571]
+</code></pre>
+<p>Check: the RPY line matches the <code>rpy</code> of the joint.</p>
+<h2 id="task-2-check-each-sensor-in-rviz">Task 2: Check each sensor in RViz</h2>
+<h3 id="21-open-go2rviz-and-add-the-two-image-displays">2.1 Open go2.rviz and add the two image displays</h3>
+<p>Objective: one RViz window with every sensor.</p>
+<pre><code class="language-bash">rviz2 -d src/go2_nav_sim/rviz/go2.rviz --ros-args -p use_sim_time:=true
+</code></pre>
+<p><code>go2.rviz</code> already shows the model, TF, <code>/scan</code> (LaserScan) and <code>/lidar/points</code> (PointCloud2, Best Effort). Add the cameras:
+Add, then By topic, then <code>/camera/image_raw</code> Image, and again for <code>/camera/depth/image_raw</code> Image. Save your copy with File,
+Save Config As (for example <code>~/go2_sensors.rviz</code>) so you do not edit the shared file.</p>
+<p><img loading="lazy" alt="RViz with the Go2 in the arena: the lidar cloud coloured by height with rings on the floor and columns on the boxes, the red scan outlining walls and boxes, and two image panels with the depth image (near is dark) and the RGB view of the floor grid and boxes" src="../img/c08-rviz-sensors.png" /></p>
+<p><em><code>go2.rviz</code> with the two Image displays added, robot standing. Lidar rings on the floor, the red <code>/scan</code> on walls and
+boxes only, depth dark near and white far, the RGB view with the 1 m floor grid.</em></p>
+<p>Check: the RobotModel is drawn, and both image panels update.</p>
+<h3 id="22-lidar-rings-on-the-floor-columns-on-obstacles">2.2 Lidar: rings on the floor, columns on obstacles</h3>
+<p>Objective: confirm <code>/lidar/points</code> is in the right place and the right way up.</p>
+<p>Look at LidarPoints. The downward beams draw circles on the floor around the robot, and every box and cylinder shows as a
+vertical column of short arcs.</p>
+<p><img loading="lazy" alt="Left: side view of the 16 beams from 0.316 m, the eight downward beams meeting the floor at 1.18, 1.37, 1.63, 2.00, 2.57 and 3.61 m. Right: the same intersections as rings seen from above, with the 0.3 m minimum range" src="../img/c06-lidar-rings.png" /></p>
+<p><em>Where the downward beams meet a flat floor, from the beam angles in <code>sensors.xacro</code> and the lidar at 0.216 + 0.10 m. The -3°
+and -1° beams would reach the floor at 6.0 and 18.1 m.</em></p>
+<p>Check: concentric rings, the innermost about 1.2 m from the robot.</p>
+<p>Common mistakes: a PointCloud2 display added by hand starts with Reliability Policy Reliable. <code>go2.rviz</code> sets Best Effort for
+LidarPoints and LaserScan; keep that when you build your own config.</p>
+<h3 id="23-scan-walls-only-no-floor">2.3 Scan: walls only, no floor</h3>
+<p>Objective: confirm the floor rings never reach <code>/scan</code>.</p>
+<p>Look at LaserScan (red). It outlines the walls and the sides of boxes and cylinders that face the robot. There must be no red
+circle on open floor.</p>
+<p>The lowest beams hit the floor 1.2 m ahead. Heights in <code>base_footprint</code> read 0.21 m too high (Task 1.2), so a height band
+chosen as if that frame were on the floor keeps floor returns, and they turn into phantom walls.
+<a href="10-mapping-and-navigation.html#52-the-scan-plane">Chapter 10</a> shows the band that works.</p>
+<p>Check: red only on walls and obstacles.</p>
+<h3 id="24-camera-and-depth-grid-and-distance">2.4 Camera and depth: grid and distance</h3>
+<p>Objective: confirm both images come from the same, forward-looking camera.</p>
+<p>The world has a 1 m floor grid made of visual-only lines. It gives the camera perspective and a scale reference. The arena, its
+obstacles and the matching occupancy map are generated from one list in <code>src/go2_nav_sim/scripts/make_arena.py</code>, so the world
+and the map cannot disagree.</p>
+<p>For a closer look at depth values:</p>
+<pre><code class="language-bash">ros2 topic echo --once /camera/camera_info
+ros2 run rqt_image_view rqt_image_view          # pick /camera/depth/image_raw, untick Dynamic depth range, set max range to 8
+</code></pre>
+<p>Then walk the robot towards the boxes for 8 s and stop it (CHAMP keeps walking on the last command, so always end with zero):</p>
+<pre><code class="language-bash">timeout 8 ros2 topic pub -r 10 /cmd_vel geometry_msgs/msg/Twist &quot;{linear: {x: 0.2}}&quot;
+ros2 topic pub -t 5 -r 10 /cmd_vel geometry_msgs/msg/Twist &quot;{}&quot;
+</code></pre>
+<p>From A this walked the robot 1.38 m (<code>/odom_gt</code>), and the nearest depth on the horizon rows in the box just left of the image
+centre fell from 6.1 m to 4.8 m.</p>
+<p><img loading="lazy" alt="Sensor views" src="../img/sensors.png" /></p>
+<video controls muted playsinline src="../media/c06-sensors.mp4"></video>
+
+<p><em>Twelve seconds of the recorded A-to-B run (<code>media/go2_a2b_dashboard.mp4</code> from 0:40): spectator camera, <code>/camera/image_raw</code>, <code>/camera/depth/image_raw</code> and <code>/lidar/points</code> while the robot passes the obstacles.</em></p>
+<p>Check: the same box appears in both images at the same pixel position, and it gets darker in the depth view while the robot walks
+towards it.</p>
+<h3 id="25-imu-gravity-points-up">2.5 IMU: gravity points up</h3>
+<p>Objective: check the IMU axes against REP-103 (x forward, y left, z up). RViz has no IMU display in this install, so read the
+numbers.</p>
+<p>One sample is not enough. Standing, z is noisy: over 8 s (694 samples) it ranged from 6.7 to 13.0 m/s², with a standard
+deviation of 1.0, and only half of the samples fell between 9 and 10.5. Average five seconds instead:</p>
+<pre><code class="language-bash">PYTHONUNBUFFERED=1 timeout --foreground 5 ros2 topic echo /imu/data --field linear_acceleration 2&gt;/dev/null | awk \
+  '/^x:/ {x += $2; n++} /^z:/ {z += $2; zz += $2 * $2} END {printf &quot;samples %d  mean x %.3f  mean z %.2f  sd z %.2f\n&quot;, n, x / n, z / n, sqrt(zz / n - (z / n) ^ 2)}'
+</code></pre>
+<pre><code>samples 291  mean x 0.074  mean z 9.80  sd z 0.71
+</code></pre>
+<p><code>PYTHONUNBUFFERED=1</code> makes <code>ros2 topic echo</code> write each sample at once, so none is lost when <code>timeout</code> stops it, and
+<code>--foreground</code> stops only <code>ros2 topic echo</code>, not <code>awk</code>. <code>ros2 topic echo</code> drops samples it cannot print in time, so the count
+is lower than 100 per second.</p>
+<p>An accelerometer at rest measures the reaction to gravity, so a correct z axis averages about +9.8 m/s². The small positive x is
+the trunk standing slightly nose-up: x = −g sin(pitch) gives a pitch of −asin(0.074 / 9.80) = −0.4°, and <code>/odom_gt</code> read a mean
+pitch of −0.36° (−0.55 to −0.08°) over 8 s of standing in the same session. TF does not carry this tilt (Task 1.2).</p>
+<p>Check: mean z between 9.6 and 10.0 while standing. A mean near -9.8 means the IMU frame is upside down.</p>
+<h2 id="task-3-measure-the-rates">Task 3: Measure the rates</h2>
+<h3 id="31-rates-in-simulation-time">3.1 Rates in simulation time</h3>
+<p>Objective: compare each sensor's rate with the table.</p>
+<pre><code class="language-bash">timeout 5 gz stats -d 2 | tail -n 1
+for t in /lidar/points /scan /camera/image_raw /imu/data /odom_gt /joint_states; do
+  echo &quot;$t $(timeout 12 ros2 topic hz -s $t --window 20 2&gt;/dev/null | grep -m1 average)&quot;; done
+</code></pre>
+<pre><code>Factor[0.96] SimTime[145.93] RealTime[162.40] Paused[F]
+/lidar/points average rate: 10.042
+/scan average rate: 9.959
+/camera/image_raw average rate: 5.018
+/imu/data average rate: 100.000
+/odom_gt average rate: 50.000
+/joint_states average rate: 250.000
+</code></pre>
+<p><code>grep -m1</code> exits after the first match, and <code>ros2 topic hz</code> then prints a <code>BrokenPipeError</code> traceback as it writes its next
+line; <code>2&gt;/dev/null</code> hides that noise. <code>-s</code> measures in simulation time. The lidar, IMU and ground truth keep their nominal
+rates. The camera did not: this run shared the machine and its GPU with six other simulators (load average 62 on 32 threads),
+and the camera, which is rendered, fell to 5.0 Hz; an earlier run beside seven simulators read 1.6 Hz (my reading of the cause;
+on an idle machine it publishes at 10 Hz). On that earlier run, a wall-clock measurement at a real-time factor of 0.87 read
+6.8 Hz for the lidar, 0.9 Hz for the camera and 67.5 Hz for the IMU: without <code>-s</code>, rates scale with the real-time factor.</p>
+<p><img loading="lazy" alt="Tick marks for each message over 0.3 s: 250 Hz joint states, 100 Hz IMU, 50 Hz ground truth and 10 Hz lidar, RGB and depth" src="../img/c06-sensor-rates.png" /></p>
+<p><em>Nominal rates from the table. Anything that fuses the lidar with the IMU has ten IMU samples per sweep.</em></p>
+<p>Check: lidar and scan near 10 Hz, IMU 100 Hz, <code>/odom_gt</code> 50 Hz in simulation time.</p>
+<p>Common mistakes: running <code>ros2 topic hz</code> without <code>-s</code> and reading a slow simulator as a broken sensor. Check the <code>Factor</code> from
+<code>gz stats</code> first.</p>
+<h2 id="task-4-compare-with-the-real-go2">Task 4: Compare with the real Go2</h2>
+<h3 id="41-read-the-sim-vs-real-table">4.1 Read the sim-vs-real table</h3>
+<p>Objective: know what to change before data from the real robot reaches this stack.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th></th>
+<th>This simulation</th>
+<th>Real Go2 (<code>unitree_ros2</code>)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Lidar topic and frame</td>
+<td><code>/lidar/points</code> in <code>lidar_link</code>, upright, 0.10 m above <code>base_link</code></td>
+<td><code>utlidar/cloud</code> in <code>utlidar_lidar</code>, mounted inverted and tilted; CMU's <code>autonomy_stack_go2</code> rotates it into the body by a pitch of 2.878 rad</td>
+</tr>
+<tr>
+<td>Lidar</td>
+<td>16 beams, ±15°, 10 Hz, 0.3 m minimum range</td>
+<td>L1: 360° × 90°, 21,600 points/s, 11 Hz, 0.05 m blind zone. Newer units list the L2 (360° × 96°); check which one yours has</td>
+</tr>
+<tr>
+<td>IMU</td>
+<td><code>/imu/data</code> in <code>base_link</code></td>
+<td><code>utlidar/imu</code> inside the lidar (needs a one-time calibration), and the body IMU inside <code>sportmodestate</code></td>
+</tr>
+<tr>
+<td>Camera</td>
+<td><code>sensor_msgs/Image</code> on <code>/camera/image_raw</code>, plus depth</td>
+<td>an H.264 video stream; republish it as <code>sensor_msgs/Image</code> first. The product page lists one HD wide-angle camera</td>
+</tr>
+<tr>
+<td>TF and URDF</td>
+<td>full tree from <code>robot_state_publisher</code></td>
+<td>none published; you publish <code>odom</code> to <code>base_link</code> and the lidar's static transform yourself</td>
+</tr>
+<tr>
+<td>Robot's own odometry</td>
+<td>none used (chapter 9)</td>
+<td><code>sportmodestate</code> <code>position</code> and <code>velocity</code>, with no TF</td>
+</tr>
+<tr>
+<td>Foot contacts</td>
+<td>not published</td>
+<td><code>foot_force</code> in <code>sportmodestate</code> and <code>lowstate</code>; force sensors on EDU only</td>
+</tr>
+<tr>
+<td>Velocity command</td>
+<td><code>/cmd_vel</code> (Twist)</td>
+<td>no <code>/cmd_vel</code>; <code>unitree_api/msg/Request</code> on <code>/api/sport/request</code> (Move)</td>
+</tr>
+<tr>
+<td>Time</td>
+<td>simulation time on <code>/clock</code></td>
+<td>robot stamps, not host time; CMU computes a one-off offset</td>
+</tr>
+</tbody>
+</table></div>
+<p>Sources: <code>research/go2-real-robot.md</code>, sections 1.2 (<code>unitree_ros2</code>), 1.8 (<code>autonomy_stack_go2</code>), 1.9 (product and L1 pages)
+and 1.10 (<code>unilidar_sdk</code>).</p>
+<p>Check: name the two transforms you would have to publish yourself before <code>go2.rviz</code> could show <code>utlidar/cloud</code> (answer in the
+table: <code>odom</code> to <code>base_link</code> and <code>base_link</code> to <code>utlidar_lidar</code>).</p>
+<h2 id="one-lidar-sweep-in-3d">One lidar sweep in 3D</h2>
+<p>Six moments from run w2. Drag to orbit; the RGB and depth images were taken at the same instant as the sweep.</p><div class="instrument" data-mount="cloud" data-run="w2"></div>
+<h2 id="exercise">Exercise</h2>
+<p>The centre pixel of <code>/camera/depth/image_raw</code> reads 3.00 m. Where is that point in <code>base_link</code>?</p>
+<p>Answer: the centre pixel lies on the optical axis, so the point is (0, 0, 3.00) in <code>camera_optical</code>. With R from Task 1.3 it is
+(3.00, 0, 0) in <code>camera_link</code>, and the <code>camera_joint</code> offset (0.28, 0, 0.03) from <code>sensors.xacro</code> puts it at (3.28, 0, 0.03) in
+<code>base_link</code>. <code>ros2 run tf2_ros tf2_echo base_link camera_optical</code> prints the offset you added, <code>[0.280, 0.000, 0.030]</code>, and the
+same rotation as in Task 1.3.</p>
+<h2 id="further-reading">Further reading</h2>
+<ul>
+<li>Nav2, "First-time robot setup guide", sensors page: https://docs.nav2.org/rolling/configuration_and_development/first_time_robot_setup_guide/</li>
+<li><code>jizhang-cmu/autonomy_stack_go2</code>: the real L1 cloud and IMU, their transforms and calibration on a Go2.</li>
+</ul><nav class="prevnext" aria-label="Previous and next"><a class="pn" href="../tasks/s08_feedback-movement/index.html"><span>Previous</span>Feedback movement</a><a class="pn next" href="../tasks/s06_sensors-and-perception/index.html"><span>Next</span>Sensors and perception</a></nav><p class="source">Source: <a href="https://github.com/Armanasq/go2-nav-sim/blob/main/docs/08-robot-and-sensors.md">docs/08-robot-and-sensors.md</a></p></article></div>
+</main>
+<footer class="site"><div class="wrap">Simulation only. Source and issues on <a href="https://github.com/Armanasq/go2-nav-sim">GitHub</a>.</div></footer>
+<script type="module" src="../static/js/site.js"></script>
+</body>
+</html>

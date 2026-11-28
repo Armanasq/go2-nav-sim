@@ -1,0 +1,866 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Posture and balance · go2-nav-sim</title>
+<meta name="description" content="Posture and balance">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../../static/css/site.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5' fill='%230a6a9c'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"><script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script><script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.querySelector('main'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false})"></script>
+</head>
+<body data-root="../../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar"><div class="inner">
+<a class="brand" href="../../index.html">go2-nav-sim</a>
+<nav aria-label="Main"><a href="../../tutorial/00-overview.html" aria-current="page">Learn</a><a href="../../tasks/index.html">Tasks</a><a href="../../modules/index.html">Deep dives</a><a href="../../reference.html">Reference</a></nav>
+<button class="theme-toggle" type="button" aria-label="Colour theme: auto">auto</button>
+</div></header>
+<main id="main">
+<div class="wrap doc"><details class="side" open><summary>Posture and balance</summary><nav aria-label="Contents"><ol class="parts"><li><a class="part" href="../../tutorial/00-overview.html">Start</a></li><li class="open"><p class="part">The robot</p><ol><li><a href="../../tutorial/05-frames-and-tf2.html"><span class="n">5</span><span>Frames and TF2</span></a></li><li><a href="../../tutorial/06-import-the-go2.html"><span class="n">6</span><span>Import the Go2</span></a></li><li><a href="../s01_import-and-inspect/index.html"><span class="n">S1</span><span>Import and inspect the robot</span></a></li><li><a href="../s02_joint-and-leg-control/index.html"><span class="n">S2</span><span>Joint and leg control</span></a></li><li><a href="index.html" aria-current="page"><span class="n">S3</span><span>Posture and balance</span></a></li><li><a href="../../tutorial/07-make-it-walk.html"><span class="n">7</span><span>Make it walk</span></a></li></ol></li><li><a class="part" href="../../projects/p02_teleop-and-safety/index.html">Move it</a></li><li><a class="part" href="../../tutorial/08-robot-and-sensors.html">Sense and avoid</a></li><li><a class="part" href="../../tutorial/09-state-estimation.html">Estimate and map</a></li><li><a class="part" href="../../projects/p11_command-arbitration/index.html">Navigate</a></li><li><a class="part" href="../../projects/p14_test-the-stack/index.html">Beyond simulation</a></li></ol></nav></details><article class="prose"><p class="where">The robot · Stage 3 tasks</p><h1>Posture and balance</h1><p>By the end of this stage the Go2 stands on the floor with no support: it lies down, stands up, holds the stance, crouches,
+raises and lowers its trunk, pitches and rolls it with the feet fixed, shifts its centre of mass (CoM) inside the support
+polygon, lifts one foot on three legs, puts it down somewhere else and returns to where it started. Every task is the robot on
+the floor of <code>modules/assets/unitree_go2/scene.xml</code>; nothing holds the trunk, no force is added to it, and contacts are MuJoCo's.</p>
+<p>Why MuJoCo: in the Gazebo stack CHAMP owns all twelve joints, so single-joint control, single-foot motion and step climbing are
+done here, where joint torques and contact forces are available.</p>
+<p><strong>The control interface.</strong> All twelve actuators in <code>go2.xml</code> are <code>&lt;motor&gt;</code> elements: a joint torque, gear 1, clipped to
+±23.7 N m (hip, thigh) and ±45.43 N m (knee). Each joint also has passive damping $b = 2$ N m s/rad and friction loss
+0.2 N m. The posture controller in <code>lib.py</code> computes the twelve torques every 2 ms physics step:</p>
+<p>$$\tau = k_p(q^*-q) + k_d(\dot q^*-\dot q) + b\,\dot q^* + g_\text{leg}(q) - J(q)^\top R^\top f\,\hat z,$$</p>
+<p>with $q^*$ from the closed-form IK of stage 2 applied to the foot targets in the body frame, $g_\text{leg}$ the torque that holds
+each leg against its own weight (stage 2 <code>LegModel.gravity</code>, gravity rotated into the body frame), $J$ the foot Jacobian
+(module 04) and $f$ the vertical force statics asks of each foot (task 3.03). $k_p = 150$ N m/rad, $k_d = 3$ N m s/rad.
+The controller reads the joint encoders and the base orientation $R$ (an IMU would give it; here it comes from <code>d.qpos</code>).
+The base position is read once, when the stance is anchored, to express the foot targets in world coordinates; it is never
+fed back. Posture control here is therefore feed-forward: the body goes where the legs put it, and MuJoCo measures where that is.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Interface</th>
+<th>Used in</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>joint PD only ($k_p = 40$, $k_d = 2$, no weight term)</td>
+<td>3.01</td>
+</tr>
+<tr>
+<td>joint-space minimum-jerk move + weight feed-forward ramped from 0 to $mg$</td>
+<td>3.02</td>
+</tr>
+<tr>
+<td>posture controller above: body pose and foot targets → IK every 2 ms → PD + $g_\text{leg}$ + $J^\top f$</td>
+<td>3.03 to 3.12</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>The posture API</strong> (<code>lib.Posture</code>, for stage 5). <code>set_body_pose(p, rpy, T)</code>, <code>shift_com(xy, T)</code>, <code>com_into_triangle(leg)</code>,
+<code>lift_foot(leg, height)</code>, <code>place_foot(leg, xy)</code>, <code>hold(T)</code>, <code>follow(p, rpy)</code>. Each call plans the whole motion first and raises
+<code>lib.Rejected</code> with a reason (<code>too_far</code>, <code>joint_limit</code>, <code>clearance</code>, <code>margin</code>) before anything moves. <code>pose.log()</code> returns
+everything measured.</p>
+<p><strong>Run everything</strong> from this folder. Tasks 3.01, 3.02, 3.08 and 3.11 render; run them under the machine-wide render lock, one
+at a time. The renders used <code>DISPLAY=:0</code> because this machine had no <code>:1</code> X server (<code>mujoco.Renderer</code> failed on <code>:1</code>).</p>
+<pre><code class="language-bash">cd tasks/s03_posture-and-balance
+../../.venv-modules/bin/python run.py 3.03 3.04 3.05 3.06 3.07 3.09 3.10 3.12
+for t in 3.01 3.02 3.08 3.11; do MUJOCO_GL=glfw DISPLAY=:0 flock /tmp/go2_render.lock ../../.venv-modules/bin/python run.py $t; done
+../../.venv-modules/bin/python -m pytest -q tests        # 7 tests, 4 s
+</code></pre>
+<p>The twelve runs took 806 s of wall time in total at a 1-minute load average of 48 to 76 on 32 cores (<code>wall_s</code> and
+<code>load_avg_1min</code> in <code>results/*.json</code>). <code>acceptance.json</code> was written before the first run and has not changed (<code>changes</code> is
+empty). Every task passed with a wide margin; the thresholds came from error budgets (soft-contact sinkage of a few mm, joint
+friction band) that turned out much larger than the errors of a feed-forward stance on a flat floor. The Failure analysis
+paragraphs say where the remaining error comes from.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Id</th>
+<th>Capability</th>
+<th>Status</th>
+<th>Key measured number</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>3.01</td>
+<td>resting configuration</td>
+<td>verified</td>
+<td>peak torque 6.5 % of its limit; the chin sphere carries 27.6 % of the weight</td>
+</tr>
+<tr>
+<td>3.02</td>
+<td>stand up</td>
+<td>verified</td>
+<td>standing height 0.27464 m vs 0.27537 m predicted (0.74 mm)</td>
+</tr>
+<tr>
+<td>3.03</td>
+<td>hold standing for 10 s</td>
+<td>verified</td>
+<td>height change 0.72 µm, foot slip 2.5 µm</td>
+</tr>
+<tr>
+<td>3.04</td>
+<td>crouch to 0.18 m and back</td>
+<td>verified</td>
+<td>height RMS error 0.37 mm, max 0.81 mm</td>
+</tr>
+<tr>
+<td>3.05</td>
+<td>raise the body</td>
+<td>verified</td>
+<td>steady height error ≤ 7.5 µm at +20, +40, +60 mm; 0.42 m rejected (<code>too_far</code>)</td>
+</tr>
+<tr>
+<td>3.06</td>
+<td>lower the body</td>
+<td>verified</td>
+<td>trunk clearance 43.5 mm at 0.15 m; 0.12 m rejected (<code>clearance</code>)</td>
+</tr>
+<tr>
+<td>3.07</td>
+<td>pitch the body</td>
+<td>verified</td>
+<td>RMS error 0.089° on a ±8°, 0.5 Hz sine</td>
+</tr>
+<tr>
+<td>3.08</td>
+<td>roll the body</td>
+<td>verified</td>
+<td>RMS error 0.139° on a ±8°, 0.5 Hz sine</td>
+</tr>
+<tr>
+<td>3.09</td>
+<td>shift the centre of mass</td>
+<td>verified</td>
+<td>CoM error ≤ 3.3 mm for 40 mm shifts; CoP on the CoM within 0.017 mm</td>
+</tr>
+<tr>
+<td>3.10</td>
+<td>lift one foot on three legs</td>
+<td>verified</td>
+<td>margin ≥ 38.4 mm; three-leg force prediction within 0.004 N</td>
+</tr>
+<tr>
+<td>3.11</td>
+<td>place the lifted foot</td>
+<td>verified</td>
+<td>placement error 2.0 mm</td>
+</tr>
+<tr>
+<td>3.12</td>
+<td>return to the original posture</td>
+<td>verified</td>
+<td>after 3 cycles: base 0.13 mm, feet 0.45 mm, attitude 0.043° from the start</td>
+</tr>
+</tbody>
+</table></div>
+<h3 id="301-resting-configuration">3.01 Resting configuration <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Put the Go2 in a folded resting pose on the floor that costs little torque and does not move.</p>
+<p><strong>Prerequisites.</strong> 2.05 (joint PD), 2.07 (FK).</p>
+<p><strong>Theory.</strong> $q_\text{rest} = (0, 1.36, -2.65)$ rad per leg is computed, not taken from the keyframe (the only keyframe, <code>home</code>, is
+the standing pose). The knee sits 0.07 rad inside its fold limit $-2.7227$ rad. With that knee angle a thigh angle of 1.36 rad puts
+the foot centre 0.106 m below the hip, level with the bottom of the trunk's collision sphere under the head (centre 0.06 m
+below the base, radius 0.047 m), so feet and trunk can share the weight. At rest the floor carries all of it:
+$\sum_c F_{z,c} = mg = 15.206 \times 9.81 = 149.2$ N.</p>
+<p><strong>Implementation.</strong></p>
+<pre><code class="language-python">def rest(m, d, T=3.0, rec=None):
+    sim.place_on_ground(m, d, Q_REST)
+    pose = Posture(m, d, rec=rec)
+    pose.joint_move(Q_REST, T, kp=40.0, kd=2.0, support=(0.0, 0.0))
+</code></pre>
+<p><strong>Execution.</strong> <code>MUJOCO_GL=glfw DISPLAY=:0 flock /tmp/go2_render.lock ../../.venv-modules/bin/python run.py 3.01</code></p>
+<p><strong>Demonstration.</strong></p>
+<p><img loading="lazy" alt="Go2 resting on the floor, contact forces drawn" src="media/3-01_rest.png" /></p>
+<p><img loading="lazy" alt="Vertical floor force on each touching part at rest" src="figures/3-01_rest_forces.png" /></p>
+<p><strong>Measurement</strong> (<code>results/3.01.json</code>, after 3 s; "base" is the chin sphere of the trunk):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Quantity</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>base height, pitch</td>
+<td>0.0978 m, −1.97°</td>
+</tr>
+<tr>
+<td>vertical force: chin / FL, FR / RL, RR</td>
+<td>41.2 / 10.2, 10.2 / 43.8, 43.8 N</td>
+</tr>
+<tr>
+<td>sum of floor forces vs $mg$</td>
+<td>8.8e-6 relative error</td>
+</tr>
+<tr>
+<td>peak torque over the last 1 s</td>
+<td>2.95 N m, 6.5 % of its limit</td>
+</tr>
+<tr>
+<td>base speed over the last 0.5 s</td>
+<td>0.73 mm/s max</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Acceptance.</strong> Weight carried within 2 %, torque below 20 % of the limit, base speed below 10 mm/s, roll and pitch within 3°:
+passed.</p>
+<p><strong>Failure analysis.</strong> The trunk does not lie flat: it rests on the chin sphere and the rear feet, pitched 1.97° nose down,
+and the front feet carry only 10.2 N each. The rear feet are pushed outward by 16.8 N each against 43.8 N normal
+force (<code>foot_force_end_N</code>), a ratio of 0.38 held by friction; on a floor with a friction coefficient below 0.38 they would slide. The 0.73 mm/s residual motion
+is the feet creeping on the soft contacts after the 3 s settle.</p>
+<p><strong>Next task.</strong> 3.02 starts from this state.</p>
+<h3 id="302-stand-up">3.02 Stand up <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Rise from the resting pose to the standing pose <code>Q_STAND</code> = (0, 0.9, −1.8) rad and end on four feet at the
+predicted height.</p>
+<p><strong>Prerequisites.</strong> 3.01.</p>
+<p><strong>Theory.</strong> Joints follow a minimum-jerk path $q(t) = q_0 + (q_1 - q_0)(10s^3 - 15s^4 + 6s^5)$, $s = t/T$, $T = 1.5$ s. The
+weight feed-forward is ramped with the same $s$, because the feet take over the load from the chin as the trunk lifts. The
+predicted standing height is the kinematic height of <code>Q_STAND</code> (base above the foot centres, $-\bar f_z = 0.26637$ m from FK)
+plus the 9 mm at which a loaded foot-sphere centre sits above the floor (soft contact, MODULE_SPEC): 0.27537 m.</p>
+<p><strong>Implementation.</strong></p>
+<pre><code class="language-python">def stand_up(pose, T=1.5, settle=0.5):
+    pose.joint_move(Q_STAND, T, support=(0.0, 1.0))   # weight in the feed-forward ramped 0 -&gt; m g
+    pose.joint_move(Q_STAND, settle)
+    pose.anchor()                                     # the stance: P_i = p_base + R fk(q_i), read once
+</code></pre>
+<p><strong>Execution.</strong> <code>MUJOCO_GL=glfw DISPLAY=:0 flock /tmp/go2_render.lock ../../.venv-modules/bin/python run.py 3.02</code></p>
+<p><strong>Demonstration.</strong></p>
+<video controls muted playsinline src="media/3-02_stand_up.mp4"></video>
+
+<p><img loading="lazy" alt="Height, attitude and foot forces during the stand-up" src="figures/3-02_stand_up.png" /></p>
+<p><strong>Measurement</strong> (<code>results/3.02.json</code>):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Quantity</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>final height / predicted</td>
+<td>0.27464 / 0.27537 m (0.74 mm low)</td>
+</tr>
+<tr>
+<td>chin leaves the floor</td>
+<td>0.07 s after the start</td>
+</tr>
+<tr>
+<td>largest roll or pitch during the rise</td>
+<td>1.97° (the resting pitch at $t = 0$)</td>
+</tr>
+<tr>
+<td>peak torque</td>
+<td>12.0 N m; largest fraction of a joint's limit 36 %</td>
+</tr>
+<tr>
+<td>contact-point travel, worst foot</td>
+<td>7.7 mm</td>
+</tr>
+<tr>
+<td>end: feet in contact, other contacts</td>
+<td>4, 0; feet carry 100.0 % of $mg$</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Acceptance.</strong> Height within 5 mm, attitude within 3°, torque below 80 % of the limit, foot travel below 10 mm, four feet and
+no other contact at the end: passed.</p>
+<p><strong>Failure analysis.</strong> The 7.7 mm contact-point travel is the largest margin used in this task (77 % of the threshold). The
+calf turns by about 0.4 rad between the two poses (thigh + knee angle goes from −1.29 to −0.90 rad) and the foot is a sphere
+of radius 22 mm fixed to it: if it rolls without
+slipping its centre moves $r\,\Delta\phi \approx 8.6$ mm (my estimate from the joint angles, not separately measured).
+A faster stand-up or a slippery floor would turn that roll into slip. The 0.74 mm height shortfall is the sinkage being
+slightly more than the 9 mm assumed.</p>
+<p><strong>Next task.</strong> 3.03 holds this pose; every later task starts with <code>lib.standing()</code> (rest, stand up, anchor).</p>
+<h3 id="303-hold-standing">3.03 Hold standing <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Stand for 10 s with the posture controller and keep height, attitude and contacts.</p>
+<p><strong>Prerequisites.</strong> 3.02.</p>
+<p><strong>Theory.</strong> Statics of the stance. With the foot positions $x_i$ relative to the CoM projection, the vertical foot forces must
+satisfy $\sum f_i = mg$ and $\sum f_i\,(x_i - c) = 0$: three equations, four unknowns. The controller picks the least-squares
+solution weighted by $w_i$:</p>
+<p>$$\min \sum_i f_i^2 / w_i \ \text{ s.t. } A f = b,\quad A = \begin{bmatrix} 1 &amp; \cdots &amp; 1 \\ x_1 - c_x &amp; \cdots &amp; x_4 - c_x \\ y_1 - c_y &amp; \cdots &amp; y_4 - c_y\end{bmatrix},\ b = \begin{bmatrix} mg \\ 0 \\ 0\end{bmatrix}
+\ \Rightarrow\ f = W A^\top (A W A^\top)^{-1} b.$$</p>
+<p>$J^\top R^\top f\hat z$ turns those forces into joint torques, so in steady state the PD term has nothing left to do.</p>
+<p><strong>Implementation.</strong></p>
+<pre><code class="language-python">def force_distribution(dxy, w, weight):
+    A = np.vstack([np.ones(len(dxy)), dxy.T])
+    W = np.diag(w)
+    f = W @ A.T @ np.linalg.solve(A @ W @ A.T, [weight, 0.0, 0.0])
+    return np.maximum(f, 0.0)
+</code></pre>
+<p><strong>Execution.</strong> <code>../../.venv-modules/bin/python run.py 3.03</code></p>
+<p><strong>Demonstration.</strong></p>
+<p><img loading="lazy" alt="Height change, attitude and foot forces over a 10 s hold, statics prediction dotted" src="figures/3-03_hold.png" /></p>
+<p><strong>Measurement</strong> (<code>results/3.03.json</code>, from 0.5 s to 10 s):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Quantity</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>height</td>
+<td>0.27464 m, largest change 0.72 µm</td>
+</tr>
+<tr>
+<td>largest roll or pitch</td>
+<td>0.103° (the standing pitch)</td>
+</tr>
+<tr>
+<td>foot slip (contact point)</td>
+<td>2.5 µm</td>
+</tr>
+<tr>
+<td>foot $F_z$ FL, FR / RL, RR, measured</td>
+<td>37.035 / 37.553 N</td>
+</tr>
+<tr>
+<td>same from statics</td>
+<td>37.035 / 37.553 N</td>
+</tr>
+<tr>
+<td>sum of foot forces vs $mg$</td>
+<td>1.1e-9 relative error</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Acceptance.</strong> Height within 3 mm, attitude within 0.5°, all feet in contact for the whole interval, slip below 2 mm, weight
+within 2 %: passed.</p>
+<p><strong>Failure analysis.</strong> On a flat floor the hold has no failure mode left in the simulation; the numbers are three orders of
+magnitude inside the thresholds. The hold is open loop in the base position: a push or a slope moves the trunk and nothing
+brings it back (stage 5, 5.16). The standing pitch of 0.103° nose down comes from the rear feet carrying 0.52 N more than the
+front ones, because the CoM is 2.2 mm behind the base origin.</p>
+<p><strong>Next task.</strong> 3.04 moves the body with the same controller.</p>
+<h3 id="304-crouch">3.04 Crouch <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Lower the trunk from standing height to 0.18 m in 1.5 s, hold, and rise again, with the feet fixed.</p>
+<p><strong>Prerequisites.</strong> 3.03.</p>
+<p><strong>Theory.</strong> A body pose $(p^*, R^*)$ and world foot targets $P_i$ give foot targets in the body frame
+$f_i^* = R^{*\top}(P_i - p^*)$; the closed-form IK of stage 2 turns them into $q^*$. The feed-forward is static, so the body's
+acceleration is left to the PD: peak $\ddot z = 5.77\,\Delta z/T^2 = 0.24$ m/s² for $\Delta z = 0.095$ m, $T = 1.5$ s, which is
+3.7 N of unmodelled force.</p>
+<p><strong>Implementation.</strong></p>
+<pre><code class="language-python">for k in range(N):                                    # Posture.path: every 2 ms sample is solved before moving
+    q = Q[k] = self.ik(pp[k], rr[k], PP[k], q)        # f = R*^T (P_i - p*), s02.ik_closest per leg
+</code></pre>
+<pre><code class="language-python">pose.set_body_pose(p=low, T=1.5); pose.hold(1.0)
+pose.set_body_pose(p=p0, T=1.5); pose.hold(1.0)
+</code></pre>
+<p><strong>Execution.</strong> <code>../../.venv-modules/bin/python run.py 3.04</code></p>
+<p><strong>Demonstration.</strong></p>
+<p><img loading="lazy" alt="Height reference and MuJoCo height during the crouch, and the error" src="figures/3-04_crouch.png" /></p>
+<p><strong>Measurement</strong> (<code>results/3.04.json</code>):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Quantity</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>height error RMS / max</td>
+<td>0.37 / 0.81 mm</td>
+</tr>
+<tr>
+<td>final height error</td>
+<td>0.016 mm</td>
+</tr>
+<tr>
+<td>largest roll or pitch</td>
+<td>0.27°</td>
+</tr>
+<tr>
+<td>peak torque fraction</td>
+<td>19.9 %</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Acceptance.</strong> RMS below 4 mm, max below 8 mm, attitude within 1°, final error below 3 mm, contact throughout: passed.</p>
+<p><strong>Failure analysis.</strong> The error peaks (0.8 mm) where the reference accelerates most, at 0.4 s and 2.9 s, and the trunk lags
+the reference on the way down and on the way up: the PD carries the inertial force. Adding $m\ddot z^*$ to the feed-forward
+weight would remove most of it.</p>
+<p><strong>Next task.</strong> 3.05 and 3.06 use the same move to reach the height limits.</p>
+<h3 id="305-raise-the-body">3.05 Raise the body <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Raise the trunk by 20, 40 and 60 mm and reject a height the legs cannot reach.</p>
+<p><strong>Prerequisites.</strong> 3.04, 2.13 (IK rejection).</p>
+<p><strong>Theory.</strong> A foot target is out of reach when its sagittal distance from the thigh joint exceeds
+$\rho_{\max} = 0.390$ m (knee at its straightest limit, stage 2 <code>LegModel.rho_max</code>). The planner solves the IK for every sample
+before the first torque is sent, so an unreachable request never starts.</p>
+<p><strong>Implementation.</strong></p>
+<pre><code class="language-python">try:
+    pose.set_body_pose(p=p, T=1.0); reason = None       # p[2] = 0.42 m
+except Rejected as e:
+    reason = e.reason                                    # 'too_far' from s02.ik_checked
+</code></pre>
+<p><strong>Execution.</strong> <code>../../.venv-modules/bin/python run.py 3.05</code></p>
+<p><strong>Demonstration.</strong></p>
+<p><img loading="lazy" alt="Height steps of 20, 40, 60 mm and back, and the error" src="figures/3-05_raise.png" /></p>
+<p><strong>Measurement</strong> (<code>results/3.05.json</code>, steady value = mean of the last 0.3 s of each 1 s hold):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Target [m]</th>
+<th>Measured [m]</th>
+<th>Error [µm]</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0.29464</td>
+<td>0.29463</td>
+<td>3.2</td>
+</tr>
+<tr>
+<td>0.31464</td>
+<td>0.31463</td>
+<td>6.0</td>
+</tr>
+<tr>
+<td>0.33464</td>
+<td>0.33463</td>
+<td>7.5</td>
+</tr>
+</tbody>
+</table></div>
+<p>Highest reachable base height by bisection on the planner: 0.3984 m. The 0.42 m request was rejected with <code>too_far</code>; during
+the 0.5 s hold after it the feet and base moved at most 4.1 µm.</p>
+<p><strong>Acceptance.</strong> Steady error below 4 mm, request rejected, motion below 0.5 mm: passed.</p>
+<p><strong>Failure analysis.</strong> The planner's limit (0.398 m) is a kinematic limit only. Near it the knee is almost straight, the
+Jacobian loses rank and a small height error needs a large joint motion; no task here goes above 0.335 m.</p>
+<p><strong>Next task.</strong> 3.06 goes the other way.</p>
+<h3 id="306-lower-the-body">3.06 Lower the body <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Lower the trunk to 0.22, 0.18 and 0.15 m, measure its clearance above the floor, and reject a pose that would
+put the trunk within 20 mm of it.</p>
+<p><strong>Prerequisites.</strong> 3.04.</p>
+<p><strong>Theory.</strong> The lowest trunk point is one of the eight corners of the collision box (half-sizes 0.1881, 0.04675, 0.057 m) or
+the bottom of the chin sphere: $c = \min\big(\min_k (p + R\,b_k)_z,\ (p + R\,s)_z - r_s\big)$. Level at height $h$, the chin
+decides: $c = h - 0.107$ m, so 0.12 m gives 13 mm, below the 20 mm guard.</p>
+<p><strong>Implementation.</strong></p>
+<pre><code class="language-python">def trunk_clearance(p, R):
+    corners = np.array([[sx, sy, sz] for sx in (-1, 1) for sy in (-1, 1) for sz in (-1, 1)]) * BOX
+    return float(min((p + corners @ R.T)[:, 2].min(), (p + R @ CHIN[0])[2] - CHIN[1]))
+</code></pre>
+<p>MuJoCo checks it: <code>mj_geomDistance</code> between the floor and each trunk geom (<code>lib.mujoco_clearance</code>).</p>
+<p><strong>Execution.</strong> <code>../../.venv-modules/bin/python run.py 3.06</code></p>
+<p><strong>Demonstration.</strong></p>
+<p><img loading="lazy" alt="Height steps down to 0.15 m and back, and the error" src="figures/3-06_lower.png" /></p>
+<p><strong>Measurement</strong> (<code>results/3.06.json</code>):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Target [m]</th>
+<th>Height error [µm]</th>
+<th>Trunk clearance, MuJoCo [mm]</th>
+<th>Predicted [mm]</th>
+<th>Leg geoms, MuJoCo [mm]</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0.22</td>
+<td>27</td>
+<td>113.5</td>
+<td>113.5</td>
+<td>33.6</td>
+</tr>
+<tr>
+<td>0.18</td>
+<td>49</td>
+<td>73.5</td>
+<td>73.5</td>
+<td>31.0</td>
+</tr>
+<tr>
+<td>0.15</td>
+<td>62</td>
+<td>43.5</td>
+<td>43.5</td>
+<td>28.9</td>
+</tr>
+</tbody>
+</table></div>
+<p>The 0.12 m request was rejected with <code>clearance</code> (predicted 13 mm). No contact other than the four feet at any sample.</p>
+<p><strong>Acceptance.</strong> Steady error below 4 mm, trunk clearance at least 20 mm, prediction within 3 mm of MuJoCo, low request
+rejected, no other contact: passed.</p>
+<p><strong>Failure analysis.</strong> The guard covers the trunk only. At 0.15 m the closest robot geometry to the floor is a leg geom
+(hip, thigh or calf, <code>legs_clearance_mujoco_m</code>), 28.9 mm up, not the trunk; a guard for the legs would need the same check on the thigh and calf geoms. The planner does not
+know about obstacles: clearance is to the plane $z = 0$.</p>
+<p><strong>Next task.</strong> 3.07 rotates the body instead of translating it.</p>
+<h3 id="307-pitch-the-body">3.07 Pitch the body <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Pitch the trunk to ±10° and track a ±8°, 0.5 Hz sine, feet fixed.</p>
+<p><strong>Prerequisites.</strong> 3.04.</p>
+<p><strong>Theory.</strong> $R^* = R_z(\psi)R_y(\theta)R_x(\phi)$; with the feet fixed in the world, pitching by $\theta$ moves the front feet
+up and the rear feet down in the body frame by about $0.19\sin\theta$ m each (33 mm at 10°).</p>
+<p><strong>Implementation.</strong></p>
+<pre><code class="language-python">t_s = np.arange(1, int(round(4.0 / DT)) + 1) * DT
+pose.follow(rpy=r0 + np.outer(np.radians(8.0) * np.sin(2 * np.pi * 0.5 * t_s), np.eye(3)[axis]))
+</code></pre>
+<p><strong>Execution.</strong> <code>../../.venv-modules/bin/python run.py 3.07</code></p>
+<p><strong>Demonstration.</strong></p>
+<p><img loading="lazy" alt="Pitch reference and MuJoCo pitch, steps then sine, and the errors" src="figures/3-07_pitch.png" /></p>
+<p><strong>Measurement</strong> (<code>results/3.07.json</code>):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Quantity</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>sine RMS error, lag</td>
+<td>0.089°, 4 ms</td>
+</tr>
+<tr>
+<td>largest error</td>
+<td>0.22° (at the start of the sine)</td>
+</tr>
+<tr>
+<td>steady error at +10° / −10° / 0°</td>
+<td>0.12° / 0.10° / 0.02°</td>
+</tr>
+<tr>
+<td>height change, roll change</td>
+<td>0.26 mm, 9e-5°</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Acceptance.</strong> Sine RMS below 1°, max below 2°, steady error below 0.5°, height within 5 mm, contact throughout: passed.</p>
+<p><strong>Failure analysis.</strong> The steady error at ±10° (0.1°) does not decay during the 1 s hold. The front and rear feet carry
+different loads when pitched and sink by different amounts on the soft contact; 0.1° over the 0.39 m between front and rear
+feet is a 0.7 mm sinkage difference (my inference; the per-foot sinkage was not logged). The 0.22° peak comes from starting the
+sine at zero with a nonzero slope, a velocity step of 25°/s.</p>
+<p><strong>Next task.</strong> 3.08 does the same about the roll axis.</p>
+<h3 id="308-roll-the-body">3.08 Roll the body <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Roll the trunk to ±10° and track a ±8°, 0.5 Hz sine; then sweep height, pitch, roll and yaw for the video.</p>
+<p><strong>Prerequisites.</strong> 3.07.</p>
+<p><strong>Theory.</strong> As in 3.07 about the $x$ axis. The feet are 0.284 m apart laterally, so rolling 10° moves each foot target by
+about 25 mm vertically in the body frame and rotates the hip abduction joints.</p>
+<p><strong>Implementation.</strong> <code>attitude_task(0, 'roll', ...)</code> in <code>run.py</code>, the same code as 3.07 with axis 0. The sweep:</p>
+<pre><code class="language-python">seq = [(p0 + [0, 0, -0.06], r0, 1.2), (p0 + [0, 0, 0.04], r0, 1.5), (p0, r0, 1.0)]
+for i, a in ((1, 10), (0, 10), (2, 15)):                 # pitch, roll, yaw in degrees
+    e = np.radians(a) * np.eye(3)[i]
+    seq += [(p0, r0 + e, 1.0), (p0, r0 - e, 1.5), (p0, r0, 1.0)]
+</code></pre>
+<p><strong>Execution.</strong> <code>MUJOCO_GL=glfw DISPLAY=:0 flock /tmp/go2_render.lock ../../.venv-modules/bin/python run.py 3.08</code></p>
+<p><strong>Demonstration.</strong></p>
+<p><img loading="lazy" alt="Roll reference and MuJoCo roll, steps then sine, and the errors" src="figures/3-08_roll.png" /></p>
+<video controls muted playsinline src="media/3-08_pose_sweep.mp4"></video>
+
+<p><strong>Measurement</strong> (<code>results/3.08.json</code>):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Quantity</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>sine RMS error, lag</td>
+<td>0.139°, 6 ms</td>
+</tr>
+<tr>
+<td>largest error</td>
+<td>0.18°</td>
+</tr>
+<tr>
+<td>steady error at +10° / −10° / 0°</td>
+<td>0.026° / 0.031° / 0.002°</td>
+</tr>
+<tr>
+<td>height change, pitch change</td>
+<td>0.065 mm, 0.0024°</td>
+</tr>
+<tr>
+<td>sweep (14.7 s): RMS height / roll / pitch / yaw error</td>
+<td>0.23 mm / 0.081° / 0.070° / 0.28°</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Acceptance.</strong> Same thresholds as 3.07: passed.</p>
+<p><strong>Failure analysis.</strong> Yaw tracks worst in the sweep (0.28° RMS). In yaw the feet are loaded sideways and the sphere contacts
+twist; the torsional friction coefficient in <code>go2.xml</code> is 0.02, so the feet can yield a little (my inference, the foot twist
+was not logged). Roll has the larger sine error (0.139° against 0.089° for pitch) and the smaller steady error (0.031° against
+0.12°). The roll error in the figure is close to a square wave that flips sign with the roll velocity, the shape a
+Coulomb friction term (joint friction loss 0.2 N m, contact torsion) produces; which of the two dominates was not separated.</p>
+<p><strong>Next task.</strong> 3.09 translates the CoM instead of rotating the trunk.</p>
+<h3 id="309-shift-the-centre-of-mass">3.09 Shift the centre of mass <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Move the CoM projection 40 mm in eight directions, measure where it ends up, how far it is from the edge of the
+support polygon, and reject a target that would leave less than 20 mm.</p>
+<p><strong>Prerequisites.</strong> 3.03, 3.04.</p>
+<p><strong>Theory.</strong> The CoM from the MJCF masses: $c = \big(m_b c_b + \sum_j m_j c_j(q)\big)/M$, $M = 15.206$ kg, with $c_j$ from the leg
+kinematics. The static stability margin is the signed distance from the CoM projection to the nearest edge of the convex hull
+of the contact points (counter-clockwise vertices $v_k$, edges $e_k$):</p>
+<p>$$s = \min_k \frac{e_k \times (c - v_k)}{\lVert e_k\rVert},$$</p>
+<p>positive inside. In static equilibrium the centre of pressure $\sum f_i p_i / \sum f_i$ lies exactly on the CoM projection.
+The body translation that puts the CoM at a target is found by iteration, since moving the body moves the legs relative to it.</p>
+<p><strong>Implementation.</strong></p>
+<pre><code class="language-python">def body_for_com(self, xy, P=None):
+    p = self.p.copy()
+    for _ in range(6):
+        p[:2] += np.asarray(xy) - self.com_world(p, self.rpy, P)[:2]
+    return p
+</code></pre>
+<p>Contact points come from MuJoCo (<code>d.contact[i].pos</code> of the foot geoms, <code>lib.contact_points</code>); the CoM model is checked against
+MuJoCo's <code>subtree_com</code>.</p>
+<p><strong>Execution.</strong> <code>../../.venv-modules/bin/python run.py 3.09</code></p>
+<p><strong>Demonstration.</strong></p>
+<p><img loading="lazy" alt="Support polygon, CoM targets and measured CoM; measured foot forces against the feed-forward" src="figures/3-09_com_shift.png" /></p>
+<p><strong>Measurement</strong> (<code>results/3.09.json</code>, mean of the last 0.3 s of each 1 s hold):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Quantity</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CoM error, worst of 8</td>
+<td>3.3 mm</td>
+</tr>
+<tr>
+<td>CoP minus CoM, worst</td>
+<td>0.017 mm</td>
+</tr>
+<tr>
+<td>margin, measured vs predicted, worst difference</td>
+<td>0.73 mm</td>
+</tr>
+<tr>
+<td>smallest margin</td>
+<td>103.9 mm (lateral shifts, 90° and 270°)</td>
+</tr>
+<tr>
+<td>foot $F_z$ minus feed-forward, worst</td>
+<td>0.46 N</td>
+</tr>
+<tr>
+<td>CoM model vs MuJoCo</td>
+<td>1.1e-16 m</td>
+</tr>
+<tr>
+<td>foot-centre displacement during a shift, worst</td>
+<td>3.2 mm</td>
+</tr>
+<tr>
+<td>200 mm forward request</td>
+<td>rejected, <code>margin</code></td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Acceptance.</strong> CoM error below 5 mm, CoP within 3 mm of the CoM, margin within 5 mm of prediction, model within 1e-9 m,
+unsafe request rejected: passed.</p>
+<p><strong>Failure analysis.</strong> The 3.3 mm CoM error is systematic and points in the direction of the shift every time. The feet are
+the cause: all four foot-sphere centres moved 2.7 mm along with the body during the 0° shift (<code>foot_centre_displacement_m</code>),
+and the whole robot moved with them, because the controller holds the feet where it thinks they are and never measures that.
+The IK treats the foot as a point, but the foot is a 22 mm sphere fixed to the calf; when the calf turns, a sphere rolling
+without slip moves its centre by $r\,\Delta\phi$. That model predicts 3.8 mm against the 2.7 mm measured
+(<code>max_rolling_model_error_m</code> = 1.4 mm): the sphere rolls part of the way. The rolling friction in <code>go2.xml</code>
+(0.01) resisting it is a likely reason for the rest, not checked. A contact-point model in the IK, or feedback on the measured CoM, would remove the bias.</p>
+<p><strong>Next task.</strong> 3.10 uses the margin to decide whether a foot can leave the ground.</p>
+<h3 id="310-lift-one-foot-on-three-legs">3.10 Lift one foot on three legs <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Shift the CoM 40 mm inside the triangle of FR, RL and RR, unload FL, lift it 60 mm, and hold for 2 s.</p>
+<p><strong>Prerequisites.</strong> 3.09.</p>
+<p><strong>Theory.</strong> With three feet the force distribution is no longer a choice: $A f = b$ has three equations and three unknowns,
+so the vertical forces are fixed by the contact points and the CoM. The CoM target is the point nearest the current CoM that
+has margin 0.04 m in the triangle (SLSQP on $\lVert x - c\rVert^2$ s.t. $s(x) \ge 0.04$). Unloading sets $w_\text{FL}$ from 1
+to 0 over 0.5 s, which moves the feed-forward continuously to the three-leg solution.</p>
+<p><strong>Implementation.</strong></p>
+<pre><code class="language-python">def lift_foot(self, leg, height, T_unload=0.5, T_lift=0.6, min_margin=MIN_MARGIN):
+    mg = self.margin([l for l in LEGS if l != leg])
+    if mg &lt; min_margin:
+        raise Rejected('margin', ...)
+    w = self.w.copy(); w[LEGS.index(leg)] = 0.0
+    a = self.move(T_unload, w=w)
+    P = self.P.copy(); P[LEGS.index(leg), 2] += height
+    return a, self.move(T_lift, P=P)
+</code></pre>
+<p><strong>Execution.</strong> <code>../../.venv-modules/bin/python run.py 3.10</code></p>
+<p><strong>Demonstration.</strong></p>
+<p><img loading="lazy" alt="Foot forces, FL foot height and the three-leg margin during the lift" src="figures/3-10_lift.png" /></p>
+<p><strong>Measurement</strong> (<code>results/3.10.json</code>; the window starts with the unloading):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Quantity</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>smallest margin (MuJoCo contacts and CoM)</td>
+<td>38.4 mm</td>
+</tr>
+<tr>
+<td>stance feet in contact</td>
+<td>100 % of samples</td>
+</tr>
+<tr>
+<td>FL lift, smallest during the hold</td>
+<td>57.2 mm (60 mm commanded)</td>
+</tr>
+<tr>
+<td>attitude change / height change</td>
+<td>0.48° / 0.62 mm</td>
+</tr>
+<tr>
+<td>stance slip</td>
+<td>0.29 mm</td>
+</tr>
+<tr>
+<td>$F_z$ FR, RL, RR in the hold: measured</td>
+<td>65.40, 59.17, 24.60 N</td>
+</tr>
+<tr>
+<td>same, statics with 3 feet</td>
+<td>65.40, 59.17, 24.60 N (largest difference 0.004 N)</td>
+</tr>
+<tr>
+<td>FL force at the end of the unloading</td>
+<td>7.0 N; below 1 N 0.61 s after unloading began</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Acceptance.</strong> Margin at least 25 mm, stance contact throughout, lift at least 50 mm, attitude within 1.5°, height within 5
+mm, slip below 3 mm, force prediction within 5 N: passed.</p>
+<p><strong>Failure analysis.</strong> Two measured shortfalls. First, unloading through the feed-forward alone leaves 7.0 N on FL when the
+ramp ends: the four-leg stance is statically indeterminate and the stiff joint PD still presses FL onto its target, so the
+foot leaves the ground only 0.11 s into the lift. Second, the foot reaches 57.2 mm, not 60: in the body frame it is within
+0.04 mm of its target (<code>fl_error_body_frame_m</code>), and the 2.8 mm are the trunk tilting 0.48° towards the lifted corner as the
+three stance feet take different loads and sink by different amounts.</p>
+<p>A run with the margin guard switched off shows why the CoM shift comes first. From the centred stance the CoM is 1.3 mm
+from the FR–RL diagonal. Unloading FL takes the force off RR as well (it falls to zero during the lift); the robot balances
+on the diagonal and tips over it while FL rises, rolling 18.3° and pitching 11.6° until FL lands again and RR stays in the air (<code>no_com_shift</code> in the results). The
+default call <code>pose.lift_foot('FL', 0.06)</code> refuses this with <code>margin</code>.</p>
+<p><img loading="lazy" alt="Failure case: FL lifted without shifting the CoM first" src="figures/3-10_no_shift.png" /></p>
+<p><strong>Next task.</strong> 3.11 puts the lifted foot down somewhere else.</p>
+<h3 id="311-place-the-lifted-foot">3.11 Place the lifted foot <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Move the lifted FL foot 60 mm forward, put it down, load it, and bring the CoM back over the new four-foot
+stance.</p>
+<p><strong>Prerequisites.</strong> 3.10.</p>
+<p><strong>Theory.</strong> The foot target moves at the lift height, then down to the foot's standing height $z_0$ (the centre of a loaded
+sphere, which includes the sinkage). Reloading ramps $w_\text{FL}$ back to 1; the CoM then goes to the same offset from the
+foot centroid it had before the step.</p>
+<p><strong>Implementation.</strong></p>
+<pre><code class="language-python">def place_foot(self, leg, xy, T_move=0.6, T_lower=0.6, T_load=0.5):
+    i = LEGS.index(leg)
+    P = self.P.copy(); P[i, :2] = xy
+    a = self.move(T_move, P=P)
+    P = P.copy(); P[i, 2] = self.z0[i]
+    b = self.move(T_lower, P=P)
+    w = self.w.copy(); w[i] = 1.0
+    return a, b, self.move(T_load, w=w)
+</code></pre>
+<p><strong>Execution.</strong> <code>MUJOCO_GL=glfw DISPLAY=:0 flock /tmp/go2_render.lock ../../.venv-modules/bin/python run.py 3.11</code></p>
+<p><strong>Demonstration.</strong></p>
+<video controls muted playsinline src="media/3-11_three_leg_step.mp4"></video>
+
+<p><img loading="lazy" alt="Foot forces, FL foot height and x, and the margin during the step" src="figures/3-11_place.png" /></p>
+<p><strong>Measurement</strong> (<code>results/3.11.json</code>; window from the start of the unloading to the end of the reloading):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Quantity</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>placement error (MuJoCo contact point vs target, horizontal)</td>
+<td>2.0 mm (x 0.5 mm, y 1.9 mm)</td>
+</tr>
+<tr>
+<td>smallest margin</td>
+<td>37.4 mm</td>
+</tr>
+<tr>
+<td>stance slip</td>
+<td>0.31 mm</td>
+</tr>
+<tr>
+<td>attitude change</td>
+<td>0.50°</td>
+</tr>
+<tr>
+<td>FL $F_z$ at the end / feet in contact</td>
+<td>37.3 N / 4</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Acceptance.</strong> Placement within 5 mm, margin at least 25 mm, slip below 3 mm, four feet at the end, attitude within 1.5°:
+passed.</p>
+<p><strong>Failure analysis.</strong> The foot lands 1.9 mm inboard of the target. As in 3.09 the IK places the sphere centre and the hip
+abduction angle changes while the foot is loaded; the sphere rolls sideways (my inference from the 3.09 rolling check; the
+lateral roll was not measured separately). FL touches the floor before its target height, with a 10 N force bump at about
+5.7 s in the figure; the 0.5° tilt of the trunk towards FL (<code>max_attitude_change_deg</code>) is the likely reason (my inference).</p>
+<p><strong>Next task.</strong> 3.12 steps back and checks that the robot returns to where it started.</p>
+<h3 id="312-return-to-the-original-posture">3.12 Return to the original posture <span class="st verified">verified</span></h3>
+<p><strong>Objective.</strong> Step FL out by 60 mm and back, return the body to its starting pose, three times, and measure how far the robot
+ends from where it started.</p>
+<p><strong>Prerequisites.</strong> 3.11.</p>
+<p><strong>Theory.</strong> Repeatability is the error of the final state against the initial one after the same sequence: base position
+$\lVert p_k - p_0\rVert$, attitude, contact points $\lVert x_{i,k} - x_{i,0}\rVert$, joints $\lVert q_k - q_0\rVert_\infty$, for cycle $k$.</p>
+<p><strong>Implementation.</strong></p>
+<pre><code class="language-python">for k in range(3):
+    lift(pose); place(pose, P0[0, :2] + STEP)              # step out, CoM back to the centre
+    lift(pose); place(pose, P0[0, :2], recentre=False)     # step back
+    pose.set_body_pose(p=p0, rpy=r0, T=1.0); lg = pose.hold(1.0)
+</code></pre>
+<p><strong>Execution.</strong> <code>../../.venv-modules/bin/python run.py 3.12</code></p>
+<p><strong>Demonstration.</strong></p>
+<p><img loading="lazy" alt="FL contact x, base position and attitude over three cycles; grey lines mark the end of each cycle" src="figures/3-12_repeat.png" /></p>
+<p><strong>Measurement</strong> (<code>results/3.12.json</code>, mean of the last 0.3 s of each cycle):</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Cycle</th>
+<th>Base [mm]</th>
+<th>Attitude [°]</th>
+<th>Feet, worst [mm]</th>
+<th>Joints, worst [mrad]</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>0.11</td>
+<td>0.021</td>
+<td>0.31</td>
+<td>0.84</td>
+</tr>
+<tr>
+<td>2</td>
+<td>0.12</td>
+<td>0.032</td>
+<td>0.40</td>
+<td>0.94</td>
+</tr>
+<tr>
+<td>3</td>
+<td>0.13</td>
+<td>0.043</td>
+<td>0.45</td>
+<td>0.96</td>
+</tr>
+</tbody>
+</table></div>
+<p><strong>Acceptance.</strong> Base within 5 mm, attitude within 0.5°, feet within 5 mm, joints within 0.02 rad, three cycles completed:
+passed.</p>
+<p><strong>Failure analysis.</strong> The errors grow with every cycle: the base by about 0.008 mm and the worst foot by about 0.07 mm per
+cycle, the base always towards −x, −y (<code>base_position_error_xyz_m</code>). Nothing measures the drift, so it accumulates; at these
+rates the feet would use the 5 mm threshold after about 65 more cycles and the base after about 600 (extrapolated, not run). Stage 5 needs either feedback on the base
+position or re-anchoring the stance from measured contacts after each step.</p>
+<p><strong>Next task.</strong> Stage 4 (4.01, one footstep) and stage 5 (5.05, one foot onto a low platform) build on <code>lift_foot</code> and
+<code>place_foot</code>.</p><nav class="prevnext" aria-label="Previous and next"><a class="pn" href="../s02_joint-and-leg-control/index.html"><span>Previous</span>Joint and leg control</a><a class="pn next" href="../../tutorial/07-make-it-walk.html"><span>Next</span>Make it walk</a></nav><p class="source">Source: <a href="https://github.com/Armanasq/go2-nav-sim/blob/main/tasks/s03_posture-and-balance/README.md">tasks/s03_posture-and-balance/README.md</a></p></article></div>
+</main>
+<footer class="site"><div class="wrap">Simulation only. Source and issues on <a href="https://github.com/Armanasq/go2-nav-sim">GitHub</a>.</div></footer>
+<script type="module" src="../../static/js/site.js"></script>
+</body>
+</html>

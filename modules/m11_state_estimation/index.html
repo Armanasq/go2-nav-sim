@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>State estimation: the scan registration step · go2-nav-sim</title>
+<meta name="description" content="State estimation: the scan registration step">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="../../static/css/site.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ccircle cx='8' cy='8' r='5' fill='%230a6a9c'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css"><script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script><script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js" onload="renderMathInElement(document.querySelector('main'),{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false})"></script>
+</head>
+<body data-root="../../">
+<a class="skip" href="#main">Skip to content</a>
+<header class="topbar"><div class="inner">
+<a class="brand" href="../../index.html">go2-nav-sim</a>
+<nav aria-label="Main"><a href="../../tutorial/00-overview.html">Learn</a><a href="../../tasks/index.html">Tasks</a><a href="../../modules/index.html" aria-current="page">Deep dives</a><a href="../../reference.html">Reference</a></nav>
+<button class="theme-toggle" type="button" aria-label="Colour theme: auto">auto</button>
+</div></header>
+<main id="main">
+<div class="wrap doc"><details class="side" open><summary>State estimation</summary><nav aria-label="Contents"><ol class="parts"><li class="open"><a class="part" href="../index.html">All deep dives</a><ol><li><a href="../m00_math/index.html"><span class="n">00</span><span>Mathematical foundations</span></a></li><li><a href="../m01_anatomy/index.html"><span class="n">01</span><span>Robot anatomy</span></a></li><li><a href="../m02_description/index.html"><span class="n">02</span><span>Robot description</span></a></li><li><a href="../m03_simulation/index.html"><span class="n">03</span><span>Simulation</span></a></li><li><a href="../m04_kinematics/index.html"><span class="n">04</span><span>Kinematics (single leg)</span></a></li><li><a href="../m06_sensors/index.html"><span class="n">06</span><span>Sensors</span></a></li><li><a href="../m11_state_estimation/index.html" aria-current="page"><span class="n">11</span><span>State estimation</span></a><ul class="sections"><li><a href="#objective">Objective</a></li><li><a href="#prerequisites">Prerequisites</a></li><li><a href="#theory">Theory</a></li><li><a href="#implementation">Implementation</a></li><li><a href="#experiment">Experiment</a></li><li><a href="#validation">Validation</a></li><li><a href="#failure-analysis">Failure analysis</a></li><li><a href="#references">References</a></li></ul></li><li><a href="../m12_perception/index.html"><span class="n">12</span><span>Perception</span></a></li></ol></li></ol></nav></details><article class="prose"><p class="where">Deep dive · module 11</p><h1>State estimation: the scan registration step</h1><h2 id="objective">Objective</h2>
+<p>Write down the registration that <code>lidar_odom.py</code> runs on every scan (step 4 of
+<a href="../../tutorial/09-state-estimation.html#22-read-the-six-steps">chapter 9, Task 2.2</a>): point-to-line Gauss-Newton with
+Geman-McClure weights, the yaw held at the gyro prediction, and a prior that acts only along directions the scan does not
+constrain. After this module you can say which term stops the pose sliding in a corridor and why it is zero in the arena.</p>
+<h2 id="prerequisites">Prerequisites</h2>
+<p><a href="../m00_math/index.html">Module 00</a> (SE(2), Gauss-Newton, robust weights) and chapter 9, Tasks 2.1 and 2.2. Python with NumPy
+and SciPy; no ROS needed for the tests.</p>
+<h2 id="theory">Theory</h2>
+<p>Scan point $\mathbf s_i$ is matched to map point $\mathbf p_j$ with PCA normal $\mathbf n_j$ (eight neighbours) and line weight
+$c_j$ (walls count more than blobs). With yaw $\psi$ fixed, each iteration solves for the translation $\mathbf t$:</p>
+<p>$$
+r_i = \mathbf n_j^\top\left(R(\psi)\,\mathbf s_i + \mathbf t - \mathbf p_j\right), \qquad
+w_i = c_j\left(\frac{\sigma^2}{\sigma^2 + r_i^2}\right)^2, \quad \sigma = 0.12\ \text{m}
+$$</p>
+<p>$$
+H = \sum_i w_i\,\mathbf n_j\mathbf n_j^\top + P, \qquad
+\mathbf g = \sum_i w_i\,r_i\,\mathbf n_j + P\,(\mathbf t - \hat{\mathbf t}), \qquad
+\Delta\mathbf t = -H^{-1}\mathbf g, \qquad
+P = \sum_{k\,:\,\lambda_k / N &lt; 0.02} 10\;\mathbf v_k\mathbf v_k^\top
+$$</p>
+<p>$\hat{\mathbf t}$ is the predicted translation, $N$ the number of matches, and $\lambda_k, \mathbf v_k$ the eigenpairs of
+$\sum_i w_i\,\mathbf n_j\mathbf n_j^\top$. Dividing by $N$ makes the degeneracy test independent of the point count (Zhang et
+al., ICRA 2016). In the arena both eigenvalues are about 90 to 100 over roughly 740 points (0.13 per point), so the prior is
+inactive; in a corridor the along-wall eigenvalue is 0 and the prior stops the pose from sliding. The reported covariance is
+$\mathrm{rms}(r)^2 H^{-1}$.</p>
+<p><img loading="lazy" alt="Left: a corner seen from A with map points, scan points at the prediction, residuals along the normals and the registered scan. Right: the Geman-McClure weight and the shrinking association gate" src="../../img/c09-ch09-point-to-line.png" /></p>
+<p><em>Point-to-line residuals on the synthetic arena scan of <code>test_registration.py</code> from A with the unit test's 25 cm prediction
+error; registration ends 0.1 cm from the truth.</em></p>
+<p><img loading="lazy" alt="Arena and corridor scans with the eigen-directions of the translation information, and a bar chart of eigenvalue per matched point against the 0.02 threshold" src="../../img/c09-ch09-degeneracy.png" /></p>
+<p><em>Degeneracy test on the unit-test geometry: in the arena (robot at the origin, 553 matched points) both directions carry 0.131
+and 0.145 per point; in the corridor (318 points) the along-wall direction carries 0, so only there the prior acts.</em></p>
+<h2 id="implementation">Implementation</h2>
+<p>This module has no code of its own: the method is the stack's <code>src/go2_nav_sim/scripts/registration.py</code>, and the tests are
+<code>src/go2_nav_sim/test/test_registration.py</code>.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Equation</th>
+<th>Where in <code>registration.py</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>normals $\mathbf n_j$ and line weight $c_j$</td>
+<td><code>LineMap.__init__</code> (PCA over <code>k=8</code> neighbours)</td>
+</tr>
+<tr>
+<td>$r_i$, $w_i$</td>
+<td><code>register</code>, the <code>res</code> and <code>w</code> lines (Geman-McClure, <code>sigma=0.12</code>)</td>
+</tr>
+<tr>
+<td>eigenpairs and $P$</td>
+<td><code>register</code>, <code>np.linalg.eigh(H[:2, :2])</code> and the <code>Pr</code> line (<code>trans_prior=10.0</code>, <code>deg_eig=0.02</code>)</td>
+</tr>
+<tr>
+<td>$\Delta\mathbf t$ with $\psi$ fixed</td>
+<td><code>register</code>, the <code>fix_yaw</code> branch; <code>fix_yaw=False</code> solves the full SE(2) step</td>
+</tr>
+<tr>
+<td>covariance</td>
+<td><code>register</code>, the last two lines</td>
+</tr>
+</tbody>
+</table></div>
+<p>Association uses a gate that shrinks from 0.8 m to 0.25 m over the 12 iterations, so a 25 cm prediction error is still
+matched in the first iterations.</p>
+<h2 id="experiment">Experiment</h2>
+<pre><code class="language-bash">python3 -m pytest -q src/go2_nav_sim/test/test_registration.py
+</code></pre>
+<pre><code>..........                                                               [100%]
+10 passed in 0.56s
+</code></pre>
+<p>The scans are synthetic: the arena walls and obstacles from <code>make_arena.py</code>, seen from a pose, with 1 cm range noise
+(<code>scan_from</code> in the test file, fixed seed 0).</p>
+<h2 id="validation">Validation</h2>
+<div class="table-wrap"><table>
+<thead>
+<tr>
+<th>Test</th>
+<th>Asserted</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>test_translation_recovered_with_yaw_fixed</code> (3 poses)</td>
+<td>a 25 cm offset recovered to under 2 cm</td>
+</tr>
+<tr>
+<td><code>test_full_se2_recovers_rotation_and_translation</code></td>
+<td><code>fix_yaw=False</code> recovers 0.05 rad</td>
+</tr>
+<tr>
+<td><code>test_robust_to_twenty_percent_outliers</code></td>
+<td>20 % clutter moves the result by at most 3 cm</td>
+</tr>
+<tr>
+<td><code>test_reports_failure_when_scan_does_not_overlap_map</code></td>
+<td>no overlap is reported as a failure</td>
+</tr>
+<tr>
+<td><code>test_corridor_prior_stops_sliding_but_corrects_across</code></td>
+<td>the corridor prior holds the along-wall estimate and corrects across</td>
+</tr>
+<tr>
+<td><code>test_gyro_yaw_is_independent_of_arrival_order</code></td>
+<td>gyro integration does not depend on callback timing</td>
+</tr>
+<tr>
+<td><code>test_returns_a_covariance_that_shrinks_with_information</code></td>
+<td>the covariance is positive definite and its root trace is under 1 cm</td>
+</tr>
+<tr>
+<td><code>test_tilt_compensated_yaw_rate</code></td>
+<td>at 3.6° roll the tilt-compensated yaw rate is exact; z alone reads 0.2 % low</td>
+</tr>
+</tbody>
+</table></div>
+<h2 id="failure-analysis">Failure analysis</h2>
+<p>The full SE(2) solve can settle in the 180° flipped solution of the rectangular room. This is why the stack fixes yaw at the
+gyro prediction; <a href="../../tutorial/09-state-estimation.html#failures-worth-knowing-about">chapter 9</a> has the run in which it happened.</p>
+<p><img loading="lazy" alt="Arena scan at the true yaw and turned 180 degrees, and the robust cost over yaw offsets with a second minimum at 180 degrees" src="../../img/c09-ch09-yaw-flip.png" /></p>
+<p><em>Mean robust cost of the synthetic scan at (0, 0) over yaw offsets: 0.007 at the truth, 0.24 at 180°, and 0.004 at 180° for
+the outer walls alone.</em></p>
+<p>The degeneracy threshold of 0.02 per point was chosen from two synthetic cases (arena and corridor), not calibrated on real
+data. A first version that applied the prior in every direction biased the result: with the prediction 25 cm off it landed
+2.5 cm short, against 1 to 2 mm without the prior.</p>
+<h2 id="references">References</h2>
+<ul>
+<li>J. Zhang, M. Kaess, S. Singh, "On degeneracy of optimization-based state estimation problems", ICRA 2016, section III
+  (eigenvalues of the information matrix as the degeneracy test).</li>
+<li>Module 00, <code>optim.py</code>: IRLS with the Cauchy kernel; Geman-McClure differs only in the weight function above.</li>
+</ul><p class="source">Source: <a href="https://github.com/Armanasq/go2-nav-sim/blob/main/modules/m11_state_estimation/README.md">modules/m11_state_estimation/README.md</a></p></article></div>
+</main>
+<footer class="site"><div class="wrap">Simulation only. Source and issues on <a href="https://github.com/Armanasq/go2-nav-sim">GitHub</a>.</div></footer>
+<script type="module" src="../../static/js/site.js"></script>
+</body>
+</html>
