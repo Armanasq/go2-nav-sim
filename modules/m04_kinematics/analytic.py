@@ -18,18 +18,25 @@ def ik_comparison(L, n, rng):
         q = rng.uniform(L.lo, L.hi); truth.append(q); targets.append(L.fk(q))
     t0 = time.perf_counter(); cf = [L.ik_closed_form(t) for t in targets]; t_cf = (time.perf_counter() - t0) / n
     t0 = time.perf_counter(); num = [L.ik_multistart(t, STAND) for t in targets]; t_num = (time.perf_counter() - t0) / n
-    rec, res, agree, n_multi = [], [], [], 0
+    rec, res, agree, nonsing, misses, n_multi = [], [], [], [], [], 0
     for t, q, S, (qn, _, _, ok) in zip(targets, truth, cf, num):
         rec.append(np.abs(S - q).max(1).min() if len(S) else np.inf)            # generating q among the closed-form solutions
         res.append(max(np.linalg.norm(L.fk(s) - t) for s in S) if len(S) else np.inf)
         n_multi += len(S) > 1
         if ok:                                                                  # polish the numerical answer, then compare
-            qp = L.ik(t, qn, tol=1e-13, max_iter=100)[0]
+            qp, _, e_num, _ = L.ik(t, qn, tol=1e-13, max_iter=100)
             agree.append(np.abs(S - qp).max(1).min())
+            nonsing.append(abs(L.det_jacobian(qn)) > 1e-4)                    # the subset test_closed_form_agrees_with_numerical_ik uses
+            if agree[-1] >= 1e-9:                                               # disagreement: record why (README, failure analysis)
+                sig = np.linalg.svd(L.jacobian(qp), compute_uv=False)[-1]; lam = 1e-3   # lam: Leg.ik damping
+                misses.append(dict(q_diff_rad=float(agree[-1]), abs_det_J=float(abs(L.det_jacobian(qn))), sigma_min_m_per_rad=float(sig),
+                                   dls_shrink=float(sig ** 2 / (sig ** 2 + lam ** 2)), numerical_fk_residual_m=float(e_num),
+                                   closed_form_fk_residual_m=float(min(np.linalg.norm(L.fk(s) - t) for s in S))))
     return dict(closed_form_success=float(np.mean(np.array(rec) < 1e-9)), closed_form_max_q_error_rad=float(max(rec)),
                 closed_form_max_fk_residual_m=float(max(res)), targets_with_two_solutions=n_multi / n,
                 numerical_success=float(np.mean([r[3] for r in num])), max_q_diff_closed_vs_numerical_rad=float(max(agree)),
                 agree_to_1e9_fraction=float(np.mean(np.array(agree) < 1e-9)),
+                agree_to_1e9_fraction_nonsingular=float(np.mean(np.array(agree)[np.array(nonsing)] < 1e-9)), disagreements=misses,
                 closed_form_us=t_cf * 1e6, numerical_us=t_num * 1e6)
 
 
@@ -42,7 +49,7 @@ def worked_example(L):
                     fk_residual_m=[float(np.linalg.norm(L.fk(s) - target)) for s in S])
     lv = L.l1 ** 2
     return dict(standing=dict(q=STAND.tolist(), foot=L.fk(STAND).tolist(), **steps(L.fk(STAND))),
-                reviewer_ideal_cos_q3=(0.225 ** 2 - 2 * lv) / (2 * lv),
+                ideal_equal_links_cos_q3=(0.225 ** 2 - 2 * lv) / (2 * lv),        # law of cosines with l1 = l2, no foot offset
                 below_thigh_joint_0p225=steps(L.hip + [0, L.d, -0.225]),          # foot straight under the thigh joint
                 below_hip_joint_0p225=steps(L.hip + [0, 0, -0.225]))             # foot straight under the abduction joint
 
@@ -77,13 +84,13 @@ def statics(m_scene):
         mujoco.mj_step(m, d)
     mujoco.mj_forward(m, d)
     Rb = d.xmat[1].reshape(3, 3); pb = d.xpos[1]; feet = {mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, leg): leg for leg in LEGS}
-    tau_c = {leg: np.zeros(3) for leg in LEGS}; Fw = {leg: np.zeros(3) for leg in LEGS}; f6 = np.zeros(6)
+    tau_c = {leg: np.zeros(3) for leg in LEGS}; Fw = {leg: np.zeros(3) for leg in LEGS}; f6 = np.zeros(6); cz = {leg: [] for leg in LEGS}
     for i in range(d.ncon):
         c = d.contact[i]; mujoco.mj_contactForce(m, d, i, f6); fr = c.frame.reshape(3, 3)
         leg = feet.get(c.geom2) or feet.get(c.geom1); assert leg, 'only feet should touch the floor'
         sgn = 1 if c.geom2 in feet else -1                                     # mj_contactForce: force of geom1 on geom2
         F, Mo = sgn * fr.T @ f6[:3], sgn * fr.T @ f6[3:]
-        Fw[leg] += F; L = legs[leg]
+        Fw[leg] += F; L = legs[leg]; cz[leg].append(float(c.pos[2]))
         tau_c[leg] += contact_wrench_torque(L, d.qpos[7 + 3 * LEGS.index(leg):][:3], Rb, pb, c.pos, F, Mo)
     out = dict(total_mass_kg=mass, g=g, weight_per_foot_N=mass * g / 4, weight_per_foot_trot_N=mass * g / 2, hand_tau=hand, trot_tau=trot,
                limits=m.actuator_ctrlrange[:3, 1].tolist(), max_abs_qvel=float(np.abs(d.qvel).max()), base_height=float(pb[2]),
@@ -94,10 +101,13 @@ def statics(m_scene):
     out['com_x_minus_feet_mid_m'] = float(d.subtree_com[1][0] - (xf + xr) / 2)
     for k, leg in enumerate(LEGS):
         dof = slice(6 + 3 * k, 9 + 3 * k); grav = d.qfrc_bias[dof] - d.qfrc_passive[dof]
-        act = d.actuator_force[3 * k:3 * k + 3]
+        act = d.actuator_force[3 * k:3 * k + 3]; gid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, leg)
         out['legs'][leg] = dict(contact_force_world_N=Fw[leg].tolist(), mujoco_actuator_tau=act.tolist(), JTf_tau=(-tau_c[leg]).tolist(),
                                 leg_gravity_minus_damping_tau=grav.tolist(), predicted_tau=(grav - tau_c[leg]).tolist(),
-                                max_abs_residual=float(np.abs(act - (grav - tau_c[leg])).max()))
+                                max_abs_residual=float(np.abs(act - (grav - tau_c[leg])).max()),
+                                max_abs_residual_without_damping=float(np.abs(act - (d.qfrc_bias[dof] - tau_c[leg])).max()),
+                                max_abs_hip_qvel=float(abs(d.qvel[6 + 3 * k])), foot_centre_height_m=float(d.geom_xpos[gid][2]),
+                                contact_point_z_m=cz[leg])
     return out
 
 

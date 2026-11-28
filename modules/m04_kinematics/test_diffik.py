@@ -7,7 +7,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1])); sys.path.i
 from common import GO2_XML  # noqa: E402
 from scipy.optimize import lsq_linear  # noqa: E402
 from kinematics import Leg  # noqa: E402
-from diffik import QD_MAX, box, distance_to_workspace, qp_active_set, reach_radius, track  # noqa: E402
+from diffik import QD_MAX, box, distance_to_workspace, fold_radius, qp_active_set, reach_radius, track  # noqa: E402
 import importlib.util  # noqa: E402
 # Loaded by path under its own name: every module has a validate.py, and `import validate` would reuse whichever was imported first.
 _spec = importlib.util.spec_from_file_location('m04_validate', pathlib.Path(__file__).resolve().parent / 'validate.py')
@@ -40,6 +40,9 @@ def test_reach_radius_and_distance(leg):
     assert abs(distance_to_workspace(leg, p) - (np.hypot(0.45, leg.d) - reach_radius(leg))) < 1e-15
     S = leg.ik_closed_form(leg.hip + np.array([0.0, leg.d, -0.38]))   # inside: closed form finds a solution
     assert len(S) and distance_to_workspace(leg, leg.hip + np.array([0.0, leg.d, -0.38])) == 0
+    assert abs(fold_radius(leg) - 0.1315903) < 1e-6                   # folded-knee limit: inner sphere about the hip
+    p = leg.hip + np.array([0.0, leg.d, -0.05])                        # under the thigh joint, closer than the folded knee reaches
+    assert len(leg.ik_closed_form(p)) == 0 and abs(distance_to_workspace(leg, p) - (fold_radius(leg) - np.hypot(0.05, leg.d))) < 1e-15
 
 
 def test_boundary_path_qp_vs_dls(leg):

@@ -14,6 +14,7 @@
     "ff_go2_com_offset_at_1s_m": -0.009940503144914903,
     "osc_explicit_euler_energy_rel_err": 2.3647750424515834e-14,
     "osc_rk4_energy_rel_err": 7.194245199571014e-14,
+    "osc_rk4_energy_loss": 2.774267091643079e-05,
     "osc_symplectic_modified_energy_rel_drift": 2.220446049250313e-15,
     "osc_symplectic_band_rel_err": 5.851101569920303e-08,
     "osc_symplectic_band_measured": 0.052631575867841285,
@@ -928,6 +929,8 @@
     "rise_t95_unlimited_s": 0.08200000000000006,
     "rise_knee_saturated_fraction_first_0p2s": 0.25252525252525254,
     "rise_final_height_m": 0.26804904953839614,
+    "rise_peak_height_limited_m": 0.36869813008520325,
+    "rise_peak_height_unlimited_m": 0.4132101155792933,
     "platform_onset_deg": [
       11.657533109557162,
       22.132874687690407,
@@ -944,6 +947,43 @@
     "platform_go2_tip_pred_deg": 40.731571947580214,
     "platform_go2_displacement_at_20deg_m": 0.04037316816186367,
     "platform_go2_displacement_final_m": 1.389566786088686,
+    "platform_go2_displacement_0p5m_at_deg": 32.702531993857285,
+    "platform_go2_foot_past_edge_deg": 33.81649307020275,
+    "platform_go2_foot_loads": {
+      "1deg": {
+        "front_normal_N": 34.130861017472014,
+        "rear_normal_N": 40.449555427445205,
+        "front_friction_ratio": 0.18788006729953582,
+        "rear_friction_ratio": 0.2139088290096615
+      },
+      "20deg": {
+        "front_normal_N": 53.25785295891849,
+        "rear_normal_N": 16.80743193667731,
+        "front_friction_ratio": 0.38612163751259604,
+        "rear_friction_ratio": 0.5068411331673532
+      }
+    },
+    "platform_block_speed_before_onset": {
+      "mu0.2": {
+        "median_1deg_to_0p9atan_m_s": 6.369058474510769e-06,
+        "max_1deg_to_0p9atan_m_s": 0.0007960311604087371,
+        "max_at_deg": 10.004061100707201,
+        "median_hold_to_onset_m_s": 2.16000428611836e-06
+      },
+      "mu0.4": {
+        "median_1deg_to_0p9atan_m_s": 1.176996601443061e-05,
+        "max_1deg_to_0p9atan_m_s": 0.000340285149843313,
+        "max_at_deg": 16.431260688781133,
+        "median_hold_to_onset_m_s": 7.000248050565142e-06
+      },
+      "mu0.6": {
+        "median_1deg_to_0p9atan_m_s": 1.5147346715301483e-05,
+        "max_1deg_to_0p9atan_m_s": 0.00017277227190569042,
+        "max_at_deg": 21.1430408823269,
+        "median_hold_to_onset_m_s": 1.1583936793190693e-05
+      }
+    },
+    "platform_video_written": true,
     "platform_ramp_s": 16.0,
     "platform_duration_s": 18.5,
     "platform_still_at_deg": 24.137580494525373
@@ -1201,6 +1241,6 @@
     }
   },
   "skipped_checks": [],
-  "wall_time_s": 46.934741497039795,
-  "load_average_1min_at_end": 54.76611328125
+  "wall_time_s": 65.42360305786133,
+  "load_average_1min_at_end": 68.89013671875
 }

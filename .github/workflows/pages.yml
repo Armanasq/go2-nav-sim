@@ -5,7 +5,7 @@ on:
   pull_request:
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write        # the last step pushes the built site to gh-pages
 concurrency:
   group: pages
   cancel-in-progress: true
@@ -13,8 +13,8 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.10'
       - name: Install Python tools
@@ -28,28 +28,25 @@ jobs:
         run: python -m pytest -v src/go2_nav_sim/test
       - name: First-principles modules (MuJoCo + Pinocchio against the Go2 MJCF)
         run: |
+          # the modules render offscreen with MUJOCO_GL=glfw, as on a desktop: give them a virtual display with software OpenGL
+          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb libgl1-mesa-dri
           pip install mujoco pin matplotlib
           modules/fetch_go2.sh
-          python -m pytest -v modules
+          scripts/setup.sh --fetch-only        # m02 compares against the upstream Go2 URDF in src/third_party
+          xvfb-run -a -s "-screen 0 1280x1024x24" python -m pytest -v modules
       - name: Build site
         run: python site/build.py
       - name: Check links, page loads and console errors
         run: |
           python -m playwright install --with-deps chromium
           python tools/check_site.py _site
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
-  deploy:
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    needs: build
-    runs-on: ubuntu-22.04
-    permissions:
-      pages: write
-      id-token: write
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
+      # Pages serves the gh-pages branch (same as scripts/publish_site.sh): publish only after every check above passed
+      - name: Publish to gh-pages
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        env:
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd _site && git init -q -b gh-pages && git add -A
+          git -c user.name=github-actions -c user.email=41898282+github-actions[bot]@users.noreply.github.com \
+            commit -q -m "Site build from main@${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${TOKEN}@github.com/${GITHUB_REPOSITORY}.git" gh-pages

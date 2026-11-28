@@ -85,7 +85,7 @@ def test_worked_standing_example(model):
     L = Leg(model, 'FL'); f = L.fk([0, 0.9, -1.8])
     assert np.allclose(f, [0.192157, 0.142, -0.266373], atol=1e-6)
     assert np.allclose(L.ik_closed_form(f), [[0, 0.9, -1.8]], atol=1e-12)
-    S = L.ik_closed_form(L.hip + [0, L.d, -0.225])                    # reviewer's case: foot 0.225 m under the thigh joint
+    S = L.ik_closed_form(L.hip + [0, L.d, -0.225])                    # foot 0.225 m under the thigh joint (README table)
     assert np.allclose(S, [[0, 1.014403, -2.038124]], atol=1e-6)
 
 

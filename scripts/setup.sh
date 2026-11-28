@@ -1,6 +1,6 @@
 #!/bin/bash
-# One-time setup from a fresh clone:  scripts/setup.sh
-#   1. fetch the upstream Go2/CHAMP description at a pinned commit and apply patches/upstream.patch
+# One-time setup from a fresh clone:  scripts/setup.sh  [--fetch-only]
+#   1. fetch the upstream Go2/CHAMP description at a pinned commit and apply patches/upstream.patch (--fetch-only stops here; CI uses it)
 #   2. install the Gazebo sensor plugins into overlay/ if they are missing and sudo is not available
 #   3. build the workspace
 set -eo pipefail
@@ -12,6 +12,7 @@ if [ ! -d "$DST/.git" ]; then
   git -C "$DST" fetch -q --depth 1 origin "$SHA" && git -C "$DST" checkout -q FETCH_HEAD
 fi
 git -C "$DST" apply --check ../../../patches/upstream.patch 2>/dev/null && git -C "$DST" apply ../../../patches/upstream.patch && echo "patch applied" || echo "patch already applied"
+[ "$1" = --fetch-only ] && exit 0
 
 if ! ls /opt/ros/humble/lib/libgazebo_ros_camera.so >/dev/null 2>&1; then
   mkdir -p overlay/debs && cd overlay/debs

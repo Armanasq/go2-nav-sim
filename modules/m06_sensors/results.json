@@ -64,8 +64,8 @@
  "allan_acc_K_rel_err": 0.07818130856426442,
  "allan_acc_tau_min_s": 19.692,
  "allan_white_rel_err_max": 0.05440376362911703,
- "allan_white_tau_max_s": 36.0,
- "allan_white_rel_err_sd_at_tau_max_50_seeds": 0.07538895455421231,
+ "allan_white_tau_at_max_err_s": 11.120000000000001,
+ "allan_white_rel_err_sd_at_max_err_50_seeds": 0.032641636182462345,
  "gazebo_gyro_sd_per_sample": 0.0002,
  "gazebo_rate_hz": 100.0,
  "gazebo_gyro_N_from_sd": 2e-05,
@@ -238,9 +238,12 @@
   1.3512257404844343,
   4.927055019831306
  ],
- "media_bytes": [],
- "media_mp4_under_6MB": NaN,
- "wall_time_s": 71.58996152877808,
+ "media_bytes": [
+  1329267,
+  1061524
+ ],
+ "media_mp4_under_6MB": 1.0,
+ "wall_time_s": 86.0280191898346,
  "checks": {
   "gyro_vs_base_omega_max": true,
   "quat_vs_base_quat_max": true,
@@ -275,8 +278,9 @@
   "time_offset_sweep_max_err_ms": true,
   "time_offset_with_transient_err_ms": true,
   "contact_best_error_rate": false,
-  "contact_hysteresis_toggle_ratio": true
+  "contact_hysteresis_toggle_ratio": true,
+  "media_mp4_under_6MB": true
  },
- "passed": 31,
- "total": 34
+ "passed": 32,
+ "total": 35
 }

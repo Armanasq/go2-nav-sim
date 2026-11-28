@@ -351,7 +351,7 @@ parabola is accurate here because the correlation peak of $\lvert\omega\rvert$ s
 The plain threshold is best at 6 N with 6.7% wrong samples: 0.64% false contacts and 6.1% missed contacts. Without noise the same
 threshold rule still gets 1.7% wrong (`contact_ideal_best`). A plain threshold at 6 N switches 4.35 times as often as the truth
 (`contact_plain_toggle_ratio`), because the noise crosses it repeatedly near touch-down and lift-off. Hysteresis with on 12 N, off
-3 N (the best threshold ± 2σ_F, rule fixed before the run) removes the chatter, 127 detected for 127 true transitions, and gives
+3 N (on = th + 2σ_F, off = max(th − 2σ_F, th/2) with th the best plain threshold, rule fixed before the run) removes the chatter, 127 detected for 127 true transitions, and gives
 6.6% wrong samples. The trot video shows MuJoCo's contact points and forces:
 [trot_contacts.mp4](media/trot_contacts.mp4).
 
@@ -392,9 +392,13 @@ needs a quieter sensor or a contact model that also uses foot kinematics.
 ### Allan white-noise criterion set tighter than the estimator's own scatter
 
 On 1 h of white noise the largest relative error over
-all $\tau$ with at least 100 clusters is 5.4%, at $\tau$ = 36 s. Repeating that $\tau$ with 50 more seeds gives a relative sd of 7.5%
-(`allan_white_rel_err_sd_at_tau_max_50_seeds`), so the measured value is within one sd and the 5% threshold was too tight for 100
-clusters. The test in `test_sensors.py` that uses $\tau$ with at least 1000 clusters stays under 5%.
+the 30 values of $\tau$ with at least 100 clusters is 5.44%, at $\tau$ = 11.12 s (`allan_white_rel_err_max`,
+`allan_white_tau_at_max_err_s`). Repeating that $\tau$ with 50 more seeds (100 to 149) gives a relative sd of 3.26%
+(`allan_white_rel_err_sd_at_max_err_50_seeds`). The measured error is 1.7 sd of the estimator's scatter at that $\tau$ and
+the 5% threshold is 1.5 sd, while the criterion takes the maximum over all 30 values of $\tau$; a 5% bound is tighter than the
+estimator can meet reliably with 100 clusters. The threshold was left at 5%. How often the maximum over the 30 crosses 5% across
+seeds was not measured. The test in `test_sensors.py` that uses $\tau$ with at least 1000
+clusters stays under 5%.
 
 ### Rounding in the cumulative sum
 

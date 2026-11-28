@@ -94,7 +94,7 @@ class Leg:
         return q, max_iter, e, e < tol
 
     def ik_multistart(self, target, q0, tol=1e-6, thighs=(-1.0, 2.2, 3.1)):
-        """Joint-limit clamping creates local minima (every single-seed failure in validate.py ended on a limit). Retry from seeds
+        """Joint-limit clamping creates local minima (604 of 623 single-seed failures in validate.py ended on a limit). Retry from seeds
         spread over the thigh range when the first solve fails. Returns (q, total iterations, error, converged)."""
         q, it, e, ok = self.ik(target, q0, tol)
         total = it

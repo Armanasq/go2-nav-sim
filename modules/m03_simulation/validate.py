@@ -134,6 +134,7 @@ def oscillator(w=10.0, h=0.01, T=20.0, b=0.5, mass=1.0):
     for s in ('explicit_euler', 'rk4'):
         pred = P.oscillator_energy_factor(z, s) ** kk
         out[f'osc_{s}_energy_rel_err'] = float(np.abs(E(own[s]) / E(own[s])[0] / pred - 1).max())
+    out['osc_rk4_energy_loss'] = float(1 - E(own['rk4'])[-1] / E(own['rk4'])[0])
     tr = own['semi_implicit_euler']
     Em = P.symplectic_modified_energy(tr[:, 0], tr[:, 1], w, h)
     out['osc_symplectic_modified_energy_rel_drift'] = float(np.abs(Em / Em[0] - 1).max())
@@ -425,12 +426,12 @@ def go2_rise(kp=150.0, kd=4.0, T=1.0):
         if not limited:
             m.actuator_ctrlrange[:] = (-1e4, 1e4)
         sim.place_on_ground(m, d, crouch)
-        pd, demand = sim.joint_pd(m, sim.Q_STAND, kp, kd), [None]
-
-        def ctrl(m, d):
-            demand[0] = pd(m, d); return demand[0]
-        log = sim.run(m, d, ctrl, T, on_step=lambda m, d: (d.time, d.qpos[2], np.abs(demand[0]) / lim,
-                                                           np.abs(d.actuator_force[idx.act]) / lim))
+        pd, log = sim.joint_pd(m, sim.Q_STAND, kp, kd), []
+        for _ in range(round(T / m.opt.timestep)):
+            # ctrl written unclipped (not through sim.run, which clips to ctrlrange): MuJoCo's ctrllimited clamp is under test
+            demand = pd(m, d); d.ctrl[idx.act] = demand
+            mujoco.mj_step(m, d)
+            log.append((d.time, d.qpos[2], np.abs(demand) / lim, np.abs(d.actuator_force[idx.act]) / lim))
         t, z = np.array([x[0] for x in log]), np.array([x[1] for x in log])
         dem, app = np.array([x[2] for x in log]), np.array([x[3] for x in log])
         res[name] = dict(t=t, z=z, dem=dem, app=app, t95=float(t[np.argmax(z >= z[0] + 0.95 * (z[-1] - z[0]))]))
@@ -439,7 +440,8 @@ def go2_rise(kp=150.0, kd=4.0, T=1.0):
             'rise_unlimited_applied_over_limit_max': float(res['unlimited']['app'].max()),
             'rise_t95_limited_s': L['t95'], 'rise_t95_unlimited_s': res['unlimited']['t95'],
             'rise_knee_saturated_fraction_first_0p2s': float((L['app'][L['t'] <= 0.2][:, 2::3] >= 1 - 1e-9).mean()),
-            'rise_final_height_m': float(L['z'][-1])}, res
+            'rise_final_height_m': float(L['z'][-1]), 'rise_peak_height_limited_m': float(L['z'].max()),
+            'rise_peak_height_unlimited_m': float(res['unlimited']['z'].max())}, res
 
 
 PLATFORM_MUS = (0.2, 0.4, 0.6)
@@ -515,13 +517,14 @@ def platform(media=True, hold=1.5, ramp=16.0, theta_max=40.0):
         ratio = np.hypot(F[:, 0], F[:, 1]) / np.maximum(F[:, 2], 1e-9)
         bx = [(Rp.T @ (d.xpos[b] - hinge))[0] for b in blocks]         # block position along the platform
         log.append((d.time, np.degrees(th), *rel, *(base_in_plat - (go2_ref if go2_ref is not None else base_in_plat)),
-                    *ratio, *F[:, 2], *bx))
+                    *ratio, *F[:, 2], *bx, ((sim.foot_positions(m, d) - hinge) @ Rp)[:, 0].max()))
         if rec:
             rec(m, d)
             if still_at is None and onset[1] is not None and np.degrees(th) > onset[1] + 2.0:
                 rec.still(d, MEDIA / 'incline.png'); still_at = float(np.degrees(th))
+    video = False
     if rec:
-        rec.close(); rec.__exit__()
+        video = rec.close() is not None; rec.__exit__()
     L = np.array(log)
     disp = np.linalg.norm(L[:, 5:8], axis=1)
     after = L[:, 0] > hold
@@ -529,12 +532,29 @@ def platform(media=True, hold=1.5, ramp=16.0, theta_max=40.0):
     rear_off = L[after & (L[:, 14:16].max(1) < 1.0), 1]
     pred = [float(np.degrees(np.arctan(mu))) for mu in PLATFORM_MUS]
     errs = [abs(o - p) if o is not None else 90.0 for o, p in zip(onset, pred)]
+    # block speed relative to the surface before sliding: over 1 deg < theta < 0.9 atan(mu) (clear of the onset), and over
+    # t > hold, theta < measured onset (reaches the 2 mm/s threshold by construction, so only the median is kept)
+    creep = {}
+    for i, (mu, o) in enumerate(zip(PLATFORM_MUS, onset)):
+        w = after & (L[:, 1] > 1.0) & (L[:, 1] < 0.9 * pred[i]); v = L[w, 2 + i]
+        w_on = after & (L[:, 1] < (o if o is not None else 90.0))
+        creep[f'mu{mu:g}'] = dict(median_1deg_to_0p9atan_m_s=float(np.median(v)), max_1deg_to_0p9atan_m_s=float(v.max()),
+                                  max_at_deg=float(L[w, 1][v.argmax()]), median_hold_to_onset_m_s=float(np.median(L[w_on, 2 + i])))
+    loads = {}
+    for a in (1.0, 20.0):
+        k = int(np.argmax(L[:, 1] >= a))
+        loads[f'{a:g}deg'] = dict(front_normal_N=float(L[k, 12:14].mean()), rear_normal_N=float(L[k, 14:16].mean()),
+                                  front_friction_ratio=float(L[k, 8:10].mean()), rear_friction_ratio=float(L[k, 10:12].mean()))
+    off_edge = L[L[:, 19] > 1.2, 1]                                   # platform half length 1.2 m
     return {'platform_onset_deg': onset, 'platform_onset_pred_deg': pred, 'platform_onset_err_deg_max': float(max(errs)),
             'platform_go2_rear_feet_at_friction_limit_deg': float(rear_slip[0]) if len(rear_slip) else None,
             'platform_go2_rear_feet_off_deg': float(rear_off[0]) if len(rear_off) else None,
             'platform_go2_tip_pred_deg': float(np.degrees(np.arctan2(*tip))),
             'platform_go2_displacement_at_20deg_m': float(disp[np.argmax(L[:, 1] >= 20.0)]),
             'platform_go2_displacement_final_m': float(disp[-1]),
+            'platform_go2_displacement_0p5m_at_deg': float(L[np.argmax(disp >= 0.5), 1]) if (disp >= 0.5).any() else None,
+            'platform_go2_foot_past_edge_deg': float(off_edge[0]) if len(off_edge) else None,
+            'platform_go2_foot_loads': loads, 'platform_block_speed_before_onset': creep, 'platform_video_written': video,
             'platform_ramp_s': ramp, 'platform_duration_s': float(T), 'platform_still_at_deg': still_at}, L
 
 
@@ -585,7 +605,7 @@ def fig_free_fall(ff_traj, go2_traj, h=0.002):
     ax.plot(t, (ff_traj['RK4'] - zp) * 1e3, color=fs.C['est2'], label='MuJoCo RK4 − parabola')
     ax.set_xlabel('time (s)'); ax.set_ylabel('height error (mm)'); ax.legend(); ax.set_title('Sphere, h = 2 ms')
     ax = axs[1]
-    for hh, col in zip(sorted(go2_traj, reverse=True), (fs.C['est'], fs.C['est2'], fs.C['plan'])):
+    for hh, col in zip(sorted(go2_traj, reverse=True), (fs.C['est'], fs.C['est2'], fs.C['ink'])):
         r = go2_traj[hh]
         ax.plot(r['t'], r['residual'] * 1e3, color=col, label=f'h = {hh * 1e3:g} ms')
     ax.set_xlabel('time (s)'); ax.set_ylabel('|COM − (parabola − g h t/2)| (mm)')
@@ -594,29 +614,41 @@ def fig_free_fall(ff_traj, go2_traj, h=0.002):
 
 
 def fig_oscillator(tr):
-    fig, axs = plt.subplots(1, 2, figsize=(9.6, 3.4))
+    fig, axs = plt.subplots(2, 2, figsize=(9.6, 6.6))
     t, E, z = tr['t'], tr['E'], tr['z']
-    ax = axs[0]
     k = np.arange(len(t))
-    for s, col, lab in (('explicit_euler', fs.C['bad'], 'explicit Euler'), ('semi_implicit_euler', fs.C['est'], 'semi-implicit Euler'),
-                        ('rk4', fs.C['est2'], 'RK4')):
+    ax = axs[0, 0]
+    for s, col, lab in (('explicit_euler', fs.C['bad'], 'explicit Euler'), ('semi_implicit_euler', fs.C['est'], 'semi-implicit Euler')):
         e = E(tr['own'][s]); ax.plot(t, e / e[0], color=col, label=lab)
     ax.plot(t, P.oscillator_energy_factor(z, 'explicit_euler') ** k, color=fs.C['plan'], ls='--', lw=1, label='(1 + z²)^k')
     ax.set_yscale('log'); ax.set_xlabel('time (s)'); ax.set_ylabel('E / E₀'); ax.legend(); ax.set_title(f'Oscillator, z = ω h = {z:g}')
-    ax = axs[1]
+    ax = axs[0, 1]
     e = E(tr['own']['semi_implicit_euler']); band = P.symplectic_energy_band(z)
     ax.plot(t[:300], e[:300] / e[0] - 1, color=fs.C['est'], label='semi-implicit Euler')
     ax.axhline(1 / (1 - z / 2) - 1, color=fs.C['plan'], ls='--', lw=1, label='band 1/(1 ∓ z/2) − 1')
     ax.axhline(1 / (1 + z / 2) - 1, color=fs.C['plan'], ls='--', lw=1)
-    er = E(tr['own']['rk4']); ax.plot(t[:300], er[:300] / er[0] - 1, color=fs.C['est2'], label='RK4')
-    ax.set_xlabel('time (s)'); ax.set_ylabel('E / E₀ − 1'); ax.legend(loc='lower left'); ax.set_title(f'Bounded energy error (max {band:.4f})')
+    ax.set_ylim(-0.07, 0.085); ax.set_xlabel('time (s)'); ax.set_ylabel('E / E₀ − 1'); ax.legend(loc='upper center', ncol=2); ax.set_title(f'Bounded energy error (max {band:.4f})')
+    ax = axs[1, 0]
+    er = E(tr['own']['rk4'])
+    ax.semilogy(t[1:], 1 - er[1:] / er[0], color=fs.C['est2'], label='RK4, 1 − E/E₀')
+    ax.semilogy(t[1:], 1 - P.oscillator_energy_factor(z, 'rk4') ** k[1:], color=fs.C['plan'], ls='--', lw=1,
+                label='1 − (1 − z⁶/72 + z⁸/576)^k')
+    ax.set_xlabel('time (s)'); ax.set_ylabel('1 − E / E₀'); ax.legend(loc='lower right'); ax.set_title('RK4 loses energy slowly')
+    ax = axs[1, 1]
+    n = np.arange(len(tr['v_exp']))
+    ax.semilogy(n, np.abs(tr['v_exp']), 'o', color=fs.C['bad'], ms=4, label='eulerdamp off (explicit)')
+    ax.semilogy(n, np.abs(tr['v_imp']), 's', color=fs.C['est'], ms=4, label='eulerdamp on (implicit)')
+    ax.semilogy(n, 2.0 ** n, color=fs.C['plan'], ls='--', lw=1, label='2^k and 4^−k')
+    ax.semilogy(n, 4.0 ** -n, color=fs.C['plan'], ls='--', lw=1)
+    ax.set_xlabel('step k'); ax.set_ylabel('|v_k / v_0|'); ax.legend(loc='lower left', fontsize=7.5)
+    ax.set_title('Damper, h b / m = 3, spring removed (MuJoCo Euler)')
     fs.save(fig, FIG / 'oscillator')
 
 
 def fig_energy(en, diag):
     fig, axs = plt.subplots(1, 2, figsize=(9.6, 3.5))
     ax = axs[0]; hs = en['hs'] * 1e3
-    cols = dict(Euler=fs.C['est'], implicitfast=fs.C['good'], implicit=fs.C['plan'], RK4=fs.C['est2'])
+    cols = dict(Euler=fs.C['est'], implicitfast=fs.C['muted'], implicit=fs.C['ink'], RK4=fs.C['est2'])
     for k, v in en['drift'].items():
         ax.loglog(hs, v, marker='o', color=cols[k], label=f'{k} (slope {P.fit_order(en["hs"], v):.2f})', ms=4,
                   ls='--' if k == 'implicitfast' else '-')
@@ -661,7 +693,7 @@ def fig_creep(inc):
     fig, ax = plt.subplots(figsize=(6.4, 3.4))
     cr = inc['creep']; mus = MUS
     for key, col, lab in (('pyramidal_ir1', fs.C['est2'], 'pyramidal, impratio 1'), ('elliptic_ir1', fs.C['est'], 'elliptic, impratio 1'),
-                          ('elliptic_ir100', fs.C['good'], 'elliptic, impratio 100 (Go2 setting)')):
+                          ('elliptic_ir100', fs.C['ink'], 'elliptic, impratio 100 (Go2 setting)')):
         ax.semilogy(mus, [cr[f'{key}_mu{mu:g}']['speed_m_s'] * 1e3 for mu in mus], 'o', color=col, label=lab)
         if 'elliptic' in key:
             ax.semilogy(mus, [cr[f'{key}_mu{mu:g}']['predicted_m_s'] * 1e3 for mu in mus], '-', color=fs.C['plan'], lw=1)
@@ -674,19 +706,19 @@ def fig_penetration(rows, refsafe, feet):
     fig, axs = plt.subplots(1, 2, figsize=(9.6, 3.6))
     ax = axs[0]
     imps = sorted({tuple(r['solimp']) for r in rows}, key=lambda s: s[0])
-    cols = [fs.C['est'], fs.C['est2'], fs.C['good'], fs.C['bad']]
-    for imp, col in zip(imps, cols):
+    cols = [fs.C['est'], fs.C['est2'], fs.C['ink'], fs.C['muted']]
+    for imp, col, mk in zip(imps, cols, 'o^sD'):
         rr = [r for r in rows if tuple(r['solimp']) == imp]
         tc = [r['timeconst'] for r in rr]
         ax.loglog(tc, [r['predicted_m'] * 1e3 for r in rr], '-', color=fs.C['plan'], lw=1)
-        ax.loglog(tc, [r['measured_m'] * 1e3 for r in rr], 'o', color=col, label=f'solimp {imp[0]:g} {imp[1]:g} {imp[2]:g}')
+        ax.loglog(tc, [r['measured_m'] * 1e3 for r in rr], mk, color=col, ms=4.5, label=f'solimp {imp[0]:g} {imp[1]:g} {imp[2]:g}')
     ax.loglog([refsafe['asked_timeconst']], [refsafe['measured_m'] * 1e3], 'x', color=fs.C['bad'], ms=7, label='timeconst 2 ms (= h): refsafe')
     ax.loglog([refsafe['asked_timeconst']], [refsafe['predicted_nominal_m'] * 1e3], '+', color=fs.C['gt'], ms=7, label='same, nominal prediction')
     ax.plot([], [], color=fs.C['plan'], label='steady_penetration()')
     ax.set_xlabel('solref timeconst (s)'); ax.set_ylabel('penetration (mm)'); ax.legend(fontsize=7); ax.set_title('1 kg sphere at rest')
     ax = axs[1]
     names = list(feet['variants']); x = np.arange(4)
-    for i, (nm, col) in enumerate(zip(names, (fs.C['est'], fs.C['est2'], fs.C['good']))):
+    for i, (nm, col) in enumerate(zip(names, (fs.C['est'], fs.C['est2'], fs.C['muted']))):
         v = feet['variants'][nm]
         ax.bar(x + (i - 1) * 0.26, v['measured_mm'], 0.24, color=col, label=nm)
         ax.plot(x + (i - 1) * 0.26, v['predicted_mm'], '_', color=fs.C['plan'], ms=14, mew=2)
@@ -800,7 +832,8 @@ def main():
     FIG.mkdir(exist_ok=True)
     fig_diagrams(); fig_free_fall(ff, go2ff); fig_oscillator(osc); fig_energy(en, diag); fig_incline(I, curves); fig_creep(I)
     fig_penetration(rows, A['refsafe'], A); fig_saturation(bench, rise); fig_platform(L, A)
-    mp4 = sorted(MEDIA.glob('*.mp4')) if MEDIA.exists() else []
+    # only an MP4 this run wrote counts: a stale file from an earlier run must not pass the check
+    mp4 = [p for p in sorted(MEDIA.glob('*.mp4')) if p.stat().st_mtime > t0] if MEDIA.exists() and A['platform_video_written'] else []
     res['media_bytes'] = {p.name: p.stat().st_size for p in mp4}
     if mp4:
         res['media_mp4_under_6MB'] = float(all(p.stat().st_size < 6e6 for p in mp4))

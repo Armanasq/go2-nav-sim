@@ -342,12 +342,12 @@
         "Semantic perception, traversability estimation"
       ],
       "status": "partial",
-      "here": "Point cloud to scan with a height band; depth and RGB recorded and visualised. The band is not tilt-compensated: base_footprint to base_link is a constant in this setup. No terrain model.",
+      "here": "modules/m12_perception: depth camera (pinhole, Kinect axial noise) and a 16-beam LiDAR ray pattern on the Go2, both cast by an own slab ray caster that equals mj_multiRay to 1.6e-15 m on 244 800 camera rays and 4.4e-16 m on 63 360 LiDAR beams. Elevation map from 51 depth images: per-scan cell aggregation with a top-surface gate, scalar Kalman fusion of height and variance, consistent on constant-height cells (0.28 mm rms, mean NEES 0.995) and with per-scan pose errors when their Jacobian enters the variance (NEES 1.001; 4022 without it). Slope, roughness, step height, traversability and five terrain labels against the true height grid. 24 of 27 checks pass. Missed: coverage 0.776 (< 0.90, the course start and the upper stairs are out of view), traversability rms 0.074 (> 0.05, edges shifted by one cell), stairs recall 0.48 (< 0.80, the map flattens risers by 2 cm against an 8 cm threshold with 1.9 cm margin). LiDAR points are not mapped; the ROS 2 stack still uses a height-band scan.",
       "chapters": [
         "08-robot-and-sensors",
         "10-mapping-and-navigation"
       ],
-      "next": "Publish base_footprint to base_link from IMU roll/pitch and leg-kinematics height (module 04), then an elevation map with height variance.",
+      "next": "Fuse LiDAR points into the map to close the coverage gap; a variance term for the height change inside a cell on slopes; publish base_footprint to base_link from IMU roll/pitch and leg-kinematics height (module 04) in the ROS 2 stack.",
       "refs": [
         "Fankhauser et al., Probabilistic terrain mapping for mobile robots with uncertain localization (RA-L 2018)",
         "Miki et al., Elevation mapping for locomotion and navigation using GPU, arXiv:2204.12876 (IROS 2022)"
@@ -355,8 +355,8 @@
       "current": "GPU elevation mapping with traversability layers (elevation_mapping_cupy) is used on deployed quadrupeds.",
       "level_status": [
         "partial",
-        "planned",
-        "planned"
+        "partial",
+        "partial"
       ]
     },
     {

@@ -86,6 +86,30 @@ In SE(2), with poses $(x, y, \theta)$ and $R(\theta)$ the planar rotation, this 
 $(x_a + c_a x_b - s_a y_b,\ y_a + s_a x_b + c_a y_b,\ \theta_a + \theta_b)$ and
 $(x,y,\theta)^{-1} = (-c\,x - s\,y,\ s\,x - c\,y,\ -\theta)$.
 
+#### Compose a chain by hand
+
+The chain `odom` to `base_footprint` to `base_link` to `lidar_link` from a tutorial session (chapter 5, task 2.4): a
+`/lidar/points` message stamped 934.896 s, and the three transforms that `lookup_transform` returned at that stamp.
+
+| Transform | Translation (m) | Yaw |
+|---|---|---|
+| `base_link` to `lidar_link` | (0, 0, 0.1) | 0 |
+| `base_footprint` to `base_link` | (0, 0, 0.426) | 0 |
+| `odom` to `base_footprint` | (−0.5398, 0.2516, 0) | 7.83° (cos 0.9907, sin 0.1362) |
+
+The first two only add height. A point at $p_\text{lidar} = (1.2545, −0.0044, 0.0219)$ is at $(1.2545, −0.0044, 0.5479)$ in
+`base_footprint`, and the SE(2) composition above gives it in `odom`:
+
+$$x = 0.9907 \times 1.2545 - 0.1362 \times (-0.0044) - 0.5398 = 0.7036, \qquad y = 0.1362 \times 1.2545 + 0.9907 \times (-0.0044) + 0.2516 = 0.4181,$$
+
+with $z = 0.5479$. `lookup_transform('odom', 'lidar_link', stamp)` applied to the same point gave (0.7035, 0.4181, 0.5479),
+2.2e-16 m from the composition done in full precision; the 0.7036 above differs in the fourth decimal because the table is
+rounded.
+
+![The lidar point carried down a chain of four frames with its coordinates in each, and a top view of the odom and base_footprint frames with the point](../../docs/img/c04-compose-chain.png)
+
+*Each arrow is one transform, the coordinates beside each frame are the point in that frame. Right: the same step in top view, `base_footprint` turned 7.83° in `odom`.*
+
 #### Camera optical frame
 
 The camera link frame is x forward, y left, z up; the optical frame used by image projection is z forward, x right, y down.
@@ -136,8 +160,19 @@ pitch added, 0.929° per turn.
 
 #### Height error from an uncorrected tilt
 
-A point at range $r$ along the sensor's forward axis, with the trunk pitched by $\theta$ but the transform assuming it level,
-lands at height $r\sin\theta$ off its true value: $\Delta z = 3\ \text{m} \times \sin 3.6° = 0.1884\ \text{m}$.
+In this stack trunk roll and pitch never reach TF: `base_footprint` to `base_link` is a constant (tutorial, chapter 5,
+task 1.5). Take a point at range $d$ in the direction of the tilt, forward for a pitch $\theta$ and sideways for a roll
+$\theta$. The transform assumes the trunk level, so the point lands at height $d\sin\theta$ off its true value. A tilt about one
+axis does not move points that lie along that axis: a roll leaves a point straight ahead at its height. At 3 m:
+
+| Tilt | Source | $\lvert\Delta z\rvert = 3\ \text{m} \times \sin\lvert\theta\rvert$ |
+|---|---|---|
+| roll 3.6° | largest roll of the walk in chapter 7 | 0.1884 m |
+| pitch −2.95° | `bags/v3` | 0.1544 m |
+
+![Left: sketch of a tilted ray and the height error d sin theta. Right: height error against distance for 3.6, 2.95 and 1.63 degrees](../../docs/img/c04-tilt-error.png)
+
+*$\Delta z = d \sin\theta$ for the roll of the chapter 7 walk and two pitches from `bags/v3`, with the 0.188 m and 0.154 m values at 3 m marked.*
 
 ### Advanced level
 

@@ -258,12 +258,13 @@ def allan_experiment(static):
     # white noise alone: sigma^2 = N^2 / tau at every tau with >= 100 clusters
     y = S.Inertial(N=GYRO.N, K=0.0).corrupt(np.zeros((n // 4, 3)), DT_IMU, rng)[0]
     tau, av = S.allan(y, DT_IMU, S.log_taus(n // 4, DT_IMU, min_clusters=100))
-    r['allan_white_rel_err_max'] = float(np.abs(av.mean(1) / (GYRO.N ** 2 / tau) - 1).max())
-    r['allan_white_tau_max_s'] = float(tau[-1])
-    # scatter of the estimator itself at that tau: 50 more seeds, one axis averaged over 3 as above
+    err = np.abs(av.mean(1) / (GYRO.N ** 2 / tau) - 1); k = int(np.argmax(err))
+    r['allan_white_rel_err_max'] = float(err[k])
+    r['allan_white_tau_at_max_err_s'] = float(tau[k])
+    # scatter of the estimator itself at the tau of the largest error: 50 more seeds, 3-axis mean as above
     sc = [S.allan(S.Inertial(N=GYRO.N, K=0.0).corrupt(np.zeros((n // 4, 3)), DT_IMU, np.random.default_rng(100 + s))[0],
-                  DT_IMU, [int(round(tau[-1] / DT_IMU))])[1][0].mean() / (GYRO.N ** 2 / tau[-1]) - 1 for s in range(50)]
-    r['allan_white_rel_err_sd_at_tau_max_50_seeds'] = float(np.std(sc))
+                  DT_IMU, [int(round(tau[k] / DT_IMU))])[1][0].mean() / (GYRO.N ** 2 / tau[k]) - 1 for s in range(50)]
+    r['allan_white_rel_err_sd_at_max_err_50_seeds'] = float(np.std(sc))
     # Gazebo's IMU of this repository (go2_gazebo.urdf): 100 Hz, per-sample gaussian sd, no bias model
     sd_g, rate = gazebo_imu()
     dtg = 1 / rate; ng = int(3600 * rate)
@@ -577,7 +578,7 @@ def fig_allan(Cv):
         ax.set_xlabel('cluster time τ [s]'); ax.set_ylabel(f'Allan deviation [{unit}]')
         ax.set_title(('Gyro' if name == 'gyro' else 'Accelerometer') + ', 4 h static at 250 Hz')
     g = Cv['gazebo']
-    axs[0].loglog(g['tau'], np.sqrt(g['av']), color=fs.C['gt'], lw=1.2, label='Gazebo IMU config, 1 h at 100 Hz')
+    axs[0].loglog(g['tau'], np.sqrt(g['av']), color=fs.C['ink'], lw=1.2, label='Gazebo IMU config, 1 h at 100 Hz')
     axs[0].legend(loc='lower left', fontsize=7.5); axs[1].legend(loc='lower left', fontsize=7.5)
     fs.save(fig, FIG / 'allan_deviation')
 
@@ -605,7 +606,7 @@ def fig_bias(B, r, static):
 def fig_calib(Nr, r):
     fig, ax = plt.subplots(figsize=(6.4, 3.4))
     x = np.arange(len(Nr['raw']))
-    ax.bar(x - 0.27, Nr['raw'], 0.27, color=fs.C['gt'], label='raw')
+    ax.bar(x - 0.27, Nr['raw'], 0.27, color=fs.C['ink'], label='raw')
     ax.bar(x, Nr['known'], 0.27, color=fs.C['est'], label='calibrated, known orientations')
     ax.bar(x + 0.27, Nr['unk'], 0.27, color=fs.C['est2'], label='calibrated, orientation-free')
     ax.set_xticks(x); ax.set_xlabel('rig pose'); ax.set_ylabel('|f| − g [m/s²]'); ax.legend(fontsize=7.5)
@@ -669,11 +670,13 @@ def main(media=True):
     rb, B = gyro_bias_experiment(static); res.update(rb)
     vids = []
     rec_c = sim.Recorder(m, MEDIA / 'calibration_rig.mp4', distance=1.6, azimuth=135, elevation=-15) if media else None
+    # a second Renderer after a failed GL init aborts the process (libc++abi recursive init), so only retry if the first worked
+    media_ok = rec_c is not None and rec_c.ok
     Cal = calibration_rig(m, d, rec=rec_c)
     if rec_c is not None:
         vids.append(rec_c.close()); rec_c.still(d, MEDIA / 'calibration_rig.png'); rec_c.__exit__()
     rc, Nr = calib_experiment(Cal); res.update(rc)
-    rec_g = sim.Recorder(m, MEDIA / 'trot_contacts.mp4', distance=1.4, azimuth=120, elevation=-15, contacts=True) if media else None
+    rec_g = sim.Recorder(m, MEDIA / 'trot_contacts.mp4', distance=1.4, azimuth=120, elevation=-15, contacts=True) if media_ok else None
     L = gait_run(m, d, rec=rec_g)
     if rec_g is not None:
         vids.append(rec_g.close()); rec_g.still(d, MEDIA / 'trot_contacts.png'); rec_g.__exit__()
@@ -684,7 +687,7 @@ def main(media=True):
     rk, Cc = contact_experiment(L); res.update(rk)
     sizes = [v.stat().st_size for v in vids if v is not None]
     res['media_bytes'] = sizes
-    res['media_mp4_under_6MB'] = float(bool(sizes) and max(sizes) < 6e6) if media else float('nan')
+    res['media_mp4_under_6MB'] = float(bool(sizes) and max(sizes) < 6e6) if media_ok else float('nan')   # nan: no renderer, check skipped
     if media:
         fig_rig(Rg); fig_noise(Nn, E); fig_allan(Cv); fig_bias(B, res, static); fig_calib(Nr, res); fig_offset(T, res); fig_contact(Cc, res)
     res['wall_time_s'] = time.time() - t_start

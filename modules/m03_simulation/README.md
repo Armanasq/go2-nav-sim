@@ -22,7 +22,8 @@ actuator from its response.
 
 [Incline video](media/incline.mp4) (18.5 s, 960×540, 652 KB): a 2.4 m platform hinged at 1 m height tilts from 0° to 40° along a
 minimum-jerk profile over 16 s. Three 10 cm blocks with μ = 0.2, 0.4 and 0.6 start sliding at 11.7°, 22.1° and 31.1°
-(predicted $\arctan\mu$: 11.3°, 21.8°, 31.0°). The Go2 stands on the same platform under joint PD and leaves it near 34°.
+(predicted $\arctan\mu$: 11.3°, 21.8°, 31.0°). The Go2 stands on the same platform under joint PD; its first foot passes the
+platform's lower edge at 33.8° (`platform_go2_foot_past_edge_deg`).
 
 ## Prerequisites
 
@@ -90,11 +91,12 @@ $$
 \max_k \left|\frac{E_k}{E_0} - 1\right| = \frac{z/2}{1 - z/2}.
 $$
 
-It is bounded and does not grow with time. For RK4 the step multiplies $(u + i v)$ by the stability function
-$R(\lambda h) = \sum_{j=0}^{4}(\lambda h)^j / j!$ with $\lambda = i\omega$:
+It is bounded and does not grow with time. For RK4 write $w = u + i v$. Then $\dot u = \omega v$ and $\dot v = -\omega u$
+give $\dot w = -i\omega\, w$, so one step multiplies $w$ by the stability function $R(\xi) = \sum_{j=0}^{4}\xi^j / j!$ at
+$\xi = \lambda h$ with $\lambda = -i\omega$, that is by $R(-iz)$. $R$ has real coefficients, so $|R(-iz)| = |R(iz)|$ and
 
 $$
-\frac{E_{k+1}}{E_k} = |R(iz)|^2 = \left(1 - \tfrac{z^2}{2} + \tfrac{z^4}{24}\right)^2 + \left(z - \tfrac{z^3}{6}\right)^2
+\frac{E_{k+1}}{E_k} = |R(-iz)|^2 = \left(1 - \tfrac{z^2}{2} + \tfrac{z^4}{24}\right)^2 + \left(z - \tfrac{z^3}{6}\right)^2
 = 1 - \frac{z^6}{72} + \frac{z^8}{576},
 $$
 
@@ -282,7 +284,7 @@ Design choices and their reasons:
 ## Experiment
 
 ```bash
-.venv-modules/bin/python modules/m03_simulation/validate.py      # 47 s wall time, 1-min load average 55 on 32 cores
+.venv-modules/bin/python modules/m03_simulation/validate.py      # 65 s wall time, 1-min load average 69 on 32 cores
 .venv-modules/bin/python -m pytest -q modules/m03_simulation       # 8 tests, 20 s
 ```
 
@@ -296,7 +298,7 @@ Design choices and their reasons:
 | sphere penetration | 1 kg, `condim="1"`; τ ∈ {5, 10, 20, 40, 80} ms × 4 `solimp` sets; settled 2 s | depth against `steady_penetration`; every efc row against the written-out model |
 | Go2 feet | standing under joint PD (kp 60, kd 2), settled 2 s; Menagerie foot, MuJoCo default `solimp`, foot `solimp` with τ = 0.01 s | per-foot depth against the prediction from the measured normal force |
 | knee bench | FL calf, $q$: −2.6 → −1.0 rad, kp 300 N m/rad, kd 5 N m s/rad, $h$ = 2 ms, 0.25 s; then with the torque limit removed | angle, demanded and applied torque |
-| Go2 rise | crouch (0, 1.25, −2.6) to stand (0, 0.9, −1.8) rad per leg as a PD step, kp 150, kd 4, 1 s, with and without the torque limits | base height, demand and applied torque relative to the limit |
+| Go2 rise | crouch (0, 1.25, −2.6) to stand (0, 0.9, −1.8) rad per leg as a PD step, kp 150, kd 4, 1 s, with and without the torque limits; the PD output goes to `ctrl` unclipped (own loop, not `sim.run`, which clips to `ctrlrange`) | base height, demand and applied torque relative to the limit |
 | tilting platform | hinge at 1 m, 0 → 40° minimum-jerk over 16 s after a 1.5 s hold; blocks μ = 0.2, 0.4, 0.6 (platform μ 0.05); Go2 under joint PD (kp 60, kd 2) facing downhill | block speed relative to the surface (onset: > 2 mm/s); Go2 foot force ratios |
 
 ## Validation
@@ -342,7 +344,7 @@ thresholds; the missed row is pinned to its measured state there (see Failure an
 | saturated phase, MuJoCo against discrete closed form, max | 6.7e-16 rad | < 1e-9 rad | `bench_saturated_vs_discrete_rad` |
 | whole step until first stop, MuJoCo against SciPy reference, max | 7.6e-3 rad | < 1e-2 rad | `bench_vs_reference_rad` |
 | exit from saturation, predicted 55.6 ms against measured 56 ms | 0.44 ms | < 4 ms (2 steps) | `bench_sat_exit_time_err_s` |
-| Go2 rise, applied torque / limit, max over 12 joints | 1.000 | ≤ 1 | `rise_applied_over_limit_max` |
+| Go2 rise, applied torque (`actuator_force`) / limit, max over 12 joints; `ctrl` written unclipped, so this tests MuJoCo's `ctrllimited` clamp | 1.000 | ≤ 1 | `rise_applied_over_limit_max` |
 | Go2 rise, demanded torque / limit, max | 2.64 | > 1 | `rise_demand_over_limit_max` |
 | tilting platform, onset angle against $\arctan\mu$, max over 3 blocks | 0.35° | < 1° | `platform_onset_err_deg_max` |
 | MP4 under 6 MB | 1 (652 KB) | 1 | `media_mp4_under_6MB` |
@@ -356,9 +358,10 @@ thresholds; the missed row is pinned to its measured state there (see Failure an
 The Go2 COM's offset at 1 s is −9.94 mm against −9.81 mm for a point mass (`ff_go2_com_offset_at_1s_m`), and the residual
 is 0.216, 0.108 and 0.054 mm at $h$ = 2, 1 and 0.5 ms (`ff_go2_com_residual_by_h`): first order, as derived.
 
-![Oscillator: explicit Euler gains energy by (1 + z²) per step; semi-implicit Euler stays in the predicted band; RK4 loses energy slowly](figures/oscillator.png)
+![Oscillator: explicit Euler gains energy by (1 + z²) per step; semi-implicit Euler stays in the predicted band; RK4 loses energy slowly, on the predicted curve; the stiff damper's velocity grows as 2^k with eulerdamp off and decays as 4^−k with it on](figures/oscillator.png)
 
-MuJoCo's `Euler` and the written-out semi-implicit Euler agree to the last bit (0 m). With damping, MuJoCo's `Euler` and
+RK4 loses 1 − E/E₀ = 2.8e-5 over the 2000 steps (`osc_rk4_energy_loss`), on the curve
+$1 - (1 - z^6/72 + z^8/576)^k$. MuJoCo's `Euler` and the written-out semi-implicit Euler agree to the last bit (0 m). With damping, MuJoCo's `Euler` and
 `implicitfast` both equal the implicit-damping update to 6.7e-16 m. With the damper set to $hb/m = 3$ and MuJoCo's
 `eulerdamp` disabled, the velocity after 20 steps is $(-2)^{20} = 1.05\times10^{6}$ times its start value; with implicit
 damping it is $4^{-20} = 9.1\times10^{-13}$ (`osc_explicit_damping_v_after_20_steps`, `osc_implicit_damping_v_after_20_steps`).
@@ -415,17 +418,19 @@ the motor gives 45.43 N m for the first 56 ms and the knee reaches 22.57 rad/s a
 22.62 rad/s. 90% of the 1.6 rad step takes 82 ms with the limit and 52 ms without it (`bench_t90_limited_s`,
 `bench_t90_unlimited_s`). On the whole Go2 the same PD step from a crouch demands up to 2.64 times the limit, the knees are
 saturated in 25% of the samples during the first 0.2 s (`rise_knee_saturated_fraction_first_0p2s`), and the base reaches
-95% of its rise at 96 ms instead of 82 ms. Both runs overshoot to 0.37 and 0.41 m base height (figure, right): a PD step is
-not a standing controller.
+95% of its rise at 96 ms instead of 82 ms. The limited run overshoots to 0.369 m base height and the unlimited one to 0.413 m
+(`rise_peak_height_limited_m`, `rise_peak_height_unlimited_m`; figure, right): a PD step is not a standing controller.
 
 ### Tilting platform
 
 ![Block speeds relative to the platform with atan μ marked, and the Go2's displacement on the platform](figures/platform.png)
 
 The onsets measured in the video run are 11.66°, 22.13° and 31.09° against 11.31°, 21.80° and 30.96°
-(`platform_onset_deg`). The bias is the 2 mm/s detection threshold reached while the platform keeps tilting. Below onset
-the blocks move at a median 1.3e-5 to 1.7e-5 m/s relative to the surface, the creep level of `impratio` 100, with peaks up
-to 3.4e-4 m/s. The μ = 0.2 block shows a short rise to 8.0e-4 m/s at 10.0° that was not traced to a cause.
+(`platform_onset_deg`). The bias is the 2 mm/s detection threshold reached while the platform keeps tilting. Over
+1° < θ < 0.9 arctan μ the blocks move relative to the surface at a median of 6.4e-6, 1.2e-5 and 1.5e-5 m/s for μ = 0.2, 0.4
+and 0.6, the creep level of `impratio` 100, with maxima of 8.0e-4, 3.4e-4 and 1.7e-4 m/s
+(`platform_block_speed_before_onset`). The μ = 0.2 maximum is a short rise at 10.0° that was not traced to a cause. Taken
+over the whole interval from the end of the hold to the measured onset, the medians are 2.2e-6, 7.0e-6 and 1.2e-5 m/s.
 
 ## Failure analysis
 
@@ -448,7 +453,7 @@ practice RK4 still drifts 3.7e5 times less than `Euler` at 2 ms, but halving the
 
 ### Explicit damping diverges
 
-Shown in the oscillator figure data and the validation table: with `eulerdamp` disabled, a damper with $hb/m = 3$ multiplies
+Shown in the oscillator figure (bottom right) and the validation table: with `eulerdamp` disabled, a damper with $hb/m = 3$ multiplies
 the velocity by −2 every step. On the Go2 the joint damping alone is far from this limit (calf: $2I/b = 16$ ms at
 $I$ = 0.0163 kg m²), but a PD derivative gain computed by the controller reaches MuJoCo as an explicit actuator force. With
 the joint damping $b$ still implicit, the velocity factor per step is $1 - h(k_d + b)/(I + hb)$, stable while
@@ -478,9 +483,12 @@ equal to the τ = 4 ms prediction to 1.3e-9 (`refsafe`). With `refsafe` disabled
 On the platform the rigid-stance tipping angle is 40.7° (front-foot line against COM height, `platform_go2_tip_pred_deg`)
 and the friction limit of its feet is $\arctan 0.8 = 38.7°$. The Go2 fails earlier. Its rear feet reach $|f_t| = \mu f_n$ at
 23.5° (`platform_go2_rear_feet_at_friction_limit_deg`) and carry less than 1 N at 29.3° (`platform_go2_rear_feet_off_deg`);
-its base has moved 0.5 m down the platform at 32.7° and leaves it near 34°. As the platform tilts, load moves to the front feet (34/40 N per front/rear foot at 1°, 53/17 N
-at 20°) while the joint PD keeps asking the rear feet for a share of the downhill force: at 20° the rear friction ratio is 0.51
-against 0.39 at the front. The legs also yield, 40 mm of base travel by 20°, which moves the COM toward the front-foot line.
+its base has moved 0.5 m down the platform at 32.7° (`platform_go2_displacement_0p5m_at_deg`) and its first foot passes the
+lower edge at 33.8° (`platform_go2_foot_past_edge_deg`). As the platform tilts, load moves to the front feet (34.1/40.4 N
+per front/rear foot at 1°, 53.3/16.8 N at 20°, means over the two feet) while the joint PD keeps asking the rear feet for a
+share of the downhill force: at 20° the rear friction ratio $|f_t|/f_n$ is 0.507 against 0.386 at the front
+(`platform_go2_foot_loads`). The legs also yield, 40 mm of base travel by 20° (`platform_go2_displacement_at_20deg_m`),
+which moves the COM toward the front-foot line.
 Both are controller properties, not simulator errors; a stance controller that distributes contact forces would be
 measured against the same 38.7° and 40.7°.
 
@@ -500,20 +508,27 @@ formulas hold for constraint forces inside their cones; sliding contacts were on
 
 ## References
 
-- MuJoCo documentation, mujoco.readthedocs.io (MuJoCo 3.x): Computation chapter, sections on the soft constraint model
-  (reference acceleration, impedance, `solref`, `solimp`), on friction cones (pyramidal and elliptic, `impratio`) and on
-  numerical integration (Euler with implicit damping, RK4, implicit, implicitfast); XML reference for `option/flag`
-  (`refsafe`, `eulerdamp`), `geom` (`solmix`, `priority`, `margin`, `condim`) and `motor` (`ctrlrange`). The formulas above
-  were taken from there and then checked against `efc_KBIP`, `efc_R` and `efc_aref` to round-off; section numbers were not
-  recorded.
-- E. Todorov, T. Erez, Y. Tassa, "MuJoCo: A physics engine for model-based control", IEEE/RSJ IROS 2012.
+- MuJoCo documentation, mujoco.readthedocs.io (MuJoCo 3.x). The pages use named headings, not numbers; the parts used:
+  Computation › General framework › Numerical integration › Integrators (Euler with implicit damping, implicit,
+  implicitfast, RK4); Computation › Constraint model › Contact › Friction cones (pyramidal and elliptic); Computation ›
+  Constraint solver › Primal problem, Dual problem and Parameters (impedance $d$, reference acceleration, diagonal
+  approximation $\hat A$); Modeling › MJCF Mechanisms › Solver parameters › Reference (`solref`, `refsafe`) and › Impedance
+  (`solimp`); Modeling › MJCF Mechanisms › Contact parameters (`solmix`, `priority`, `margin`, `condim`); XML Reference ›
+  `option` (`impratio`, `cone`) and `option/flag` (`refsafe`, `eulerdamp`), `motor` (`ctrlrange`). The formulas above were
+  taken from there and then checked against `efc_KBIP`, `efc_R` and `efc_aref` to round-off.
 - E. Todorov, "Convex and analytically-invertible dynamics with contacts and constraints: Theory and implementation in
-  MuJoCo", IEEE ICRA 2014: the convex formulation whose optimality condition gives $J\dot v = a_{\rm ref} - Rf$.
-- E. Hairer, C. Lubich, G. Wanner, *Geometric Numerical Integration*, 2nd ed., Springer 2006: symplectic Euler and the
-  modified energy it conserves (backward error analysis). Section numbers not checked.
-- E. Hairer, S. P. Nørsett, G. Wanner, *Solving Ordinary Differential Equations I*, 2nd ed., Springer 1993: the RK4
-  stability function used for the energy factor.
-- H. Munthe-Kaas, "Runge-Kutta methods on Lie groups", BIT Numerical Mathematics 38(1), 1998: order conditions for
-  Runge-Kutta methods on Lie groups, the context for the RK4 order loss on the free joint.
+  MuJoCo", IEEE ICRA 2014: Section II.C, problem (5), the soft Gauss principle with regulariser $R$; Section V, eq. (23),
+  $f = R^{-1}(v^* - Jv')$ for non-sliding contacts. The paper states it at the velocity (impulse) level; the acceleration
+  form $J\dot v = a_{\rm ref} - Rf$ used here is the documentation's (Constraint solver › Primal problem).
+- E. Hairer, C. Lubich, G. Wanner, *Geometric Numerical Integration*, 2nd ed., Springer 2006: Section I.1.2 (symplectic
+  Euler), Section VI.3 (symplectic Euler is symplectic), Sections IX.1 and IX.3 (modified equation and modified Hamiltonian
+  of symplectic methods, the source of $\tilde E$) and IX.8 (long-time energy conservation, the bounded band). Section
+  titles checked against the book's table of contents.
+- E. Hairer, G. Wanner, *Solving Ordinary Differential Equations II*, 2nd ed., Springer 1996: Section IV.2, "Stability
+  analysis for explicit RK methods", the stability function $R(z) = \sum_{j=0}^{4} z^j/j!$ of the classical RK4 used for
+  the energy factor.
+- H. Munthe-Kaas, "Runge-Kutta methods on Lie groups", BIT Numerical Mathematics 38(1), 1998: cited only as the context for
+  the RK4 order loss on the free joint (order conditions for Runge-Kutta methods on Lie groups); no section of it was
+  checked against the measurement.
 - K. Zakka et al., MuJoCo Menagerie, github.com/google-deepmind/mujoco_menagerie, `unitree_go2/go2.xml` (foot `solimp`,
   `priority`, `cone`, `impratio`, motor ranges).
